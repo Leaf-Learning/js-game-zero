@@ -1,5 +1,7 @@
 # Phase 05: Runtime, Examples, And Parity
 
+**Status:** Complete as of 2026-06-29.
+
 ## Summary
 
 Finish the learner entry modes, diagnostics, examples, and parity matrix. This
@@ -53,3 +55,27 @@ phase makes the framework usable without the sandbox project editor.
 
 - Both learner entry modes are covered by unit and Playwright e2e tests, and
   every example has a deterministic browser smoke assertion.
+
+## Implementation Notes
+
+- Added the core `run` runtime with zero-boilerplate source execution, explicit
+  `run({ ...hooks })` import mode, runtime handles, canvas sizing, input
+  listener cleanup, lifecycle stepping, and diagnostics for likely typos,
+  invalid hook arity, duplicate configuration, and asset naming mistakes.
+- Exported the runtime through `@js-game-zero/core` and re-exported core symbols
+  from `@js-game-zero/browser-runtime`.
+- Added manifest-backed examples for drawing basics, actor movement,
+  sound/tone, and the sandbox starter, plus `/examples`,
+  `/examples/:slug`, `/examples/:slug/main.js`, `/runtime/core.js`, and
+  Phase 05 asset serving in the Bun server.
+- Added unit coverage for runtime modes, diagnostics, and the example manifest,
+  and Playwright coverage for the examples index, all shipped examples,
+  nonblank visible canvases, deterministic `window.__jgzExampleStatus`
+  markers, and keyboard/mouse interactions.
+- Updated `docs/feature-parity.md` to mark Phase 05 runtime/example coverage and
+  to keep Sandbox and final tutorial/docs items linked to Phase 06/07.
+- Critic iteration 1 found that the import-mode example was rendering into an
+  auto-created second canvas and that its nonblank marker was tautological. The
+  example now passes the visible page canvas into `run`, samples that canvas for
+  the marker/e2e assertion, verifies declared manifest assets exist, and removes
+  a fictional generated sound asset entry.

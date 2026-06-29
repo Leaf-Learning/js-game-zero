@@ -14,5 +14,6 @@ export * from "./events";
 export * from "./geometry";
 export * from "./input";
 export * from "./rendering";
+export * from "./runtime";
 export * from "./storage";
 export * from "./tone";
