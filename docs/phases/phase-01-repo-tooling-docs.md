@@ -1,5 +1,7 @@
 # Phase 01: Repo, Tooling, And Docs
 
+> Status: Complete
+
 ## Summary
 
 Bootstrap the repository and write the planning artifacts only. This phase must
@@ -52,3 +54,23 @@ workspace/package/server wiring.
   any later-phase framework behavior.
 - CI and local scripts exercise the same gates, except CI additionally installs
   Playwright Chromium before browser e2e tests.
+
+## Implementation notes
+
+Phase 01 is implemented as a Bun and TypeScript monorepo with core,
+browser-runtime, and sandbox workspaces; MIT licensing; repository ignore rules;
+root lint, format, docs, unit, build, and Playwright e2e scripts; and GitHub
+Actions CI that mirrors the local gate while installing Chromium for browser
+tests.
+
+The shipped runtime surface is intentionally limited to smoke wiring:
+package-name/version markers for workspace import verification, a real sandbox
+health handler returning `{ ok: true, phase: 1 }`, and a scaffold canvas page
+whose browser bundle paints a nonblank canvas for e2e verification. Later-phase
+framework mechanics, including geometry, actors, input, loaders, animation,
+audio, storage, and sandbox project editing, remain out of scope for this
+phase.
+
+The independent critic passed on the first iteration. It raised only an
+informational note that the health-handler unit test could also assert the JSON
+content type; no required implementation or test changes were requested.
