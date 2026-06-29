@@ -1,0 +1,28 @@
+{
+  "name": "js-game-zero",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "check": "bun run typecheck && bun test && bun run docs:check",
+    "dev:sandbox": "bun apps/sandbox/src/server.ts",
+    "docs:check": "bun scripts/check-docs.ts",
+    "format": "prettier --write .",
+    "test": "bun test packages apps scripts",
+    "test:e2e": "playwright test",
+    "test:unit": "bun test packages apps scripts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/bun": "^1.3.6",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  }
+}

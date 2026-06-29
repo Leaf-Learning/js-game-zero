@@ -1,0 +1,15 @@
+{
+  "name": "@js-game-zero/sandbox",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "dependencies": {
+    "@js-game-zero/browser-runtime": "workspace:*",
+    "@js-game-zero/core": "workspace:*"
+  },
+  "scripts": {
+    "dev": "bun src/server.ts",
+    "test": "bun test"
+  }
+}
