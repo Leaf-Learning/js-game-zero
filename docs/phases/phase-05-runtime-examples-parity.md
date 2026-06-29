@@ -1,6 +1,6 @@
 # Phase 05: Runtime, Examples, And Parity
 
-**Status:** Complete as of 2026-06-29.
+> Status: Complete
 
 ## Summary
 
@@ -56,7 +56,7 @@ phase makes the framework usable without the sandbox project editor.
 - Both learner entry modes are covered by unit and Playwright e2e tests, and
   every example has a deterministic browser smoke assertion.
 
-## Implementation Notes
+## Implementation notes
 
 - Added the core `run` runtime with zero-boilerplate source execution, explicit
   `run({ ...hooks })` import mode, runtime handles, canvas sizing, input
