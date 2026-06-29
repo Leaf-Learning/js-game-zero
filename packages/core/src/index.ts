@@ -4,3 +4,9 @@ export const version = "0.1.0";
 export function phaseOneSmoke(): string {
   return "core package scaffold ready";
 }
+
+export * from "./animation";
+export * from "./clock";
+export * from "./events";
+export * from "./geometry";
+export * from "./input";

@@ -11,6 +11,11 @@
     "declaration": true,
     "sourceMap": true,
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@js-game-zero/core": ["packages/core/src/index.ts"],
+      "@js-game-zero/browser-runtime": ["packages/browser-runtime/src/index.ts"]
+    },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },

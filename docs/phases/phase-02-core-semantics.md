@@ -1,5 +1,7 @@
 # Phase 02: Core Semantics
 
+> Status: Complete
+
 ## Summary
 
 Implement the framework's pure runtime semantics: geometry, input constants,
@@ -63,3 +65,29 @@ fixtures needed to drive browser events.
 
 - Every public semantic method listed in `docs/api.md` has at least one unit
   test and at least one browser-observed behavior where applicable.
+
+## Implementation notes
+
+Phase 02 implements the core pure runtime semantics in `@js-game-zero/core`:
+`Rect`/`ZRect` geometry, PGZero-style half-open collision checks, the
+`angleTo` and `distanceTo` math helpers for later Actor work, key/mouse/modifier
+constants, proxy-backed keyboard state, browser event mapping and hook dispatch,
+`Clock` scheduling, and `animate`/`Animation` with documented tweens,
+replacement behavior, stop behavior, and target interpolation.
+
+The implementation adds the documented JavaScript aliases for
+`scheduleUnique`, `scheduleInterval`, and import-mode camelCase input hooks
+while preserving snake_case PGZero-style APIs. Error behavior is covered for bad
+rect constructor shapes, unknown keyboard attributes, invalid key constants, and
+unknown tween names with nearest-name suggestions.
+
+Verification now includes focused core tests for geometry, keyboard/input,
+event dispatch, clock scheduling, and animation behavior, plus a Playwright
+Phase 2 fixture at `/phase-two` that observes real browser key presses, mouse
+click/drag movement, a scheduled clock callback, and an animation reaching its
+target through `window.__jgzTest`.
+
+The independent critic passed on the first iteration. It raised only
+non-blocking notes about extra legacy tween-name aliases and a few coverage
+strengthening opportunities; no required implementation or test changes were
+requested.
