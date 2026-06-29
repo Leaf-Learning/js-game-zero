@@ -1,5 +1,7 @@
 # Phase 06: Web Sandbox
 
+> Status: Complete
+
 ## Summary
 
 Build the Bun-backed local project sandbox: create/edit projects, manage assets,
@@ -56,3 +58,28 @@ and must treat path safety as a release blocker.
 
 - The sandbox workflow is verified through both route-level unit tests and a
   full Playwright create/edit/upload/play browser flow.
+
+## Implementation notes
+
+- Added the Bun-backed sandbox server module and wired it into the existing
+  sandbox server so `/` serves the project editor while earlier phase fixtures
+  remain available under their explicit routes.
+- Implemented project create/list/open, UTF-8 file read/write, binary-safe asset
+  upload and serving, preview HTML, `/api/health`, and the explicit
+  `--projects-root` CLI override with `.jgz-projects` as the default root.
+- Added root-confining path resolution that rejects traversal, absolute paths,
+  URL-encoded separators/traversal, backslash traversal, unsafe project names,
+  symlink project roots, symlink parents, and symlink file targets before reads
+  or writes.
+- Built the two-pane editor/preview UI with project/file selection, dirty/save
+  state, asset upload controls, Play-triggered iframe reload, and runtime
+  diagnostics/runtime-error display.
+- Added route/unit coverage for health, CRUD, file reads/writes, binary asset
+  writes, missing/invalid cases, bundle/preview routes, path safety, symlink
+  escapes, and UI state, plus a clean-root Playwright workflow covering
+  create/edit/upload/play/nonblank-canvas, diagnostics, reload persistence, and
+  earlier phase e2e compatibility.
+- Critic iteration 1 passed. The critic independently reran unit/e2e checks,
+  drove a live server with explicit `--projects-root`, probed traversal/root
+  escapes against planted out-of-root secrets, and verified hook diagnostics,
+  runtime-error display, preview rendering, and reload persistence.

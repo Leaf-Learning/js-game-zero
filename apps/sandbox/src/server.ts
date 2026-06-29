@@ -5,6 +5,7 @@ import {
   getExample,
   type ExampleManifestEntry,
 } from "../../../examples/manifest";
+import { createSandboxHandler, type SandboxHandlerOptions } from "./sandbox";
 
 const phaseOnePage = `<!doctype html>
 <html lang="en">
@@ -259,7 +260,7 @@ async function coreRuntimeBundle(): Promise<Response> {
   });
 }
 
-export async function phaseOneHandler(request: Request): Promise<Response> {
+async function legacyPhaseHandler(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === "/api/health") {
     return Response.json({ ok: true, phase: 1 });
@@ -376,6 +377,21 @@ export async function phaseOneHandler(request: Request): Promise<Response> {
   return new Response("Not found", { status: 404 });
 }
 
+export function createSandboxServerHandler(
+  options: SandboxHandlerOptions = {},
+): (request: Request) => Promise<Response> {
+  const sandboxHandler = createSandboxHandler(options);
+  return async function sandboxServerHandler(
+    request: Request,
+  ): Promise<Response> {
+    const sandboxResponse = await sandboxHandler(request);
+    if (sandboxResponse) return sandboxResponse;
+    return legacyPhaseHandler(request);
+  };
+}
+
+export const phaseOneHandler = createSandboxServerHandler();
+
 function html(source: string): Response {
   return new Response(source, {
     headers: { "content-type": "text/html; charset=utf-8" },
@@ -457,16 +473,25 @@ export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
     options: {
       host: { type: "string", default: "127.0.0.1" },
       port: { type: "string", default: "4173" },
+      "projects-root": { type: "string" },
     },
     strict: false,
   });
 
   const host = String(values.host ?? "127.0.0.1");
   const port = Number(values.port ?? "4173");
-  Bun.serve({ hostname: host, port, fetch: phaseOneHandler });
-  console.log(
-    `js-game-zero phase 1 sandbox listening on http://${host}:${port}`,
-  );
+  const projectsRoot =
+    values["projects-root"] === undefined
+      ? undefined
+      : String(values["projects-root"]);
+  Bun.serve({
+    hostname: host,
+    port,
+    fetch: createSandboxServerHandler(
+      projectsRoot === undefined ? {} : { projectsRoot },
+    ),
+  });
+  console.log(`js-game-zero sandbox listening on http://${host}:${port}`);
 }
 
 if (import.meta.main) startPhaseOneServer();

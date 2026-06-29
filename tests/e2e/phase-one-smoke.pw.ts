@@ -10,7 +10,7 @@ test("phase 1 sandbox smoke page renders a nonblank canvas", async ({
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await page.goto("/");
+  await page.goto("/phase-one");
   await expect(page).toHaveTitle("js-game-zero Phase 1 Smoke");
   await expect(
     page.getByRole("heading", { name: "js-game-zero sandbox scaffold" }),
