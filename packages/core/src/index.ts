@@ -8,8 +8,11 @@ export function phaseOneSmoke(): string {
 export * from "./actor";
 export * from "./animation";
 export * from "./assets";
+export * from "./audio";
 export * from "./clock";
 export * from "./events";
 export * from "./geometry";
 export * from "./input";
 export * from "./rendering";
+export * from "./storage";
+export * from "./tone";

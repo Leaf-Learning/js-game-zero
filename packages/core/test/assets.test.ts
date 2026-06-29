@@ -125,6 +125,8 @@ describe("sound, music, and font loaders", () => {
         play() {},
         stop() {},
         get_length: () => 0,
+        set_volume() {},
+        get_volume: () => 1,
       }),
     });
     const musicLoader = createMusicLoader({
