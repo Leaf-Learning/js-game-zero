@@ -1,5 +1,7 @@
 # Phase 03: Rendering, Assets, And Actor
 
+> Status: Complete
+
 ## Summary
 
 Add the browser rendering layer, resource loaders, text rendering, and Actor
@@ -57,3 +59,28 @@ asset-backed but does not add audio playback or sandbox project editing.
 
 - Each rendering, asset, text, and actor feature in the parity matrix has both a
   unit test and a browser e2e assertion.
+
+## Implementation notes
+
+Phase 03 implements the browser rendering and asset-backed runtime surface in
+`@js-game-zero/core`: `Screen` wraps Canvas 2D with clear/fill/gradient fill,
+blit, bounds, primitive drawing, text, and textbox rendering; asset loaders cover
+images, inert Phase 03 sound/music bytes, fonts, portable lowercase validation,
+project-scoped URL roots, cache access, `unload`, and `unload_all`; image assets
+expose the `SurfaceLike` width/height/size/rect helpers; and `Actor` covers image
+assignment, position keywords, anchors, rotation, opacity, collision delegation,
+`angle_to`, `distance_to`, and drawing.
+
+Browser examples for drawing, text, loader, and actor live in the sandbox with
+repo-owned Phase 03 assets under `examples/phase-three/assets`. The Playwright
+spec samples canvas pixels and fixture state to verify primitive rendering,
+textbox fit, symbolic text positioning, asset cache/font loading/unload, sprite
+rendering, keyboard-driven actor movement, opacity, rotation bounds, anchor
+positioning, and collision output.
+
+The critic loop drove three follow-up fixes before passing on iteration 4:
+replace the provisional font bytes with a valid repo-owned WOFF and exercise
+the default browser font loader; add real sampled-pixel gradient coverage plus
+stronger filled-primitive validation and e2e assertions; and fix symbolic
+`draw.text` positioning so named positions compose correctly with explicit
+anchors, with matching unit and browser coverage.
