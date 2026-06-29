@@ -6,10 +6,17 @@ import {
   KeyboardState,
   Screen,
   createAssetLoaders,
+  createBrowserSoundAsset,
+  createLocalStorageAdapter,
+  createMusicLoader,
+  createMusicPlayer,
+  createStorage,
   fitTextboxFontSize,
   keys,
   layoutText,
   mouse,
+  tone,
+  type MusicAsset,
 } from "@js-game-zero/core";
 
 declare global {
@@ -86,6 +93,41 @@ declare global {
       rotatedRect: { left: number; top: number; width: number; height: number };
       anchorRect: { left: number; top: number; width: number; height: number };
       colliding: boolean;
+    };
+    __jgzPhase4Sound?: {
+      ready: boolean;
+      clicked: boolean;
+      dataUrlSound: boolean;
+      activeAfterPlay: boolean;
+      activeAfterStop: boolean;
+      loop: boolean;
+      volume: number;
+      unlocked: boolean;
+      lastError: string | null;
+      errors: string[];
+    };
+    __jgzPhase4Tone?: {
+      ready: boolean;
+      clicked: boolean;
+      scheduled: number;
+      unlocked: boolean;
+      contextState: string | null;
+      errors: string[];
+    };
+    __jgzPhase4Music?: {
+      ready: boolean;
+      clicked: boolean;
+      current: string | null;
+      endedCount: number;
+      dataUrlTrack: boolean;
+      errors: string[];
+    };
+    __jgzPhase4Storage?: {
+      ready: boolean;
+      wrote: boolean;
+      loadedScore: unknown;
+      path: string;
+      errors: string[];
     };
   }
 }
@@ -468,6 +510,182 @@ if (actorCanvas) {
   })();
 }
 
+const soundButton = document.querySelector<HTMLButtonElement>(
+  "[data-jgz-phase-four-sound]",
+);
+
+if (soundButton) {
+  const state = {
+    ready: false,
+    clicked: false,
+    dataUrlSound: false,
+    activeAfterPlay: false,
+    activeAfterStop: true,
+    loop: false,
+    volume: 0,
+    unlocked: false,
+    lastError: null as string | null,
+    errors: [] as string[],
+  };
+  window.__jgzPhase4Sound = state;
+  const sound = createBrowserSoundAsset({
+    kind: "sound",
+    name: "beep.wav",
+    url: silentWavDataUrl(0.2),
+  });
+
+  soundButton.addEventListener("click", () => {
+    void (async () => {
+      state.clicked = true;
+      try {
+        sound.set_volume(0.5);
+        sound.play(-1);
+        await delay(100);
+        const afterPlay = sound.debug_state();
+        state.dataUrlSound = sound.url.startsWith("data:audio/wav");
+        state.activeAfterPlay = afterPlay.active;
+        state.loop = afterPlay.loop;
+        state.volume = afterPlay.volume;
+        state.unlocked = afterPlay.unlocked;
+        state.lastError = afterPlay.lastError;
+        sound.stop();
+        state.activeAfterStop = sound.debug_state().active;
+      } catch (error) {
+        state.errors.push(errorMessage(error));
+      }
+    })();
+  });
+  state.ready = true;
+}
+
+const toneButton = document.querySelector<HTMLButtonElement>(
+  "[data-jgz-phase-four-tone]",
+);
+
+if (toneButton) {
+  const state = {
+    ready: false,
+    clicked: false,
+    scheduled: 0,
+    unlocked: false,
+    contextState: null as string | null,
+    errors: [] as string[],
+  };
+  window.__jgzPhase4Tone = state;
+  toneButton.addEventListener("click", () => {
+    void (async () => {
+      state.clicked = true;
+      try {
+        await tone.unlock();
+        await tone.play("A4", 0.05, { volume: 0.2 });
+        const debug = tone.debug_state();
+        state.scheduled = debug.scheduled.length;
+        state.unlocked = debug.unlocked;
+        state.contextState = debug.contextState;
+      } catch (error) {
+        state.errors.push(errorMessage(error));
+      }
+    })();
+  });
+  state.ready = true;
+}
+
+const musicButton = document.querySelector<HTMLButtonElement>(
+  "[data-jgz-phase-four-music]",
+);
+
+if (musicButton) {
+  const state = {
+    ready: false,
+    clicked: false,
+    current: null as string | null,
+    endedCount: 0,
+    dataUrlTrack: false,
+    errors: [] as string[],
+  };
+  window.__jgzPhase4Music = state;
+  const dataUrl = silentWavDataUrl(0.08);
+  const loader = createMusicLoader({
+    projectId: "phase_four",
+    loadAsset: async (_url, name): Promise<MusicAsset> => {
+      if (name !== "short.wav") throw new Error("missing music fixture");
+      return {
+        kind: "music",
+        name,
+        url: dataUrl,
+      };
+    },
+  });
+  const player = createMusicPlayer({
+    loader,
+    onMusicEnd: () => {
+      state.endedCount += 1;
+      state.current = player.debug_state().current;
+    },
+  });
+
+  musicButton.addEventListener("click", () => {
+    void (async () => {
+      state.clicked = true;
+      try {
+        await player.play_once("short.wav");
+        state.current = player.debug_state().current;
+        const element = player.debug_current_element();
+        state.dataUrlTrack = Boolean(element?.src.startsWith("data:audio/wav"));
+      } catch (error) {
+        state.errors.push(errorMessage(error));
+      }
+    })();
+  });
+  state.ready = true;
+}
+
+const storageButton = document.querySelector<HTMLButtonElement>(
+  "[data-jgz-phase-four-storage]",
+);
+
+if (storageButton) {
+  const state = {
+    ready: false,
+    wrote: false,
+    loadedScore: null as unknown,
+    path: "",
+    errors: [] as string[],
+  };
+  window.__jgzPhase4Storage = state;
+  const store = createStorage({
+    adapter: createLocalStorageAdapter({
+      projectId: "phase_four_e2e",
+      path: "save/high_score",
+    }),
+  });
+
+  void (async () => {
+    try {
+      await store.load();
+      state.loadedScore = store.get("high_score") ?? null;
+      state.path = store.path;
+    } catch (error) {
+      state.errors.push(errorMessage(error));
+    } finally {
+      state.ready = true;
+    }
+  })();
+
+  storageButton.addEventListener("click", () => {
+    void (async () => {
+      try {
+        store.set("high_score", 4242);
+        await store.save();
+        state.wrote = true;
+        state.loadedScore = store.get("high_score");
+      } catch (error) {
+        state.errors.push(errorMessage(error));
+      }
+    })();
+  });
+}
+
 function createPhaseThreeLoaders() {
   return createAssetLoaders({
     projectId: "phase_three",
@@ -535,4 +753,42 @@ function rectState(rect: {
     width: rect.width,
     height: rect.height,
   };
+}
+
+function silentWavDataUrl(durationSeconds = 0.03): string {
+  const sampleRate = 8000;
+  const sampleCount = Math.floor(sampleRate * durationSeconds);
+  const bytes = new Uint8Array(44 + sampleCount * 2);
+  const view = new DataView(bytes.buffer);
+  writeAscii(bytes, 0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * 2, true);
+  writeAscii(bytes, 8, "WAVEfmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeAscii(bytes, 36, "data");
+  view.setUint32(40, sampleCount * 2, true);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return `data:audio/wav;base64,${btoa(binary)}`;
+}
+
+function writeAscii(bytes: Uint8Array, offset: number, value: string): void {
+  for (let index = 0; index < value.length; index += 1) {
+    bytes[offset + index] = value.charCodeAt(index);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

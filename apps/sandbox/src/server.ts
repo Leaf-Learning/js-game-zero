@@ -71,6 +71,35 @@ function phaseThreePage(
 </html>`;
 }
 
+function phaseFourPage(
+  title: string,
+  heading: string,
+  buttonAttribute: string,
+  buttonLabel: string,
+): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${title}</title>
+    <style>
+      body { margin: 0; font-family: system-ui, sans-serif; background: #101417; color: white; }
+      main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
+      button { appearance: none; border: 1px solid #7dd3fc; border-radius: 6px; background: #0f172a; color: white; padding: 10px 14px; font: inherit; }
+      button:focus { outline: 2px solid #facc15; outline-offset: 3px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${heading}</h1>
+      <button ${buttonAttribute}>${buttonLabel}</button>
+    </main>
+    <script type="module" src="/runtime/browser.js"></script>
+  </body>
+</html>`;
+}
+
 async function runtimeBundle(): Promise<Response> {
   const result = await Bun.build({
     entrypoints: ["packages/browser-runtime/src/browser.ts"],
@@ -137,6 +166,46 @@ export async function phaseOneHandler(request: Request): Promise<Response> {
         "js-game-zero Phase 3 Actor",
         "js-game-zero actor fixture",
         "data-jgz-phase-three-actor",
+      ),
+    );
+  }
+  if (url.pathname === "/phase-four/tone") {
+    return html(
+      phaseFourPage(
+        "js-game-zero Phase 4 Tone",
+        "js-game-zero tone fixture",
+        "data-jgz-phase-four-tone",
+        "Play Tone",
+      ),
+    );
+  }
+  if (url.pathname === "/phase-four/sound") {
+    return html(
+      phaseFourPage(
+        "js-game-zero Phase 4 Sound",
+        "js-game-zero sound fixture",
+        "data-jgz-phase-four-sound",
+        "Play Sound",
+      ),
+    );
+  }
+  if (url.pathname === "/phase-four/music") {
+    return html(
+      phaseFourPage(
+        "js-game-zero Phase 4 Music",
+        "js-game-zero music fixture",
+        "data-jgz-phase-four-music",
+        "Play Music",
+      ),
+    );
+  }
+  if (url.pathname === "/phase-four/storage") {
+    return html(
+      phaseFourPage(
+        "js-game-zero Phase 4 Storage",
+        "js-game-zero storage fixture",
+        "data-jgz-phase-four-storage",
+        "Save Score",
       ),
     );
   }

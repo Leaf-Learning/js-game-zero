@@ -1,3 +1,4 @@
+import { createBrowserSoundAsset } from "./audio";
 import { Rect, type Point, type RectLike } from "./geometry";
 
 export type AssetKind = "image" | "sound" | "music" | "font";
@@ -43,6 +44,8 @@ export type SoundAsset = LoadedAsset & {
   play(loops?: number): void;
   stop(): void;
   get_length(): number;
+  set_volume(volume: number): void;
+  get_volume(): number;
 };
 
 export type MusicAsset = LoadedAsset;
@@ -308,7 +311,7 @@ export function assetUrl(
 
 export const images = createImageLoader();
 export const sounds = createSoundLoader();
-export const music = createMusicLoader();
+export const musicAssets = createMusicLoader();
 export const fonts = createFontLoader();
 
 function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
@@ -525,21 +528,12 @@ async function loadBrowserImage(url: string): Promise<SurfaceLike> {
 
 async function loadSoundAsset(url: string, name: string): Promise<SoundAsset> {
   const bytes = await fetchBytes(url);
-  return {
+  return createBrowserSoundAsset({
     kind: "sound",
     name,
     url,
     bytes,
-    play(_loops?: number): void {
-      // Playback is intentionally added in Phase 04.
-    },
-    stop(): void {
-      // Playback is intentionally added in Phase 04.
-    },
-    get_length(): number {
-      return 0;
-    },
-  };
+  });
 }
 
 async function loadMusicAsset(url: string, name: string): Promise<MusicAsset> {
