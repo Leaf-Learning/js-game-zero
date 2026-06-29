@@ -1,17 +1,5 @@
 import { parseArgs } from "node:util";
 
-const { values } = parseArgs({
-  args: Bun.argv.slice(2),
-  options: {
-    host: { type: "string", default: "127.0.0.1" },
-    port: { type: "string", default: "4173" }
-  },
-  strict: false
-});
-
-const host = String(values.host ?? "127.0.0.1");
-const port = Number(values.port ?? "4173");
-
 const phaseOnePage = `<!doctype html>
 <html lang="en">
   <head>
@@ -37,32 +25,46 @@ async function runtimeBundle(): Promise<Response> {
   const result = await Bun.build({
     entrypoints: ["packages/browser-runtime/src/browser.ts"],
     target: "browser",
-    format: "esm"
+    format: "esm",
   });
   if (!result.success || !result.outputs[0]) {
     return new Response("Failed to build runtime", { status: 500 });
   }
   return new Response(await result.outputs[0].text(), {
-    headers: { "content-type": "text/javascript; charset=utf-8" }
+    headers: { "content-type": "text/javascript; charset=utf-8" },
   });
 }
 
-Bun.serve({
-  hostname: host,
-  port,
-  async fetch(request) {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/health") {
-      return Response.json({ ok: true, phase: 1 });
-    }
-    if (url.pathname === "/runtime/browser.js") return runtimeBundle();
-    if (url.pathname === "/" || url.pathname === "/phase-one") {
-      return new Response(phaseOnePage, {
-        headers: { "content-type": "text/html; charset=utf-8" }
-      });
-    }
-    return new Response("Not found", { status: 404 });
+export async function phaseOneHandler(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/health") {
+    return Response.json({ ok: true, phase: 1 });
   }
-});
+  if (url.pathname === "/runtime/browser.js") return runtimeBundle();
+  if (url.pathname === "/" || url.pathname === "/phase-one") {
+    return new Response(phaseOnePage, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  return new Response("Not found", { status: 404 });
+}
 
-console.log(`js-game-zero phase 1 sandbox listening on http://${host}:${port}`);
+export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
+  const { values } = parseArgs({
+    args,
+    options: {
+      host: { type: "string", default: "127.0.0.1" },
+      port: { type: "string", default: "4173" },
+    },
+    strict: false,
+  });
+
+  const host = String(values.host ?? "127.0.0.1");
+  const port = Number(values.port ?? "4173");
+  Bun.serve({ hostname: host, port, fetch: phaseOneHandler });
+  console.log(
+    `js-game-zero phase 1 sandbox listening on http://${host}:${port}`,
+  );
+}
+
+if (import.meta.main) startPhaseOneServer();

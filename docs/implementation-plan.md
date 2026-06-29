@@ -32,7 +32,7 @@ private GitHub publishing.
 
 ## Verification Criteria
 
-- `bun run typecheck` passes.
+- `bun run lint` passes TypeScript and non-mutating Prettier checks.
 - `bun test` passes all unit tests.
 - `bun run docs:check` confirms all required docs and phase specs exist.
 - `bun run test:e2e` passes browser verification.

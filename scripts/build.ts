@@ -3,20 +3,20 @@ const builds = [
     entrypoints: ["packages/core/src/index.ts"],
     outdir: "packages/core/dist",
     target: "browser" as const,
-    format: "esm" as const
+    format: "esm" as const,
   },
   {
     entrypoints: ["packages/browser-runtime/src/index.ts"],
     outdir: "packages/browser-runtime/dist",
     target: "browser" as const,
-    format: "esm" as const
+    format: "esm" as const,
   },
   {
     entrypoints: ["packages/browser-runtime/src/browser.ts"],
     outdir: "packages/browser-runtime/dist/browser",
     target: "browser" as const,
-    format: "iife" as const
-  }
+    format: "iife" as const,
+  },
 ];
 
 for (const build of builds) {

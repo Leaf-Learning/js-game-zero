@@ -32,6 +32,7 @@ function update() {
 
 ```sh
 bun install
+bun run lint
 bun test
 bun run test:e2e
 bun run build

@@ -1,4 +1,6 @@
-const target = document.querySelector<HTMLCanvasElement>("[data-jgz-phase-one-canvas]");
+const target = document.querySelector<HTMLCanvasElement>(
+  "[data-jgz-phase-one-canvas]",
+);
 
 if (target) {
   const ctx = target.getContext("2d");
