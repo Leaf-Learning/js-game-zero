@@ -24,6 +24,7 @@ function draw() {
 function on_mouse_down() {
   clicks = Math.min(6, clicks + 1);
   storage.set("clicks", clicks);
-  sounds.get("click.wav").play();
+  storage.set("soundPropertyAccess", typeof sounds.click.play === "function");
+  sounds.click.play();
   tone.play("C5", 0.08, { volume: 0.15 });
 }

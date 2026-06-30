@@ -135,7 +135,8 @@ function update(dt) {
 ## Screen And Text Contract
 
 Screen drawing methods throw `TypeError` for invalid coordinate or rect shapes.
-`fill(color, gcolor)` draws a top-to-bottom gradient. `draw.text` supports
+`clear()` resets the canvas to opaque black. `fill(color, gcolor)` draws a
+top-to-bottom gradient. `draw.text` supports
 `fontname`, `fontsize`, `color`, `background`, positioning keywords, `width`,
 `widthem`, `lineheight`, `align`, `owidth`, `ocolor`, `shadow`, `scolor`,
 `gcolor`, `alpha`, `anchor`, and `angle`. `draw.textbox` chooses the largest

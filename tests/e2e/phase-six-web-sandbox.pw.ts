@@ -56,8 +56,9 @@ test("phase 6 sandbox create, edit, upload, play, diagnostics, and reload workfl
   const validSource = `WIDTH = 320;
 HEIGHT = 180;
 let player = null;
-images.load("player.svg").then((image) => {
-  player = image;
+images.load("player.svg").then(() => {
+  player = images.player;
+  storage.set("imagePropertyAccess", player.get_width());
 });
 
 function draw() {

@@ -56,6 +56,7 @@ test("phase 3 drawing example renders canvas primitives and gradient pixels", as
             gradientTop: number[];
             gradientBottom: number[];
             clearedAlpha: number;
+            clearPixel: number[];
             rectPixel: number[];
             linePixel: number[];
             circlePixel: number[];
@@ -72,7 +73,8 @@ test("phase 3 drawing example renders canvas primitives and gradient pixels", as
   expect(state.gradientTop.slice(0, 3)).not.toEqual(
     state.gradientBottom.slice(0, 3),
   );
-  expect(state.clearedAlpha).toBe(0);
+  expect(state.clearedAlpha).toBe(255);
+  expect(state.clearPixel).toEqual([0, 0, 0, 255]);
   expect(state.rectPixel[0]).toBeGreaterThan(180);
   expect(state.rectPixel[1]).toBeLessThan(100);
   expectOpaque(state.linePixel);

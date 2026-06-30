@@ -166,7 +166,11 @@ export class Screen {
   }
 
   clear(): void {
-    this.context.clearRect(0, 0, this.width, this.height);
+    this.context.save();
+    this.context.globalAlpha = 1;
+    this.context.fillStyle = "black";
+    this.context.fillRect(0, 0, this.width, this.height);
+    this.context.restore();
   }
 
   fill(color: Color, gcolor?: Color): void {

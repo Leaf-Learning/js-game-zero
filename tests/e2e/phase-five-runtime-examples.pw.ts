@@ -148,6 +148,10 @@ for (const example of exampleManifest) {
           (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
             .__jgzExampleStatus?.storage?.clicks === 1,
       );
+      if (example.slug === "sound-tone") {
+        const clicked = await waitForStatus(page, example.slug);
+        expect(clicked.storage?.soundPropertyAccess).toBe(true);
+      }
     }
 
     const finalStatus = await waitForStatus(page, example.slug);

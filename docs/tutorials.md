@@ -24,8 +24,8 @@ function draw() {
 ```
 
 The runtime creates a canvas, injects `screen`, and calls `draw` each frame.
-Use `screen.clear()` when you want a transparent frame; use `screen.fill()` for
-a solid or gradient background.
+Use `screen.clear()` to reset the frame to black, or `screen.fill()` for a solid
+or gradient background.
 
 ## Tutorial 2: Actors And Input
 

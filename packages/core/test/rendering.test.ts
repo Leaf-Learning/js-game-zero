@@ -139,10 +139,12 @@ describe("Screen canvas drawing", () => {
   test("clears, fills, gradients, and reports bounds", () => {
     const { screen, context } = mockScreen();
     screen.clear();
-    expect(context.operations.at(-1)).toEqual({
-      name: "clearRect",
-      args: [0, 0, 120, 80],
-    });
+    expect(context.fillStyle).toBe("black");
+    expect(context.operations.slice(-3)).toEqual([
+      { name: "save", args: [] },
+      { name: "fillRect", args: [0, 0, 120, 80] },
+      { name: "restore", args: [] },
+    ]);
 
     screen.fill([1, 2, 3]);
     expect(context.fillStyle).toBe("rgb(1, 2, 3)");
@@ -166,7 +168,7 @@ describe("Screen canvas drawing", () => {
     });
   });
 
-  test("samples real browser gradient pixels on a small canvas", async () => {
+  test("samples real browser clear and gradient pixels on a small canvas", async () => {
     const result = await Bun.build({
       entrypoints: ["packages/core/src/index.ts"],
       target: "browser",
@@ -191,15 +193,22 @@ describe("Screen canvas drawing", () => {
         canvas.width = 4;
         canvas.height = 4;
         const screen = new Screen(canvas);
+        screen.fill("#ff00ff");
+        screen.clear();
         screen.fill("#ff0000", "#0000ff");
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Missing browser canvas context.");
+        screen.clear();
+        const clearPixel = [...context.getImageData(2, 2, 1, 1).data];
+        screen.fill("#ff0000", "#0000ff");
         return {
+          clearPixel,
           top: [...context.getImageData(2, 0, 1, 1).data],
           bottom: [...context.getImageData(2, 3, 1, 1).data],
         };
       }, source);
 
+      expect(pixels.clearPixel).toEqual([0, 0, 0, 255]);
       expect(pixels.top[0]).toBeGreaterThan(pixels.bottom[0] ?? 0);
       expect(pixels.bottom[2]).toBeGreaterThan(pixels.top[2] ?? 0);
       expect(pixels.top[3]).toBe(255);

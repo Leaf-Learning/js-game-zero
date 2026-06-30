@@ -320,6 +320,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
   const cache = new Map<string, T>();
   const aliases = new Map<string, string>();
   const pending = new Map<string, Promise<T>>();
+  const lazyProperties = new Map<string, T>();
   const target: AssetLoader<T> = {
     kind: options.kind,
     projectId,
@@ -399,15 +400,20 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
       const resolved = aliases.get(requested) ?? requested;
       const deleted = cache.delete(resolved);
       for (const [alias, canonical] of [...aliases.entries()]) {
-        if (canonical === resolved || alias === requested)
+        if (canonical === resolved || alias === requested) {
           aliases.delete(alias);
+          lazyProperties.delete(alias);
+        }
       }
+      lazyProperties.delete(requested);
+      lazyProperties.delete(resolved);
       return deleted;
     },
     unload_all(): void {
       cache.clear();
       aliases.clear();
       pending.clear();
+      lazyProperties.clear();
     },
     unloadAll(): void {
       this.unload_all();
@@ -430,9 +436,180 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
       ) {
         return Reflect.get(loader, property, receiver);
       }
-      return loader.load(property);
+      const requested = validateAssetName(
+        options.kind,
+        property,
+        options.extensions,
+      );
+      const cached = getCached(cache, aliases, requested);
+      if (cached) return cached;
+      const existing = lazyProperties.get(requested);
+      if (existing) return existing;
+      const lazy = createLazyAsset<T>({
+        assetBaseUrl,
+        directory: options.directory,
+        extensions: options.extensions,
+        get: () => getCached(cache, aliases, requested),
+        kind: options.kind,
+        load: () => loader.load(requested),
+        projectId,
+        requested,
+      });
+      lazyProperties.set(requested, lazy);
+      return lazy;
     },
   });
+}
+
+type LazyAssetContext<T> = {
+  readonly assetBaseUrl: string;
+  readonly directory: string;
+  readonly extensions: readonly string[];
+  readonly get: () => T | undefined;
+  readonly kind: AssetKind;
+  readonly load: () => Promise<T>;
+  readonly projectId: string;
+  readonly requested: string;
+};
+
+function createLazyAsset<T>(context: LazyAssetContext<T>): T {
+  if (context.kind === "image") {
+    return createLazySurface(
+      context as unknown as LazyAssetContext<SurfaceLike>,
+    ) as T;
+  }
+  if (context.kind === "sound") {
+    return createLazySoundAsset(
+      context as unknown as LazyAssetContext<SoundAsset>,
+    ) as T;
+  }
+  return createLazyLoadedAsset(context);
+}
+
+function createLazySurface(
+  context: LazyAssetContext<SurfaceLike>,
+): SurfaceLike {
+  void context.load().catch(() => undefined);
+
+  const loaded = (): SurfaceLike => {
+    const asset = context.get();
+    if (!asset) throw new MissingAssetError(context.kind, context.requested);
+    return asset;
+  };
+
+  return {
+    get source(): DrawableImage {
+      return loaded().source;
+    },
+    get_width(): number {
+      return loaded().get_width();
+    },
+    get_height(): number {
+      return loaded().get_height();
+    },
+    get_size(): Point {
+      return loaded().get_size();
+    },
+    get_rect(options?: SurfaceRectOptions): Rect {
+      return loaded().get_rect(options);
+    },
+  };
+}
+
+function createLazySoundAsset(
+  context: LazyAssetContext<SoundAsset>,
+): SoundAsset {
+  let loaded: SoundAsset | undefined;
+  let loading: Promise<SoundAsset> | null = null;
+
+  const current = (): SoundAsset | undefined => loaded ?? context.get();
+  const ensure = (): Promise<SoundAsset> => {
+    const asset = current();
+    if (asset) {
+      loaded = asset;
+      return Promise.resolve(asset);
+    }
+    loading ??= context.load().then((resolved) => {
+      loaded = resolved;
+      return resolved;
+    });
+    return loading;
+  };
+  const whenLoaded = (callback: (asset: SoundAsset) => void): void => {
+    const asset = current();
+    if (asset) {
+      loaded = asset;
+      callback(asset);
+      return;
+    }
+    void ensure().then(callback);
+  };
+
+  return {
+    kind: "sound",
+    name: context.requested,
+    get url(): string {
+      return current()?.url ?? fallbackAssetUrl(context);
+    },
+    play(loops = 0): void {
+      whenLoaded((asset) => asset.play(loops));
+    },
+    stop(): void {
+      const asset = current();
+      if (asset) {
+        loaded = asset;
+        asset.stop();
+        return;
+      }
+      void loading?.then((resolved) => resolved.stop());
+    },
+    get_length(): number {
+      return current()?.get_length() ?? 0;
+    },
+    set_volume(volume: number): void {
+      whenLoaded((asset) => asset.set_volume(volume));
+    },
+    get_volume(): number {
+      return current()?.get_volume() ?? 1;
+    },
+  };
+}
+
+function createLazyLoadedAsset<T>(context: LazyAssetContext<T>): T {
+  void context.load().catch(() => undefined);
+  const placeholder = {
+    kind: context.kind,
+    name: context.requested,
+    url: fallbackAssetUrl(context),
+  };
+
+  return new Proxy(placeholder, {
+    get(target, property, receiver) {
+      if (property === "then") return undefined;
+      const loaded = context.get() as Record<PropertyKey, unknown> | undefined;
+      if (loaded && property in loaded) return loaded[property];
+      return Reflect.get(target, property, receiver);
+    },
+  }) as T;
+}
+
+function fallbackAssetUrl(context: {
+  readonly assetBaseUrl: string;
+  readonly directory: string;
+  readonly extensions: readonly string[];
+  readonly projectId: string;
+  readonly requested: string;
+}): string {
+  const [candidate = context.requested] = candidateNames(
+    context.requested,
+    context.extensions,
+  );
+  return assetUrl(
+    context.assetBaseUrl,
+    context.projectId,
+    context.directory,
+    candidate,
+  );
 }
 
 async function loadFirstMatchingAsset<T>(

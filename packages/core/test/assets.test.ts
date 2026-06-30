@@ -112,6 +112,25 @@ describe("image loader cache and surfaces", () => {
       MissingAssetError,
     );
   });
+
+  test("returns cached image assets through PGZero-style property access", () => {
+    const loader = createImageLoader({ projectId: "phase_three" });
+    const player = surface(20, 10);
+
+    loader.define("player.svg", player);
+
+    const assets = loader as unknown as Record<string, SurfaceLike>;
+    const playerProperty = assets.player;
+    expect(playerProperty).toBe(player);
+    if (!playerProperty) throw new Error("Missing player property asset.");
+    expect(playerProperty.get_width()).toBe(20);
+    expect(playerProperty.get_rect({ center: [50, 60] })).toMatchObject({
+      left: 40,
+      top: 55,
+      width: 20,
+      height: 10,
+    });
+  });
 });
 
 describe("sound, music, and font loaders", () => {
@@ -160,6 +179,66 @@ describe("sound, music, and font loaders", () => {
     expect(musicLoader.unload("theme.ogg")).toBe(true);
     fontLoader.unloadAll();
     expect(fontLoader.cache_keys()).toEqual([]);
+  });
+
+  test("returns cached sound assets through PGZero-style property access", () => {
+    const loops: number[] = [];
+    const sound: SoundAsset = {
+      kind: "sound",
+      name: "tap.wav",
+      url: "/assets/default/sounds/tap.wav",
+      play(loopCount = 0) {
+        loops.push(loopCount);
+      },
+      stop() {},
+      get_length: () => 0.25,
+      set_volume() {},
+      get_volume: () => 1,
+    };
+    const soundLoader = createSoundLoader({ projectId: "phase_three" });
+
+    soundLoader.define("tap.wav", sound);
+    const assets = soundLoader as unknown as Record<string, SoundAsset>;
+
+    expect(assets.tap).toBe(sound);
+    const tap = assets.tap;
+    if (!tap) throw new Error("Missing tap property asset.");
+    tap.play(2);
+    expect(loops).toEqual([2]);
+    expect(tap.get_length()).toBe(0.25);
+  });
+
+  test("lazy sound property access loads before playing", async () => {
+    const loops: number[] = [];
+    const soundLoader = createSoundLoader({
+      projectId: "phase_three",
+      async loadAsset(url, name): Promise<SoundAsset> {
+        return {
+          kind: "sound",
+          name,
+          url,
+          play(loopCount = 0) {
+            loops.push(loopCount);
+          },
+          stop() {},
+          get_length: () => 0.5,
+          set_volume() {},
+          get_volume: () => 1,
+        };
+      },
+    });
+    const assets = soundLoader as unknown as Record<string, SoundAsset>;
+    const tap = assets.tap;
+    if (!tap) throw new Error("Missing lazy tap property asset.");
+
+    expect(typeof tap.play).toBe("function");
+    expect((tap as unknown as { then?: unknown }).then).toBeUndefined();
+    tap.play(1);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(loops).toEqual([1]);
+    expect(soundLoader.has("tap.wav")).toBe(true);
+    expect(assets.tap).toBe(soundLoader.get("tap"));
   });
 
   test("default font loader fetches bytes and loads a FontFace when available", async () => {

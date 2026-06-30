@@ -187,10 +187,44 @@ test("phase 7 tutorial-backed examples launch from docs routes", async ({
       expect(status.storage?.drawn).toBe(true);
       expect(numeric(status.storage?.score)).toBeGreaterThan(0);
     }
+    if (slug === "sound-tone") {
+      const canvas = page.locator("[data-jgz-example-canvas]");
+      await canvas.click({ position: { x: 160, y: 82 } });
+      await page.waitForFunction(
+        () =>
+          (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
+            .__jgzExampleStatus?.storage?.soundPropertyAccess === true,
+      );
+    }
 
     expect(errors).toEqual([]);
     expect(pageErrors).toEqual([]);
   }
+});
+
+test("phase 7 browser runtime clears to opaque black", async ({ page }) => {
+  await page.goto("/examples");
+  const pixel = await page.evaluate(async () => {
+    const runtimeUrl = "/runtime/core.js";
+    const runtime = (await import(runtimeUrl)) as {
+      Screen: new (canvas: HTMLCanvasElement) => {
+        fill(color: string): void;
+        clear(): void;
+      };
+    };
+    const canvas = document.createElement("canvas");
+    canvas.width = 2;
+    canvas.height = 2;
+    document.body.append(canvas);
+    const screen = new runtime.Screen(canvas);
+    screen.fill("#ff00ff");
+    screen.clear();
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return [];
+    return [...context.getImageData(0, 0, 1, 1).data] as number[];
+  });
+
+  expect(pixel).toEqual([0, 0, 0, 255]);
 });
 
 test("phase 7 sandbox guide workflow runs from a clean project", async ({

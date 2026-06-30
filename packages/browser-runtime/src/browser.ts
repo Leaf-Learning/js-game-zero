@@ -47,6 +47,7 @@ declare global {
       gradientTop: number[];
       gradientBottom: number[];
       clearedAlpha: number;
+      clearPixel: number[];
       rectPixel: number[];
       linePixel: number[];
       circlePixel: number[];
@@ -266,7 +267,8 @@ const drawingCanvas = document.querySelector<HTMLCanvasElement>(
 if (drawingCanvas) {
   const screen = createReadbackScreen(drawingCanvas);
   screen.clear();
-  const clearedAlpha = samplePixel(drawingCanvas, 4, 4)[3] ?? 0;
+  const clearPixel = samplePixel(drawingCanvas, 4, 4);
+  const clearedAlpha = clearPixel[3] ?? 0;
   screen.fill("#10243d", "#8fd0ff");
   screen.draw.filled_rect([16, 18, 48, 34], "#e84855");
   screen.draw.line([0, 0], [120, 90], "#f6c85f", 4);
@@ -284,6 +286,7 @@ if (drawingCanvas) {
     gradientTop: samplePixel(drawingCanvas, 4, 4),
     gradientBottom: samplePixel(drawingCanvas, 4, drawingCanvas.height - 4),
     clearedAlpha,
+    clearPixel,
     rectPixel: samplePixel(drawingCanvas, 28, 28),
     linePixel: samplePixel(drawingCanvas, 20, 15),
     circlePixel: samplePixel(drawingCanvas, 126, 42),
