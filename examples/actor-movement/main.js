@@ -2,6 +2,7 @@ WIDTH = 320;
 HEIGHT = 180;
 TITLE = "Actor Movement";
 
+const playerSize = images.player.get_size();
 let player = new Actor("player.svg", { center: [72, 92] });
 
 function update(dt) {
@@ -17,4 +18,5 @@ function draw() {
   screen.draw.line([0, 130], [WIDTH, 130], "#facc15", 3);
   player.draw();
   storage.set("spriteReady", player.width > 0);
+  storage.set("spriteSize", playerSize);
 }

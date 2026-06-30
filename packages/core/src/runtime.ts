@@ -4,6 +4,10 @@ import {
   createAssetLoaders,
   validateAssetName,
   type AssetLoaders,
+  type FontAsset,
+  type MusicAsset,
+  type SoundAsset,
+  type SurfaceLike,
 } from "./assets";
 import { Clock, setActiveClock } from "./clock";
 import {
@@ -80,9 +84,18 @@ export type RunOptions = Partial<GameModule> & {
   readonly container?: HTMLElement;
   readonly diagnostics?: (diagnostic: RuntimeDiagnostic) => void;
   readonly keyboardTarget?: EventTarget;
+  readonly preload?: readonly string[];
+  readonly preloadedAssets?: PreloadedAssets;
   readonly projectId?: string;
   readonly scheduler?: RuntimeScheduler;
   readonly storage?: Storage | StorageAdapter;
+};
+
+export type PreloadedAssets = {
+  readonly images?: Record<string, SurfaceLike>;
+  readonly sounds?: Record<string, SoundAsset>;
+  readonly music?: Record<string, MusicAsset>;
+  readonly fonts?: Record<string, FontAsset>;
 };
 
 export type GameHandle = {
@@ -329,6 +342,8 @@ function createRuntimeContext(
   const screen = new Screen(canvas, canvas.getContext("2d"), {
     imageLoader: loaders.images,
   });
+  definePreloadedAssets(loaders, options.preloadedAssets);
+  preloadAssets(loaders, options.preload);
   const keyboard = new KeyboardState();
   const clock = new Clock();
   const storage = resolveStorage(options);
@@ -776,6 +791,40 @@ function resolveStorage(options: RunOptions): Storage {
     return createStorage({ adapter: options.storage as StorageAdapter });
   }
   return options.storage as Storage;
+}
+
+function preloadAssets(
+  loaders: AssetLoaders,
+  assets: readonly string[] = [],
+): void {
+  for (const asset of assets) {
+    const [directory, ...rest] = asset.split("/");
+    const name = rest.join("/");
+    if (!directory || !name) continue;
+    if (directory === "images") void loaders.images.load(name);
+    else if (directory === "sounds") void loaders.sounds.load(name);
+    else if (directory === "music") void loaders.music.load(name);
+    else if (directory === "fonts") void loaders.fonts.load(name);
+  }
+}
+
+function definePreloadedAssets(
+  loaders: AssetLoaders,
+  assets: PreloadedAssets | undefined,
+): void {
+  if (!assets) return;
+  for (const [name, asset] of Object.entries(assets.images ?? {})) {
+    loaders.images.define(name, asset);
+  }
+  for (const [name, asset] of Object.entries(assets.sounds ?? {})) {
+    loaders.sounds.define(name, asset);
+  }
+  for (const [name, asset] of Object.entries(assets.music ?? {})) {
+    loaders.music.define(name, asset);
+  }
+  for (const [name, asset] of Object.entries(assets.fonts ?? {})) {
+    loaders.fonts.define(name, asset);
+  }
 }
 
 function createCanvas(): RuntimeCanvas {

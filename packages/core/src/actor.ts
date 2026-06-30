@@ -216,15 +216,15 @@ export class Actor {
   }
 
   get width(): number {
-    return this._surface?.get_width() ?? 0;
+    return this.rect().width;
   }
 
   get height(): number {
-    return this._surface?.get_height() ?? 0;
+    return this.rect().height;
   }
 
   get topleft(): Point {
-    return this.baseRect().topleft;
+    return this.rect().topleft;
   }
 
   set topleft(value: Point) {
@@ -232,7 +232,7 @@ export class Actor {
   }
 
   get topright(): Point {
-    return this.baseRect().topright;
+    return this.rect().topright;
   }
 
   set topright(value: Point) {
@@ -240,7 +240,7 @@ export class Actor {
   }
 
   get bottomleft(): Point {
-    return this.baseRect().bottomleft;
+    return this.rect().bottomleft;
   }
 
   set bottomleft(value: Point) {
@@ -248,7 +248,7 @@ export class Actor {
   }
 
   get bottomright(): Point {
-    return this.baseRect().bottomright;
+    return this.rect().bottomright;
   }
 
   set bottomright(value: Point) {
@@ -256,7 +256,7 @@ export class Actor {
   }
 
   get midtop(): Point {
-    return this.baseRect().midtop;
+    return this.rect().midtop;
   }
 
   set midtop(value: Point) {
@@ -264,7 +264,7 @@ export class Actor {
   }
 
   get midleft(): Point {
-    return this.baseRect().midleft;
+    return this.rect().midleft;
   }
 
   set midleft(value: Point) {
@@ -272,7 +272,7 @@ export class Actor {
   }
 
   get midright(): Point {
-    return this.baseRect().midright;
+    return this.rect().midright;
   }
 
   set midright(value: Point) {
@@ -280,7 +280,7 @@ export class Actor {
   }
 
   get midbottom(): Point {
-    return this.baseRect().midbottom;
+    return this.rect().midbottom;
   }
 
   set midbottom(value: Point) {
@@ -288,7 +288,7 @@ export class Actor {
   }
 
   get center(): Point {
-    return this.baseRect().center;
+    return this.rect().center;
   }
 
   set center(value: Point) {
@@ -296,7 +296,7 @@ export class Actor {
   }
 
   get left(): number {
-    return this.baseRect().left;
+    return this.rect().left;
   }
 
   set left(value: number) {
@@ -306,7 +306,7 @@ export class Actor {
   }
 
   get top(): number {
-    return this.baseRect().top;
+    return this.rect().top;
   }
 
   set top(value: number) {
@@ -316,7 +316,7 @@ export class Actor {
   }
 
   get right(): number {
-    return this.baseRect().right;
+    return this.rect().right;
   }
 
   set right(value: number) {
@@ -326,7 +326,7 @@ export class Actor {
   }
 
   get bottom(): number {
-    return this.baseRect().bottom;
+    return this.rect().bottom;
   }
 
   set bottom(value: number) {
@@ -495,9 +495,17 @@ export class Actor {
     return new Rect(
       this.x - anchorX,
       this.y - anchorY,
-      this.width,
-      this.height,
+      this.surfaceWidth(),
+      this.surfaceHeight(),
     );
+  }
+
+  private surfaceWidth(): number {
+    return this._surface?.get_width() ?? 0;
+  }
+
+  private surfaceHeight(): number {
+    return this._surface?.get_height() ?? 0;
   }
 
   private setRectPosition(
@@ -540,8 +548,8 @@ export class Actor {
 
   private anchorOffset(): Point {
     return [
-      horizontalAnchorOffset(this._anchor[0], this.width),
-      verticalAnchorOffset(this._anchor[1], this.height),
+      horizontalAnchorOffset(this._anchor[0], this.surfaceWidth()),
+      verticalAnchorOffset(this._anchor[1], this.surfaceHeight()),
     ];
   }
 }

@@ -142,7 +142,7 @@ function examplePage(example: ExampleManifestEntry): string {
     example.mode === "import"
       ? `<script type="module" src="/examples/${example.slug}/main.js"></script>`
       : `<script type="module">
-import { run } from "/runtime/core.js";
+	import { ImageSurface, run } from "/runtime/core.js";
 
 const status = {
   slug: ${JSON.stringify(example.slug)},
@@ -173,15 +173,40 @@ canvas.addEventListener("mousedown", () => {
   status.interactions.mouse = true;
 });
 
+const declaredAssets = ${JSON.stringify(example.assets)};
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("Failed to preload " + url)), { once: true });
+    image.src = url;
+  });
+}
+
+async function preloadDeclaredAssets() {
+  const preloaded = { images: {} };
+  for (const asset of declaredAssets) {
+    if (!asset.startsWith("images/")) continue;
+    const name = asset.slice("images/".length);
+    const image = await loadImage("/assets/phase_five/" + asset);
+    preloaded.images[name] = new ImageSurface(image);
+  }
+  return preloaded;
+}
+
 const source = await fetch("/examples/${example.slug}/main.js").then((response) => {
   if (!response.ok) throw new Error("Failed to load example source");
   return response.text();
 });
+const preloadedAssets = await preloadDeclaredAssets();
 
 const handle = run(source, {
   canvas,
   projectId: "phase_five",
   assetBaseUrl: "/assets",
+  preload: ${JSON.stringify(example.assets)},
+  preloadedAssets,
   diagnostics(diagnostic) {
     status.diagnostics.push(diagnostic);
   }

@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test";
 import {
   collectRuntimeDiagnostics,
   clock,
+  ImageSurface,
   keyboard,
   keys,
   run,
   screen,
+  type DrawableImage,
   type RuntimeCanvas,
   type RuntimeDiagnostic,
+  type SurfaceLike,
 } from "@js-game-zero/core";
 
 class MockContext {
@@ -56,6 +59,14 @@ class MemoryAdapter {
 
 function canvas(): RuntimeCanvas {
   return new MockCanvas() as unknown as RuntimeCanvas;
+}
+
+function surface(width = 20, height = 10): SurfaceLike {
+  return new ImageSurface(
+    { width, height } as unknown as DrawableImage,
+    width,
+    height,
+  );
 }
 
 function keyEvent(type: "keydown" | "keyup", code: string, key: string): Event {
@@ -235,6 +246,34 @@ describe("runtime explicit import mode", () => {
     expect(second.keyboard.a).toBe(false);
     expect(leakedClockCallback).toBe(false);
     second.stop();
+  });
+
+  test("preloads assets for PGZero-style image property access", async () => {
+    const target = canvas();
+    const handle = run(
+      `
+let loadedSize = images.player.get_size();
+
+function update() {
+  storage.set("playerSize", loadedSize);
+}
+`,
+      {
+        autostart: false,
+        canvas: target,
+        preloadedAssets: {
+          images: {
+            "player.svg": surface(32, 24),
+          },
+        },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    handle.step(0);
+
+    expect(handle.storage.get("playerSize")).toEqual([32, 24]);
+    handle.stop();
   });
 });
 

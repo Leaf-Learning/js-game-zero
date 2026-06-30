@@ -131,6 +131,23 @@ describe("image loader cache and surfaces", () => {
       height: 10,
     });
   });
+
+  test("returns loaded image assets through property access after preload", async () => {
+    const loader = createImageLoader({
+      projectId: "phase_three",
+      async loadAsset(_url, name) {
+        if (name === "player.svg") return surface(32, 24);
+        throw new Error("missing");
+      },
+    });
+
+    await loader.load("player.svg");
+    const player = (loader as unknown as Record<string, SurfaceLike>).player;
+
+    if (!player) throw new Error("Missing loaded player property asset.");
+    expect(player.get_size()).toEqual([32, 24]);
+    expect(player.get_rect().size).toEqual([32, 24]);
+  });
 });
 
 describe("sound, music, and font loaders", () => {

@@ -92,6 +92,7 @@ declare global {
       opacity: number;
       rect: { left: number; top: number; width: number; height: number };
       rotatedRect: { left: number; top: number; width: number; height: number };
+      publicSize: [number, number];
       anchorRect: { left: number; top: number; width: number; height: number };
       colliding: boolean;
     };
@@ -457,6 +458,7 @@ if (actorCanvas) {
     opacity: 1,
     rect: { left: 0, top: 0, width: 0, height: 0 },
     rotatedRect: { left: 0, top: 0, width: 0, height: 0 },
+    publicSize: [0, 0] as [number, number],
     anchorRect: { left: 0, top: 0, width: 0, height: 0 },
     colliding: false,
   };
@@ -495,6 +497,7 @@ if (actorCanvas) {
       state.opacity = actor.opacity;
       state.rect = rectState(actor.rect());
       state.rotatedRect = rectState(actor.rect());
+      state.publicSize = [actor.width, actor.height];
       state.anchorRect = rectState(anchored.rect());
       state.colliding = actor.colliderect(obstacle);
     };

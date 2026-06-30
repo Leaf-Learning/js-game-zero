@@ -167,6 +167,10 @@ describe("Actor behavior", () => {
     expect(actor.opacity).toBe(0);
     actor.angle = 90;
     const rect = actor.rect();
+    expect(Math.round(actor.width)).toBe(10);
+    expect(Math.round(actor.height)).toBe(20);
+    expect(Math.round(actor.left)).toBe(5);
+    expect(Math.round(actor.top)).toBe(-5);
     expect(Math.round(rect.width)).toBe(10);
     expect(Math.round(rect.height)).toBe(20);
     expect(Math.round(rect.left)).toBe(5);

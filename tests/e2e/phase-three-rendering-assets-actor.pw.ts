@@ -260,6 +260,7 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
             pos: [number, number];
             opacity: number;
             rotatedRect: { width: number; height: number };
+            publicSize: [number, number];
             colliding: boolean;
           };
         }
@@ -271,6 +272,8 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
   expect(moved.opacity).toBe(0.55);
   expect(moved.rotatedRect.width).toBeGreaterThan(32);
   expect(moved.rotatedRect.height).toBeGreaterThan(24);
+  expect(moved.publicSize[0]).toBe(moved.rotatedRect.width);
+  expect(moved.publicSize[1]).toBe(moved.rotatedRect.height);
   expect(moved.colliding).toBe(true);
   expect(errors).toEqual([]);
   expect(pageErrors).toEqual([]);

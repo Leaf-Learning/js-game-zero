@@ -64,6 +64,10 @@ type RunOptions = HookModule & {
   root?: string;
   canvas?: HTMLCanvasElement;
   assetBaseUrl?: string;
+  preload?: string[];
+  preloadedAssets?: {
+    images?: Record<string, SurfaceLike>;
+  };
   storage?: StorageAdapter;
   diagnostics?: (diagnostic: Diagnostic) => void;
 };
@@ -78,6 +82,9 @@ function run(
 `diagnostics`. `stop` removes event listeners and stops scheduled animation
 callbacks. `reload` is used by the sandbox preview and must preserve project
 assets while resetting framework state.
+Asset property access such as `images.player` is synchronous for assets seeded
+through `preloadedAssets` or loaded before use; dynamic sandbox code can also use
+`await images.load("player.svg")` before reading dimensions.
 
 ## Screen Drawing
 

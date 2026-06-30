@@ -142,6 +142,8 @@ for (const example of exampleManifest) {
             (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
               .__jgzExampleStatus?.storage?.spriteReady === true,
         );
+        const actorStatus = await waitForStatus(page, example.slug);
+        expect(actorStatus.storage?.spriteSize).toEqual([36, 28]);
       }
     }
 
