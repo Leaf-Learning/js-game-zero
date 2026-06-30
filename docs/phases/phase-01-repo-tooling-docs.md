@@ -12,7 +12,7 @@ workspace/package/server wiring.
 
 - Initialize the workspace as a git repo.
 - Install or verify Bun.
-- Add MIT license, `.gitignore`, root `package.json`, TypeScript config,
+- Add LGPL-3.0-only license, `.gitignore`, root `package.json`, TypeScript config,
   Playwright config, build/docs scripts, lint/format/test scripts, and GitHub
   Actions CI.
 - Create package workspaces for core, browser runtime, and sandbox.
@@ -58,7 +58,7 @@ workspace/package/server wiring.
 ## Implementation notes
 
 Phase 01 is implemented as a Bun and TypeScript monorepo with core,
-browser-runtime, and sandbox workspaces; MIT licensing; repository ignore rules;
+browser-runtime, and sandbox workspaces; LGPL-3.0-only licensing; repository ignore rules;
 root lint, format, docs, unit, build, and Playwright e2e scripts; and GitHub
 Actions CI that mirrors the local gate while installing Chromium for browser
 tests.

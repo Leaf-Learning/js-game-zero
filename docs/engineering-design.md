@@ -4,8 +4,9 @@
 
 `js-game-zero` is a clean-room JavaScript framework for teaching browser game
 development with a Pygame Zero-like model. It must be beginner friendly, browser
-native, MIT licensed, and behavior-compatible with Pygame Zero's documented
-surface without copying LGPL implementation code.
+native, LGPL-3.0-only licensed in line with Pygame Zero, and behavior-compatible
+with Pygame Zero's documented surface without copying upstream implementation
+code.
 
 ## Architecture
 
@@ -227,11 +228,12 @@ missing assets/tweens.
 
 ## Clean-Room License Boundary
 
-Pygame Zero's upstream implementation is LGPL-3.0. This project is MIT. Public
-documentation, observable behavior, and tests may guide compatibility, but code,
-comments, structure, and assets from upstream are not copied into this repo.
-Where an algorithm is common and simple, it is implemented from first principles
-and covered with independent tests.
+Pygame Zero's upstream implementation is LGPL-3.0, and this project uses the
+same LGPL-3.0-only license family. Public documentation, observable behavior,
+and tests may guide compatibility, but code, comments, structure, and assets
+from upstream are not copied into this repo. Where an algorithm is common and
+simple, it is implemented from first principles and covered with independent
+tests.
 
 ## Sandbox Design
 

@@ -34,7 +34,7 @@ completed system can be used, tested, and reviewed.
 - Tutorial code extraction tests execute or compile every fenced JavaScript
   tutorial snippet.
 - README command smoke tests verify documented commands exist in `package.json`.
-- License tests verify project-authored files are MIT and no LGPL upstream code
+- License tests verify project manifests are LGPL-3.0-only and no upstream code
   or assets were copied into package source.
 
 ## E2E Verification
@@ -64,8 +64,8 @@ js-game-zero --json visibility` reports `PRIVATE`.
   clean-room compatibility.
 - Added docs checks for required docs, complete phase status/sections, Markdown
   phase links, README command smoke coverage, tutorial snippet compilation,
-  tutorial routes, CI step order, build metadata, MIT package licenses, and
-  copied LGPL/upstream source markers.
+  tutorial routes, CI step order, build metadata, LGPL package licenses, and
+  copied upstream source markers.
 - Added the `storage-save` example plus Playwright coverage for tutorial-backed
   example routes and a clean-root sandbox guide workflow with an isolated
   sandbox server.

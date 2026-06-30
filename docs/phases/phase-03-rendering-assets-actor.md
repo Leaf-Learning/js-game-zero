@@ -53,7 +53,7 @@ asset-backed but does not add audio playback or sandbox project editing.
 - All Phase 2 tests still pass.
 - New rendering/loader/actor unit tests pass in Bun.
 - New Playwright examples pass in Chromium with no console/page errors.
-- Browser examples use repo-owned MIT-compatible assets.
+- Browser examples use repo-owned assets.
 
 ## Verification Criteria
 

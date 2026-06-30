@@ -5,7 +5,7 @@
 Implementation is divided into seven phases. Each phase has a detailed spec in
 `docs/phases/` with its own steps, unit verification, and browser e2e
 verification. The plan implements a Bun + TypeScript monorepo, a clean-room
-MIT-licensed core framework, browser runtime, examples, sandbox, docs, CI, and
+LGPL-3.0-only core framework, browser runtime, examples, sandbox, docs, CI, and
 private GitHub publishing.
 
 ## Phase Index
@@ -25,7 +25,7 @@ private GitHub publishing.
 - Rendering: Canvas 2D.
 - Audio: Web Audio plus HTML audio fallback.
 - Storage: `localStorage` in browser, Bun file adapter in sandbox projects.
-- Public license: MIT.
+- Public license: LGPL-3.0-only, aligned with upstream Pygame Zero.
 - Upstream compatibility: behavior-compatible clean-room implementation.
 - Repository target: initialize `/Users/taha/Projects/js-game-zero` and publish
   a private GitHub repository named `js-game-zero`.

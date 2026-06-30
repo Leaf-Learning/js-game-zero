@@ -1,9 +1,9 @@
 # js-game-zero
 
-`js-game-zero` is a clean-room, MIT-licensed JavaScript framework inspired by
-Pygame Zero's beginner-friendly programming model. It lets new game developers
-write tiny browser games with either PGZero-like globals or normal JavaScript
-imports.
+`js-game-zero` is a clean-room, LGPL-3.0-only JavaScript framework inspired by
+[Pygame Zero](https://github.com/lordmauve/pgzero)'s beginner-friendly
+programming model. It lets new game developers write tiny browser games with
+either PGZero-like globals or normal JavaScript imports.
 
 ```js
 WIDTH = 800;
@@ -111,9 +111,10 @@ browser tests.
 
 ## License And Upstream Compatibility
 
-This project is MIT licensed. It targets behavior compatibility with Pygame
-Zero's public API and documentation, but it is not a source-code translation of
-Pygame Zero, whose upstream implementation is LGPL-3.0. Project source,
-examples, tests, docs, and package assets are authored for this repository under
-MIT-compatible terms; CI includes a clean-room license check that rejects LGPL
-license markers in package source and example assets.
+This project is licensed under GNU LGPL version 3 only (`LGPL-3.0-only`), in
+line with upstream [Pygame Zero](https://github.com/lordmauve/pgzero). It targets
+behavior compatibility with Pygame Zero's public API and documentation, but it is
+not a source-code translation of Pygame Zero. Project source, examples, tests,
+docs, and package assets are authored for this repository; CI includes a
+clean-room check that rejects copied upstream source markers in package source
+and example assets.

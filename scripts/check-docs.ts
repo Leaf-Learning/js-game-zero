@@ -265,18 +265,21 @@ async function checkBuildMetadata(): Promise<void> {
 
 async function checkLicenseBoundary(): Promise<void> {
   const licenseText = await Bun.file("LICENSE").text();
-  if (!/^MIT License/m.test(licenseText)) {
-    fail("LICENSE must be the MIT License.");
+  if (
+    !licenseText.includes("GNU LESSER GENERAL PUBLIC LICENSE") ||
+    !licenseText.includes("Version 3, 29 June 2007")
+  ) {
+    fail("LICENSE must be GNU LGPL version 3.");
   }
 
   for (const packagePath of packageManifests) {
     const manifest = await readPackageJson(packagePath);
-    if (manifest.license !== "MIT") {
-      fail(`${packagePath} must declare MIT license.`);
+    if (manifest.license !== "LGPL-3.0-only") {
+      fail(`${packagePath} must declare LGPL-3.0-only license.`);
     }
   }
 
-  const forbidden = /\b(LGPL|GNU Lesser|Pygame Zero|pygame[_-]?zero)\b/i;
+  const forbidden = /\b(GNU Lesser|Pygame Zero|pygame[_-]?zero)\b/i;
   for (const path of await listProjectFiles(cleanRoomScanRoots)) {
     if (path.includes("/dist/") || path.includes("/node_modules/")) continue;
     if (/pygame[_-]?zero|lgpl/i.test(path)) {

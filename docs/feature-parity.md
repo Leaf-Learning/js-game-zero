@@ -2,9 +2,9 @@
 
 ## Summary
 
-The matrix tracks the public Pygame Zero features that `js-game-zero` must
-support. Each row must have unit tests and browser e2e coverage before v1 is
-considered complete.
+The matrix tracks the public [Pygame Zero](https://github.com/lordmauve/pgzero)
+features that `js-game-zero` must support. Each row must have unit tests and
+browser e2e coverage before v1 is considered complete.
 
 | Area      | Feature                                  | Unit Coverage            | Browser E2E Coverage                   |
 | --------- | ---------------------------------------- | ------------------------ | -------------------------------------- |
