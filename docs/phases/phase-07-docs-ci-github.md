@@ -1,5 +1,7 @@
 # Phase 07: Docs, CI, And GitHub
 
+> Status: Complete
+
 ## Summary
 
 Finish public documentation, CI, package build artifacts, and private GitHub
@@ -54,3 +56,26 @@ js-game-zero --json visibility` reports `PRIVATE`.
 
 - Documentation, examples, CI, and private GitHub publishing are all verified
   with executable tests or concrete CLI checks, not manual inspection alone.
+
+## Implementation notes
+
+- Expanded README, API, tutorial, sandbox, phase, and parity docs to cover
+  install, commands, examples, sandbox workflow, build output, license, and
+  clean-room compatibility.
+- Added docs checks for required docs, complete phase status/sections, Markdown
+  phase links, README command smoke coverage, tutorial snippet compilation,
+  tutorial routes, CI step order, build metadata, MIT package licenses, and
+  copied LGPL/upstream source markers.
+- Added the `storage-save` example plus Playwright coverage for tutorial-backed
+  example routes and a clean-root sandbox guide workflow with an isolated
+  sandbox server.
+- Updated CI to use a frozen Bun install, lint/typecheck, unit tests, docs
+  checks, build, Playwright Chromium installation with dependencies, and e2e.
+- Created and pushed the private `js-game-zero` GitHub repository with `gh`;
+  `gh repo view js-game-zero --json visibility` reported `PRIVATE`.
+- Critic feedback tightened the phase status checker, private remote
+  verification, Markdown link parsing, and sandbox e2e root isolation. The final
+  critic pass found only the GitHub Actions run blocked before startup by the
+  account Actions budget; local frozen install, checks, build, e2e, and
+  independent browser verification were run manually, matching the user-approved
+  exception for Actions budget failures.

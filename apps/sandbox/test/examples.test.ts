@@ -33,6 +33,7 @@ test("phase 5 example manifest exposes complete smoke metadata", async () => {
     "drawing-basics",
     "sandbox-starter",
     "sound-tone",
+    "storage-save",
   ]);
 });
 

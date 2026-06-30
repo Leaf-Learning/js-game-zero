@@ -18,6 +18,30 @@ Projects are stored under `.jgz-projects` by default. For local testing, pass
 `--projects-root <path>` to `bun run dev:sandbox --` to use an explicit
 alternate root.
 
+## Starter Project
+
+New projects include `main.js` and empty `images`, `sounds`, `music`, and
+`fonts` directories. A minimal starter can draw without any assets:
+
+```js
+WIDTH = 320;
+HEIGHT = 180;
+TITLE = "Sandbox Starter";
+
+function draw() {
+  screen.fill("#10243d");
+  screen.draw.filled_circle([160, 90], 42, "#38bdf8");
+  screen.draw.text("js-game-zero", [22, 24], {
+    fontsize: 24,
+    color: "#ffffff",
+  });
+}
+```
+
+Asset uploads preserve bytes and must target one of the conventional asset
+directories. For example, uploading `player.svg` creates
+`images/player.svg`, and learner code can use `new Actor("player.svg")`.
+
 ## Server API
 
 - `GET /api/health`
@@ -28,6 +52,16 @@ alternate root.
 - `PUT /api/projects/:project/assets/:path`
 - `GET /play/:project`
 - `GET /runtime/browser.js`
+
+All project and file routes reject path traversal, absolute paths, encoded
+separators, backslash traversal, unsafe project names, and symlink escapes.
+
+## Browser Verification Workflow
+
+The Playwright workflow starts from a clean project root, creates a project,
+edits `main.js`, uploads an SVG asset, presses Play, checks the preview canvas,
+enters a deliberate `drwa` typo to verify diagnostics, then reloads the page to
+confirm project and file persistence.
 
 ## Verification Criteria
 

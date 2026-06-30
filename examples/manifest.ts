@@ -62,6 +62,18 @@ export const exampleManifest = [
     expectsInput: "keyboard",
     visual: true,
   },
+  {
+    slug: "storage-save",
+    title: "Storage Save",
+    mode: "global",
+    entryPoint: "examples/storage-save/main.js",
+    assets: [],
+    smokeMarker: "__jgzExampleStatus",
+    tutorial: "examples/storage-save/README.md",
+    e2eScenario: "persists and draws a score with storage",
+    expectsInput: "none",
+    visual: true,
+  },
 ] as const satisfies readonly ExampleManifestEntry[];
 
 export function getExample(slug: string): ExampleManifestEntry | undefined {

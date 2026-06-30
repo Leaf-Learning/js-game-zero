@@ -24,9 +24,9 @@ considered complete.
 | Animation | all tween names and `Animation.stop`     | tween/animation tests    | animation example test                 |
 | Audio     | sound effects and music queue            | mocked audio tests       | user gesture audio test                |
 | Tone      | note names, frequencies, duration guard  | tone tests               | tone play state test                   |
-| Storage   | JSON persistence and errors              | storage tests            | reload persistence test                |
+| Storage   | JSON persistence and errors              | storage tests            | reload persistence + storage tutorial  |
 | Sandbox   | project CRUD, files, assets, diagnostics | Phase 06 route/UI tests  | Phase 06 create/edit/upload/play test  |
-| Docs      | README, API, tutorials, phase specs      | docs check               | Phase 07 tutorial launch tests         |
+| Docs      | README, API, tutorials, phase specs, CI  | docs check + smoke tests | Phase 07 tutorial launch tests         |
 
 ## Verification Criteria
 

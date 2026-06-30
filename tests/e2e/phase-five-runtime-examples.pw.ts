@@ -99,6 +99,10 @@ for (const example of exampleManifest) {
     if (example.slug === "drawing-basics") {
       expect(initial.storage?.drawn).toBe(true);
     }
+    if (example.slug === "storage-save") {
+      expect(initial.storage?.drawn).toBe(true);
+      expect(numeric(initial.storage?.score)).toBeGreaterThan(0);
+    }
 
     const canvas = page.locator("[data-jgz-example-canvas]");
     if (example.expectsInput === "keyboard") {
