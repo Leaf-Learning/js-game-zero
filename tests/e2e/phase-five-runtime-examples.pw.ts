@@ -103,6 +103,15 @@ for (const example of exampleManifest) {
       expect(initial.storage?.drawn).toBe(true);
       expect(numeric(initial.storage?.score)).toBeGreaterThan(0);
     }
+    if (example.slug === "animation-basics") {
+      await page.waitForFunction(
+        () =>
+          (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
+            .__jgzExampleStatus?.storage?.animated === true,
+      );
+      const animated = await waitForStatus(page, example.slug);
+      expect(numeric(animated.storage?.x)).toBeGreaterThan(80);
+    }
 
     const canvas = page.locator("[data-jgz-example-canvas]");
     if (example.expectsInput === "keyboard") {

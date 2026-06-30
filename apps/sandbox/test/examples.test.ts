@@ -30,6 +30,7 @@ test("phase 5 example manifest exposes complete smoke metadata", async () => {
 
   expect([...slugs].sort()).toEqual([
     "actor-movement",
+    "animation-basics",
     "drawing-basics",
     "sandbox-starter",
     "sound-tone",

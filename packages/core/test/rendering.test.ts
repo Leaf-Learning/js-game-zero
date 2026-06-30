@@ -314,7 +314,7 @@ describe("Screen canvas drawing", () => {
     });
     expect(context.operations).toContainEqual({
       name: "drawImage",
-      args: [expect.anything(), 1, 2, 30, 40],
+      args: [expect.anything(), 1, 2],
     });
     expect(context.operations).toContainEqual({
       name: "drawImage",

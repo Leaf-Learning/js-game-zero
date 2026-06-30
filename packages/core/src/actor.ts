@@ -68,6 +68,34 @@ const allowedOptionKeys = new Set<string>([
   "imageLoader",
 ]);
 
+class SizedSurface implements SurfaceLike {
+  constructor(
+    private readonly inner: SurfaceLike,
+    private readonly width: number,
+    private readonly height: number,
+  ) {}
+
+  get source(): SurfaceLike["source"] {
+    return this.inner.source;
+  }
+
+  get_width(): number {
+    return this.width;
+  }
+
+  get_height(): number {
+    return this.height;
+  }
+
+  get_size(): Point {
+    return [this.width, this.height];
+  }
+
+  get_rect(): Rect {
+    return new Rect(0, 0, this.width, this.height);
+  }
+}
+
 export class Actor {
   private readonly loader: Pick<
     AssetLoader<SurfaceLike>,
@@ -369,6 +397,70 @@ export class Actor {
     return distanceTo(this.pos, actorTargetPoint(target));
   }
 
+  copy(): Rect {
+    return this.rect().copy();
+  }
+
+  move(x: number, y: number): Rect;
+  move(offset: Point): Rect;
+  move(xOrOffset: number | Point, y?: number): Rect {
+    if (Array.isArray(xOrOffset)) return this.rect().move(xOrOffset);
+    return this.rect().move(xOrOffset, y as number);
+  }
+
+  move_ip(x: number, y: number): void;
+  move_ip(offset: Point): void;
+  move_ip(xOrOffset: number | Point, y?: number): void {
+    const rect = this.baseRect();
+    if (Array.isArray(xOrOffset)) rect.move_ip(xOrOffset);
+    else rect.move_ip(xOrOffset, y as number);
+    this.setPosFromBaseRect(rect);
+  }
+
+  inflate(x: number, y: number): Rect;
+  inflate(size: Point): Rect;
+  inflate(xOrSize: number | Point, y?: number): Rect {
+    if (Array.isArray(xOrSize)) return this.rect().inflate(xOrSize);
+    return this.rect().inflate(xOrSize, y as number);
+  }
+
+  inflate_ip(x: number, y: number): void;
+  inflate_ip(size: Point): void;
+  inflate_ip(xOrSize: number | Point, y?: number): void {
+    const rect = this.baseRect();
+    if (Array.isArray(xOrSize)) rect.inflate_ip(xOrSize);
+    else rect.inflate_ip(xOrSize, y as number);
+    this.applyBaseRectGeometry(rect);
+  }
+
+  normalize(): void {
+    const rect = this.baseRect();
+    rect.normalize();
+    this.applyBaseRectGeometry(rect);
+  }
+
+  clamp(other: RectLike | Actor): Rect {
+    return this.rect().clamp(other instanceof Actor ? other.rect() : other);
+  }
+
+  clip(other: RectLike | Actor): Rect {
+    return this.rect().clip(other instanceof Actor ? other.rect() : other);
+  }
+
+  union(other: RectLike | Actor): Rect {
+    return this.rect().union(other instanceof Actor ? other.rect() : other);
+  }
+
+  unionall(others: Array<RectLike | Actor>): Rect {
+    return this.rect().unionall(
+      others.map((other) => (other instanceof Actor ? other.rect() : other)),
+    );
+  }
+
+  fit(other: RectLike | Actor): Rect {
+    return this.rect().fit(other instanceof Actor ? other.rect() : other);
+  }
+
   collidepoint(point: Point): boolean;
   collidepoint(x: number, y: number): boolean;
   collidepoint(pointOrX: Point | number, y?: number): boolean {
@@ -420,6 +512,15 @@ export class Actor {
   }
 
   private setPosFromBaseRect(rect: Rect): void {
+    const [anchorX, anchorY] = this.anchorOffset();
+    this._pos = [rect.left + anchorX, rect.top + anchorY];
+    this.positionSource = { key: "pos", value: this.pos };
+  }
+
+  private applyBaseRectGeometry(rect: Rect): void {
+    if (this._surface) {
+      this._surface = new SizedSurface(this._surface, rect.width, rect.height);
+    }
     const [anchorX, anchorY] = this.anchorOffset();
     this._pos = [rect.left + anchorX, rect.top + anchorY];
     this.positionSource = { key: "pos", value: this.pos };

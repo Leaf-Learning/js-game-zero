@@ -16,6 +16,7 @@ const animationsByTarget = new WeakMap<
   object,
   Map<string, Animation<object>>
 >();
+let activeAnimationClock: Clock | null = null;
 
 export const tweens = Object.freeze({
   linear(n: number): number {
@@ -107,7 +108,7 @@ export class Animation<T extends object = object> {
   constructor(
     object: T,
     options: AnimationOptions<T>,
-    scheduler: Clock = clock,
+    scheduler: Clock = getAnimationClock(),
   ) {
     if (typeof object !== "object" || object === null) {
       throw new TypeError("Animation target must be an object.");
@@ -220,6 +221,20 @@ export function animate<T extends object>(
   options: AnimationOptions<T>,
 ): Animation<T> {
   return new Animation(object, options);
+}
+
+export function withAnimationClock<T>(scheduler: Clock, callback: () => T): T {
+  const previous = activeAnimationClock;
+  activeAnimationClock = scheduler;
+  try {
+    return callback();
+  } finally {
+    activeAnimationClock = previous;
+  }
+}
+
+function getAnimationClock(): Clock {
+  return activeAnimationClock ?? clock;
 }
 
 function replaceExistingAnimation(

@@ -1,11 +1,11 @@
 import { Actor, type ActorOptions } from "./actor";
-import { Animation, animate } from "./animation";
+import { Animation, animate, withAnimationClock } from "./animation";
 import {
   createAssetLoaders,
   validateAssetName,
   type AssetLoaders,
 } from "./assets";
-import { clock as defaultClock, Clock } from "./clock";
+import { Clock, setActiveClock } from "./clock";
 import {
   createInputDispatcher,
   getHook,
@@ -15,13 +15,17 @@ import {
 } from "./events";
 import { Rect, ZRect } from "./geometry";
 import {
-  keyboard as defaultKeyboard,
   KeyboardState,
   keymods,
   keys,
   mouse,
+  setActiveKeyboard,
 } from "./input";
-import { createBrowserSoundAsset, createMusicPlayer } from "./audio";
+import {
+  createBrowserSoundAsset,
+  createMusicPlayer,
+  setActiveMusicPlayer,
+} from "./audio";
 import { Screen, setScreen } from "./rendering";
 import {
   createLocalStorageAdapter,
@@ -188,10 +192,8 @@ export function run(
   let context: RuntimeContext;
   if (mode === "global") {
     context = createRuntimeContext(options, diagnostics, emit, undefined);
-    module = executeZeroBoilerplateSource(
-      String(moduleOrSource),
-      context,
-      emit,
+    module = withRuntimeContext(context, () =>
+      executeZeroBoilerplateSource(String(moduleOrSource), context, emit),
     );
     context = finalizeRuntimeContext(context, module, options, emit);
   } else {
@@ -206,9 +208,18 @@ export function run(
 
   const hooks: InputHooks = game;
   const dispatcher = createInputDispatcher(hooks, context.keyboard);
-  const detachInput = attachDispatcher(dispatcher, context.canvas, options);
+  const detachInput = attachDispatcher(
+    dispatcher,
+    context,
+    context.canvas,
+    options,
+  );
+  const musicEndHook = getHook(hooks, "on_music_end") as
+    (() => void) | undefined;
   context.music.set_on_music_end(
-    getHook(hooks, "on_music_end") as (() => void) | undefined,
+    musicEndHook
+      ? () => withRuntimeContext(context, () => musicEndHook())
+      : undefined,
   );
 
   let stopped = false;
@@ -318,8 +329,8 @@ function createRuntimeContext(
   const screen = new Screen(canvas, canvas.getContext("2d"), {
     imageLoader: loaders.images,
   });
-  const keyboard = module ? defaultKeyboard : new KeyboardState();
-  const clock = module ? defaultClock : new Clock();
+  const keyboard = new KeyboardState();
+  const clock = new Clock();
   const storage = resolveStorage(options);
   const onMusicEnd = module
     ? (getHook(module, "on_music_end") as (() => void) | undefined)
@@ -467,14 +478,16 @@ function runFrame(
   context: RuntimeContext,
   dt: number,
 ): void {
-  setScreen(context.screen);
-  context.clock.tick(dt);
-  if (module.update) {
-    const parameters = getParameterNames(module.update);
-    if (parameters.length === 0) module.update();
-    else module.update(dt);
-  }
-  module.draw?.();
+  withRuntimeContext(context, () => {
+    setScreen(context.screen);
+    context.clock.tick(dt);
+    if (module.update) {
+      const parameters = getParameterNames(module.update);
+      if (parameters.length === 0) module.update();
+      else module.update(dt);
+    }
+    module.draw?.();
+  });
 }
 
 function diagnoseGameModule(
@@ -678,6 +691,7 @@ function validDimension(value: unknown): value is number {
 
 function attachDispatcher(
   dispatcher: ReturnType<typeof createInputDispatcher>,
+  context: RuntimeContext,
   canvas: RuntimeCanvas,
   options: RunOptions,
 ): () => void {
@@ -691,7 +705,54 @@ function attachDispatcher(
   ) {
     return () => {};
   }
-  return dispatcher.attach(canvas, keyboardTarget);
+  const keyDown = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleKeyDown(event as KeyboardEvent),
+    );
+  const keyUp = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleKeyUp(event as KeyboardEvent),
+    );
+  const mouseDown = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleMouseDown(event as MouseEvent, canvas),
+    );
+  const mouseUp = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleMouseUp(event as MouseEvent, canvas),
+    );
+  const mouseMove = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleMouseMove(event as MouseEvent, canvas),
+    );
+
+  keyboardTarget.addEventListener("keydown", keyDown);
+  keyboardTarget.addEventListener("keyup", keyUp);
+  canvas.addEventListener("mousedown", mouseDown);
+  canvas.addEventListener("mouseup", mouseUp);
+  canvas.addEventListener("mousemove", mouseMove);
+
+  return () => {
+    keyboardTarget.removeEventListener("keydown", keyDown);
+    keyboardTarget.removeEventListener("keyup", keyUp);
+    canvas.removeEventListener("mousedown", mouseDown);
+    canvas.removeEventListener("mouseup", mouseUp);
+    canvas.removeEventListener("mousemove", mouseMove);
+  };
+}
+
+function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
+  const previousKeyboard = setActiveKeyboard(context.keyboard);
+  const previousClock = setActiveClock(context.clock);
+  const previousMusic = setActiveMusicPlayer(context.music);
+  setScreen(context.screen);
+  try {
+    return withAnimationClock(context.clock, callback);
+  } finally {
+    setActiveMusicPlayer(previousMusic);
+    setActiveClock(previousClock);
+    setActiveKeyboard(previousKeyboard);
+  }
 }
 
 function resolveStorage(options: RunOptions): Storage {

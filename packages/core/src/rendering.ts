@@ -206,13 +206,7 @@ export class Screen {
       this.context.drawImage(source, target[0], target[1]);
       return;
     }
-    this.context.drawImage(
-      source,
-      target.left,
-      target.top,
-      target.width,
-      target.height,
-    );
+    this.context.drawImage(source, target.left, target.top);
   }
 
   private drawLine(

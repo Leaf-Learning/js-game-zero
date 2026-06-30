@@ -196,6 +196,71 @@ describe("Actor behavior", () => {
     expect(actor.contains([1, 1, 2, 2])).toBe(true);
   });
 
+  test("delegates the wider Rect helper surface", () => {
+    const actor = new Actor("hero.svg", {
+      topleft: [10, 20],
+      loader: loaderWithSprites(),
+    });
+
+    expect(actor.copy()).toMatchObject({
+      left: 10,
+      top: 20,
+      width: 20,
+      height: 10,
+    });
+    expect(actor.move(5, -5)).toMatchObject({
+      left: 15,
+      top: 15,
+      width: 20,
+      height: 10,
+    });
+    actor.move_ip([5, -5]);
+    expect(actor.topleft).toEqual([15, 15]);
+    expect(actor.inflate(10, 4)).toMatchObject({
+      left: 10,
+      top: 13,
+      width: 30,
+      height: 14,
+    });
+    actor.inflate_ip([10, 4]);
+    expect(actor.rect()).toMatchObject({
+      left: 10,
+      top: 13,
+      width: 30,
+      height: 14,
+    });
+    expect(actor.clamp([0, 0, 25, 25])).toMatchObject({
+      left: -2.5,
+      top: 11,
+      width: 30,
+      height: 14,
+    });
+    expect(actor.clip([20, 10, 10, 10])).toMatchObject({
+      left: 20,
+      top: 13,
+      width: 10,
+      height: 7,
+    });
+    expect(actor.union([0, 0, 5, 5])).toMatchObject({
+      left: 0,
+      top: 0,
+      width: 40,
+      height: 27,
+    });
+    expect(actor.unionall([[50, 50, 5, 5]])).toMatchObject({
+      left: 10,
+      top: 13,
+      width: 45,
+      height: 42,
+    });
+    expect(actor.fit([0, 0, 15, 15])).toMatchObject({
+      left: 0,
+      top: 4,
+      width: 15,
+      height: 7,
+    });
+  });
+
   test("reports angle and distance to points and actors", () => {
     const loader = loaderWithSprites();
     const actor = new Actor("hero.svg", [0, 0], { loader });

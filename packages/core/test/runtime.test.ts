@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   collectRuntimeDiagnostics,
+  clock,
   keyboard,
   keys,
   run,
@@ -120,6 +121,31 @@ function on_key_down(key) {
 
     handle.stop();
   });
+
+  test("advances learner animate calls on the game clock", () => {
+    const handle = run(
+      `
+WIDTH = 160;
+HEIGHT = 90;
+let target = { x: 0 };
+animate(target, { x: 10, duration: 1 });
+
+function update() {
+  storage.set("x", target.x);
+}
+`,
+      {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    handle.step(0.5);
+
+    expect(handle.storage.get("x")).toBe(5);
+    handle.stop();
+  });
 });
 
 describe("runtime explicit import mode", () => {
@@ -141,6 +167,7 @@ describe("runtime explicit import mode", () => {
           updates += dt as number;
         },
         onKeyDown(key: unknown) {
+          expect(keyboard.right).toBe(true);
           if (key === keys.RIGHT) keyDowns += 1;
         },
       },
@@ -154,7 +181,8 @@ describe("runtime explicit import mode", () => {
     expect(draws).toBe(1);
     expect(updates).toBe(0.1);
     expect(keyDowns).toBe(1);
-    expect(keyboard.right).toBe(true);
+    expect(handle.keyboard.right).toBe(true);
+    expect(keyboard.right).toBe(false);
 
     handle.stop();
     target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
@@ -163,6 +191,50 @@ describe("runtime explicit import mode", () => {
     expect((globalThis as typeof globalThis & { draw?: unknown }).draw).toBe(
       undefined,
     );
+  });
+
+  test("isolates imported keyboard and clock between handles", () => {
+    const firstCanvas = canvas();
+    const secondCanvas = canvas();
+    let importedKeyboardWasActive = false;
+    let leakedClockCallback = false;
+    let secondUpdates = 0;
+
+    const first = run(
+      {
+        update() {
+          clock.schedule(() => {
+            leakedClockCallback = true;
+          }, 0.1);
+        },
+        onKeyDown() {
+          importedKeyboardWasActive = keyboard.a === true;
+        },
+      },
+      { autostart: false, canvas: firstCanvas },
+    );
+
+    first.step(0);
+    firstCanvas.dispatchEvent(keyEvent("keydown", "KeyA", "a"));
+    expect(importedKeyboardWasActive).toBe(true);
+    expect(first.keyboard.a).toBe(true);
+    expect(keyboard.a).toBe(false);
+    first.stop();
+
+    const second = run(
+      {
+        update(dt: unknown) {
+          secondUpdates += dt as number;
+        },
+      },
+      { autostart: false, canvas: secondCanvas },
+    );
+    second.step(0.2);
+
+    expect(secondUpdates).toBe(0.2);
+    expect(second.keyboard.a).toBe(false);
+    expect(leakedClockCallback).toBe(false);
+    second.stop();
   });
 });
 

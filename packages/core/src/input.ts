@@ -239,7 +239,34 @@ export class KeyboardState {
   }
 }
 
-export const keyboard = new KeyboardState();
+const defaultKeyboard = new KeyboardState();
+let activeKeyboard: KeyboardState | null = null;
+
+export function setActiveKeyboard(
+  nextKeyboard: KeyboardState | null,
+): KeyboardState | null {
+  const previous = activeKeyboard;
+  activeKeyboard = nextKeyboard;
+  return previous;
+}
+
+export function getActiveKeyboard(): KeyboardState {
+  return activeKeyboard ?? defaultKeyboard;
+}
+
+export const keyboard = new Proxy({} as KeyboardState, {
+  get(_target, property) {
+    const target = getActiveKeyboard();
+    const value = Reflect.get(target, property);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+  set(_target, property, value) {
+    return Reflect.set(getActiveKeyboard(), property, value);
+  },
+  has(_target, property) {
+    return property in getActiveKeyboard();
+  },
+}) as KeyboardState;
 
 export function isKeyConstant(value: unknown): value is number {
   return typeof value === "number" && keyValues.has(value);

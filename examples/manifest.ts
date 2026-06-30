@@ -51,6 +51,18 @@ export const exampleManifest = [
     visual: true,
   },
   {
+    slug: "animation-basics",
+    title: "Animation Basics",
+    mode: "global",
+    entryPoint: "examples/animation-basics/main.js",
+    assets: [],
+    smokeMarker: "__jgzExampleStatus",
+    tutorial: "examples/animation-basics/README.md",
+    e2eScenario: "runs top-level animate on the game clock",
+    expectsInput: "none",
+    visual: true,
+  },
+  {
     slug: "sandbox-starter",
     title: "Sandbox Starter",
     mode: "import",

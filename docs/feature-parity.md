@@ -21,7 +21,7 @@ considered complete.
 | Actor     | position, anchor, angle, opacity         | actor math tests         | actor example smoke test               |
 | Input     | `keyboard`, `keys`, `keymods`, `mouse`   | key mapping tests        | Playwright input test                  |
 | Timing    | `clock` schedule APIs                    | scheduler tests          | callback canvas/log test               |
-| Animation | all tween names and `Animation.stop`     | tween/animation tests    | animation example test                 |
+| Animation | all tween names and `Animation.stop`     | tween/animation tests    | Phase 05 animation example             |
 | Audio     | sound effects and music queue            | mocked audio tests       | user gesture audio test                |
 | Tone      | note names, frequencies, duration guard  | tone tests               | tone play state test                   |
 | Storage   | JSON persistence and errors              | storage tests            | reload persistence + storage tutorial  |

@@ -438,7 +438,34 @@ export function createMusicPlayer(
   return new MusicPlayer(options);
 }
 
-export const music = createMusicPlayer();
+const defaultMusicPlayer = createMusicPlayer();
+let activeMusicPlayer: MusicPlayer | null = null;
+
+export function setActiveMusicPlayer(
+  nextMusicPlayer: MusicPlayer | null,
+): MusicPlayer | null {
+  const previous = activeMusicPlayer;
+  activeMusicPlayer = nextMusicPlayer;
+  return previous;
+}
+
+export function getActiveMusicPlayer(): MusicPlayer {
+  return activeMusicPlayer ?? defaultMusicPlayer;
+}
+
+export const music = new Proxy({} as MusicPlayer, {
+  get(_target, property) {
+    const target = getActiveMusicPlayer();
+    const value = Reflect.get(target, property);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+  set(_target, property, value) {
+    return Reflect.set(getActiveMusicPlayer(), property, value);
+  },
+  has(_target, property) {
+    return property in getActiveMusicPlayer();
+  },
+}) as MusicPlayer;
 
 export function clampVolume(volume: number): number {
   if (typeof volume !== "number" || Number.isNaN(volume)) return 1;

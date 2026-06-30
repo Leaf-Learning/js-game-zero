@@ -117,7 +117,31 @@ export class Clock {
   }
 }
 
-export const clock = new Clock();
+const defaultClock = new Clock();
+let activeClock: Clock | null = null;
+
+export function setActiveClock(nextClock: Clock | null): Clock | null {
+  const previous = activeClock;
+  activeClock = nextClock;
+  return previous;
+}
+
+export function getActiveClock(): Clock {
+  return activeClock ?? defaultClock;
+}
+
+export const clock = new Proxy({} as Clock, {
+  get(_target, property) {
+    const value = Reflect.get(getActiveClock(), property);
+    return typeof value === "function" ? value.bind(getActiveClock()) : value;
+  },
+  set(_target, property, value) {
+    return Reflect.set(getActiveClock(), property, value);
+  },
+  has(_target, property) {
+    return property in getActiveClock();
+  },
+}) as Clock;
 
 function validateDuration(value: number, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
