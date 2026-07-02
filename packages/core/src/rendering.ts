@@ -1,7 +1,9 @@
 import {
+  fonts,
   images,
   rectFromBlitTarget,
   type AssetLoader,
+  type FontAsset,
   type SurfaceLike,
 } from "./assets";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
@@ -38,7 +40,11 @@ export type VerticalAnchor = "top" | "center" | "middle" | "bottom";
 
 export type TextOptions = {
   readonly fontname?: string;
+  readonly sysfontname?: string;
   readonly fontsize?: number;
+  readonly bold?: boolean;
+  readonly italic?: boolean;
+  readonly underline?: boolean;
   readonly color?: Color;
   readonly background?: Color;
   readonly pos?: Point;
@@ -51,10 +57,17 @@ export type TextOptions = {
   readonly midright?: Point;
   readonly midbottom?: Point;
   readonly center?: Point;
+  readonly top?: number;
+  readonly left?: number;
+  readonly bottom?: number;
+  readonly right?: number;
+  readonly centerx?: number;
+  readonly centery?: number;
   readonly width?: number;
   readonly widthem?: number;
   readonly lineheight?: number;
   readonly align?: TextAlignOption;
+  readonly strip?: boolean;
   readonly owidth?: number;
   readonly ocolor?: Color;
   readonly shadow?: number | Point;
@@ -65,7 +78,18 @@ export type TextOptions = {
   readonly angle?: number;
 };
 
-export type TextboxOptions = Omit<TextOptions, "pos" | "width" | "widthem"> & {
+export type TextboxOptions = Omit<
+  TextOptions,
+  | "pos"
+  | "width"
+  | "widthem"
+  | "top"
+  | "left"
+  | "bottom"
+  | "right"
+  | "centerx"
+  | "centery"
+> & {
   readonly min_fontsize?: number;
 };
 
@@ -315,11 +339,23 @@ export class Screen {
   ): void {
     const rect = new Rect(rectLike);
     const fit = fitTextboxFontSize(this.context, text, rect, options);
-    const layout = layoutText(this.context, text, rect.topleft, {
+    // pgzero's drawbox anchors the text on the rect at the anchor fraction
+    // (default 0.5, 0.5 -> centered both ways): the position point is
+    // rect.topleft + anchor * rect.size, and the same anchor places the
+    // text block relative to that point. So the default centers the text
+    // in the rect, while e.g. anchor "topleft" lays out from rect.topleft.
+    const anchor = options.anchor ?? "center";
+    const rectAnchorOffset = anchorOffsetFor(anchor, rect.width, rect.height);
+    const point: Point = [
+      rect.left + rectAnchorOffset[0],
+      rect.top + rectAnchorOffset[1],
+    ];
+    const layout = layoutText(this.context, text, point, {
       ...options,
       fontsize: fit.fontSize,
       width: rect.width,
       lineheight: fit.lineHeight,
+      anchor,
     });
     renderTextLayout(this.context, String(text), layout, options);
   }
@@ -376,14 +412,14 @@ export function layoutText(
     options.lineheight ?? fontSize * 1.2,
     "lineheight",
   );
-  const fontFamily = options.fontname ?? "sans-serif";
-  const font = `${fontSize}px ${fontFamily}`;
+  const font = buildFontString(fontSize, options);
   const previousFont = context.font;
   context.font = font;
   const widthLimit =
     options.width ??
     (options.widthem === undefined ? undefined : options.widthem * fontSize);
-  const lines = wrapLines(context, String(text), widthLimit);
+  const strip = options.strip ?? true;
+  const lines = wrapLines(context, String(text), widthLimit, strip);
   const textWidth = lines.reduce(
     (maximum, line) => Math.max(maximum, context.measureText(line).width),
     0,
@@ -398,7 +434,9 @@ export function layoutText(
   }
   const position = resolveTextPosition(pos, options, boxWidth, boxHeight);
   const anchorOffset = anchorOffsetFor(
-    options.anchor ?? defaultTextAnchorFor(position.key),
+    options.anchor ??
+      position.impliedAnchor ??
+      defaultTextAnchorFor(position.key),
     boxWidth,
     boxHeight,
   );
@@ -455,7 +493,7 @@ export function fitTextboxFontSize(
   return {
     fontSize,
     lineHeight: options.lineheight ?? fontSize * 1.2,
-    lines: wrapLines(context, text, rect.width),
+    lines: wrapLines(context, text, rect.width, options.strip ?? true),
   };
 }
 
@@ -511,58 +549,234 @@ function renderTextLayout(
     }
     context.fillStyle = fillStyle;
     context.fillText(line, lineX, y);
+    if (options.underline) {
+      const lineWidth = context.measureText(line).width;
+      const [start, end] = lineExtentX(lineX, lineWidth, layout.align);
+      const thickness = Math.max(1, layout.fontSize / 15);
+      const underlineY = y + layout.fontSize * 0.9;
+      context.fillStyle = fillStyle;
+      context.fillRect(
+        start,
+        underlineY - thickness / 2,
+        end - start,
+        thickness,
+      );
+    }
   });
 
   context.restore();
 }
 
+/**
+ * Ports ptext.py's `wrap()` (lines ~81-143): splits on newlines (tabs are
+ * expanded to four spaces first, matching upstream), then greedily wraps
+ * each line by measured width, preserving leading indentation and
+ * hard-breaking only when a single word alone exceeds the width.
+ */
 function wrapLines(
   context: CanvasRenderingContext2D,
   text: string,
   widthLimit: number | undefined,
+  strip: boolean,
 ): string[] {
-  const paragraphs = String(text).split(/\r?\n/);
-  if (widthLimit === undefined) return paragraphs;
+  const normalized = String(text).replace(/\t/g, "    ").replace(/\r\n/g, "\n");
+  const paragraphs = normalized.split("\n");
+  if (widthLimit === undefined) {
+    return paragraphs.map((paragraph) =>
+      strip ? rstripSpaces(paragraph) : paragraph,
+    );
+  }
   const limit = requirePositiveNumber(widthLimit, "width");
+  const measure = (candidate: string): number =>
+    context.measureText(candidate).width;
   const lines: string[] = [];
   for (const paragraph of paragraphs) {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      lines.push("");
-      continue;
-    }
-    let line = words[0] ?? "";
-    for (const word of words.slice(1)) {
-      const candidate = `${line} ${word}`;
-      if (context.measureText(candidate).width <= limit || line.length === 0) {
-        line = candidate;
-      } else {
-        lines.push(line);
-        line = word;
-      }
-    }
-    lines.push(line);
+    lines.push(...wrapParagraph(measure, paragraph, limit, strip));
   }
   return lines;
 }
+
+/** Wraps a single (newline-free) line of text, matching ptext.py's `wrap`. */
+function wrapParagraph(
+  measure: (candidate: string) => number,
+  rawText: string,
+  width: number,
+  strip: boolean,
+): string[] {
+  let text = strip ? rstripSpaces(rawText) : rawText;
+  const lines: string[] = [];
+  if (!text) {
+    lines.push("");
+    return lines;
+  }
+
+  // Preserve leading spaces: `a` starts as the rightmost known-legal split
+  // point, i.e. the first space at or after the leading indentation.
+  const leadingSpaceCount = text.length - lstripSpaces(text).length;
+  let a = firstIndexOfSpaceOr(text, leadingSpaceCount, text.length);
+  let line = text.slice(0, a);
+
+  while (a + 1 < text.length) {
+    let b: number;
+    let bline: string;
+    if (text.indexOf(" ", a + 1) === -1) {
+      b = text.length;
+      bline = text;
+    } else if (strip) {
+      // Lines may only be split at a space that immediately follows a
+      // non-space character; skip past runs of consecutive spaces.
+      b = text.indexOf(" ", a + 1);
+      while (b > 0 && text[b - 1] === " ") {
+        const next = text.indexOf(" ", b + 1);
+        if (next === -1) {
+          b = text.length;
+          break;
+        }
+        b = next;
+      }
+      bline = text.slice(0, b);
+    } else {
+      b = text[a] === " " ? a + 1 : text.indexOf(" ", a + 1);
+      bline = text.slice(0, b);
+    }
+
+    if (measure(bline) <= width) {
+      a = b;
+      line = bline;
+    } else {
+      // The candidate line no longer fits: commit what fit so far and
+      // restart from the remainder. If a single word alone exceeds the
+      // width, it is emitted on its own (overflowing) line rather than
+      // being merged with its neighbors.
+      lines.push(line);
+      text = strip ? lstripSpaces(text.slice(a)) : text.slice(a);
+      a = firstIndexOfSpaceOr(text, 1, text.length);
+      line = text.slice(0, a);
+    }
+  }
+  if (text) lines.push(line);
+  return lines;
+}
+
+function firstIndexOfSpaceOr(
+  text: string,
+  from: number,
+  fallback: number,
+): number {
+  const index = text.indexOf(" ", from);
+  return index === -1 ? fallback : index;
+}
+
+function lstripSpaces(text: string): string {
+  let index = 0;
+  while (index < text.length && text[index] === " ") index += 1;
+  return text.slice(index);
+}
+
+function rstripSpaces(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === " ") end -= 1;
+  return text.slice(0, end);
+}
+
+const horizontalScalarKeys = ["left", "centerx", "right"] as const;
+const verticalScalarKeys = ["top", "centery", "bottom"] as const;
+type HorizontalScalarKey = (typeof horizontalScalarKeys)[number];
+type VerticalScalarKey = (typeof verticalScalarKeys)[number];
+
+// Named (not numeric!) anchor keywords: `anchorOffsetFor`/`horizontalAnchorOffset`
+// treat a *number* anchor component as a literal pixel offset, not a
+// fraction of the box size, so the scalar-position fractions below must be
+// expressed as the string keywords to be scaled against boxWidth/boxHeight.
+const horizontalScalarAnchor: Record<HorizontalScalarKey, HorizontalAnchor> = {
+  left: "left",
+  centerx: "center",
+  right: "right",
+};
+const verticalScalarAnchor: Record<VerticalScalarKey, VerticalAnchor> = {
+  top: "top",
+  centery: "center",
+  bottom: "bottom",
+};
 
 function resolveTextPosition(
   pos: Point | undefined,
   options: TextOptions,
   width: number,
   height: number,
-): { key: TextPositionKey; point: Point } {
+): {
+  key: TextPositionKey;
+  point: Point;
+  impliedAnchor?: readonly [HorizontalAnchor, VerticalAnchor];
+} {
   if (pos !== undefined && options.pos !== undefined) {
     throw new TypeError("draw.text accepts exactly one position source.");
   }
-  const entries = textPositionKeys.filter((key) => {
+  const compoundEntries = textPositionKeys.filter((key) => {
     if (key === "pos") return options.pos !== undefined || pos !== undefined;
     return options[key] !== undefined;
   });
-  if (entries.length > 1) {
+  // The named compound keys (topleft, center, ...) are mutually exclusive
+  // with the scalar keys below, but plain `pos` is not: it is a legitimate
+  // fallback for whichever axis a scalar doesn't cover.
+  const namedCompoundEntries = compoundEntries.filter((key) => key !== "pos");
+  const horizontalScalars = horizontalScalarKeys.filter(
+    (key) => options[key] !== undefined,
+  );
+  const verticalScalars = verticalScalarKeys.filter(
+    (key) => options[key] !== undefined,
+  );
+
+  // Scalar positioning kwargs (pgzero/ptext): `top`, `left`, `bottom`,
+  // `right`, `centerx`, `centery` combine per-axis, e.g.
+  // `screen.draw.text("hi", right=780, top=10)`. Each scalar sets both the
+  // coordinate and that axis's anchor fraction (left/top -> 0,
+  // centerx/centery -> 0.5, right/bottom -> 1); an axis without a scalar
+  // falls back to the corresponding component of `pos`.
+  if (horizontalScalars.length > 0 || verticalScalars.length > 0) {
+    if (namedCompoundEntries.length > 0) {
+      throw new TypeError("draw.text accepts exactly one position source.");
+    }
+    if (horizontalScalars.length > 1) {
+      throw new TypeError(
+        "draw.text accepts only one of left, centerx, or right.",
+      );
+    }
+    if (verticalScalars.length > 1) {
+      throw new TypeError(
+        "draw.text accepts only one of top, centery, or bottom.",
+      );
+    }
+    const fallback = pos ?? options.pos;
+    const horizontalKey = horizontalScalars[0];
+    const verticalKey = verticalScalars[0];
+    const x =
+      horizontalKey === undefined
+        ? fallback?.[0]
+        : requireFiniteNumber(options[horizontalKey], horizontalKey);
+    const y =
+      verticalKey === undefined
+        ? fallback?.[1]
+        : requireFiniteNumber(options[verticalKey], verticalKey);
+    if (x === undefined) {
+      throw new TypeError("Unable to determine horizontal position.");
+    }
+    if (y === undefined) {
+      throw new TypeError("Unable to determine vertical position.");
+    }
+    const hanchor: HorizontalAnchor =
+      horizontalKey === undefined
+        ? "left"
+        : horizontalScalarAnchor[horizontalKey];
+    const vanchor: VerticalAnchor =
+      verticalKey === undefined ? "top" : verticalScalarAnchor[verticalKey];
+    return { key: "pos", point: [x, y], impliedAnchor: [hanchor, vanchor] };
+  }
+
+  if (compoundEntries.length > 1) {
     throw new TypeError("draw.text accepts exactly one position source.");
   }
-  const key = entries[0] ?? "pos";
+  const key = compoundEntries[0] ?? "pos";
   const value = key === "pos" ? (options.pos ?? pos ?? [0, 0]) : options[key];
   const point = requirePoint(value, key);
   switch (key) {
@@ -661,6 +875,94 @@ function lineBaseX(
   return originX;
 }
 
+/**
+ * Converts the `fillText`/`strokeText` anchor x-coordinate (which is
+ * relative to `context.textAlign`) plus a measured line width into the
+ * `[start, end]` horizontal extent actually covered by the rendered text,
+ * so an underline can be drawn under exactly that span.
+ */
+function lineExtentX(
+  lineX: number,
+  lineWidth: number,
+  align: TextAlignOption,
+): [number, number] {
+  if (align === "center") return [lineX - lineWidth / 2, lineX + lineWidth / 2];
+  if (align === "right") return [lineX - lineWidth, lineX];
+  return [lineX, lineX + lineWidth];
+}
+
+const GENERIC_FONT_FAMILIES = new Set([
+  "serif",
+  "sans-serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+]);
+
+/** Quotes a font-family name for use in a canvas font string, unless it's a generic CSS keyword. */
+function cssFontFamily(name: string): string {
+  if (GENERIC_FONT_FAMILIES.has(name)) return name;
+  return `"${name.replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Resolves the font-family portion of a canvas font string, mirroring
+ * ptext.py's `getfont`: `sysfontname` (a literal system CSS family) takes
+ * precedence and cannot be combined with `fontname`. `fontname` first
+ * checks the `fonts` asset loader for an already-loaded custom font (e.g.
+ * from `fonts/myfont.ttf`); if it isn't loaded yet, a load is kicked off
+ * (so the runtime's preload gate can hold frames until it settles) and,
+ * for this call, `fontname` is used verbatim as a CSS family so a
+ * loaded-but-not-yet-fetched font degrades gracefully rather than crashing.
+ * `fontname` values that aren't even valid asset names (e.g. a literal CSS
+ * family like "Comic Sans MS") also fall back to being used as-is, since
+ * the asset loader only accepts lowercase, underscore-safe identifiers.
+ */
+function resolveFontFamily(options: TextOptions): string {
+  if (options.fontname !== undefined && options.sysfontname !== undefined) {
+    throw new TypeError(
+      "draw.text accepts only one of fontname or sysfontname.",
+    );
+  }
+  if (options.sysfontname !== undefined) {
+    return cssFontFamily(options.sysfontname);
+  }
+  if (options.fontname !== undefined) {
+    const loaded = tryGetLoadedFont(options.fontname);
+    if (loaded) return cssFontFamily(loaded.family);
+    tryStartLoadingFont(options.fontname);
+    return cssFontFamily(options.fontname);
+  }
+  return "sans-serif";
+}
+
+function tryGetLoadedFont(name: string): FontAsset | undefined {
+  try {
+    return fonts.get(name);
+  } catch {
+    return undefined;
+  }
+}
+
+function tryStartLoadingFont(name: string): void {
+  try {
+    void fonts.load(name).catch(() => undefined);
+  } catch {
+    // Not a loadable asset name (e.g. a literal CSS family) — nothing to load.
+  }
+}
+
+/** Builds a canvas font shorthand string: `[italic] [bold] <size>px <family>`. */
+function buildFontString(fontSize: number, options: TextOptions): string {
+  const fontFamily = resolveFontFamily(options);
+  const styleParts: string[] = [];
+  if (options.italic) styleParts.push("italic");
+  if (options.bold) styleParts.push("bold");
+  const stylePrefix = styleParts.length > 0 ? `${styleParts.join(" ")} ` : "";
+  return `${stylePrefix}${fontSize}px ${fontFamily}`;
+}
+
 function shadowOffsetFor(shadow: number | Point | undefined): Point | null {
   if (shadow === undefined) return null;
   if (typeof shadow === "number" && Number.isFinite(shadow))
@@ -724,6 +1026,11 @@ function requirePositiveNumber(value: unknown, label: string): number {
     return value;
   }
   throw new TypeError(`${label} must be a positive finite number.`);
+}
+
+function requireFiniteNumber(value: unknown, label: string): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  throw new TypeError(`${label} must be a finite number.`);
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
