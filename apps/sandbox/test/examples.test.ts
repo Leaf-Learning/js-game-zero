@@ -35,8 +35,11 @@ test("phase 5 example manifest exposes complete smoke metadata", async () => {
     "breakout",
     "drawing-basics",
     "flappy-bird",
+    "platformer",
     "sandbox-starter",
+    "snake",
     "sound-tone",
+    "space-shooter",
     "storage-save",
   ]);
 });
