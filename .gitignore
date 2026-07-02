@@ -8,3 +8,4 @@ test-results/
 .jgz-projects/
 .tmp/
 *.tsbuildinfo
+.playwright-mcp/
