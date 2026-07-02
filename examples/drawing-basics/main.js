@@ -23,6 +23,4 @@ function draw() {
     "#f8fafc",
     3,
   );
-  storage.set("drawn", true);
-  storage.set("pulse", Math.round(pulse * 100));
 }

@@ -52,7 +52,20 @@ export const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const CLIENT_DIR = join(REPO_ROOT, "apps/sandbox/client");
 
 const assetDirectories = new Set(["images", "sounds", "music", "fonts"]);
-const reservedAssetProjectIds = new Set(["phase_three", "phase_five"]);
+// "phase_three"/"phase_five" are legacy fixture ids served by the two
+// hardcoded routes in server.ts; every example slug that ships its own
+// assets/ directory is served at /assets/<slug>/... (see
+// exampleOwnAssetResponse in server.ts). Both must be excluded from the
+// /assets/<projectId>/... route below so requests for them fall through
+// to the server's example/fixture asset routes instead of being treated
+// as (and 404ing against) a same-named sandbox user project.
+const reservedAssetProjectIds = new Set([
+  "phase_three",
+  "phase_five",
+  ...exampleManifest
+    .filter((example) => example.assets.length > 0)
+    .map((example) => example.slug),
+]);
 const defaultStarterSource = `WIDTH = 320;
 HEIGHT = 180;
 TITLE = "My Game";
@@ -565,6 +578,11 @@ async function createProject(
   exampleSlug: string | undefined,
 ): Promise<SandboxProjectSummary> {
   validateProjectName(name);
+  if (reservedAssetProjectIds.has(name)) {
+    throw new SandboxPathError(
+      `"${name}" is reserved for a built-in example's assets; choose another project name.`,
+    );
+  }
   const example =
     exampleSlug === undefined ? undefined : getExample(exampleSlug);
   if (exampleSlug !== undefined && (!example || example.mode !== "global")) {
@@ -594,8 +612,13 @@ async function createProject(
   if (example) {
     const source = await readFile(join(REPO_ROOT, example.entryPoint), "utf8");
     await writeFile(join(projectRoot, "main.js"), source, "utf8");
+    const exampleAssetsRoot = join(
+      REPO_ROOT,
+      dirname(example.entryPoint),
+      "assets",
+    );
     for (const asset of example.assets) {
-      const from = join(REPO_ROOT, "examples/phase-five/assets", asset);
+      const from = join(exampleAssetsRoot, asset);
       const to = join(projectRoot, asset);
       await mkdir(dirname(to), { recursive: true });
       await copyFile(from, to);

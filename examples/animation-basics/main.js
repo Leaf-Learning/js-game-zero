@@ -5,11 +5,6 @@ TITLE = "Animation Basics";
 let orb = { x: 48, y: 90 };
 animate(orb, { x: 260, duration: 1, tween: "decelerate" });
 
-function update() {
-  storage.set("x", Math.round(orb.x));
-  storage.set("animated", orb.x > 80);
-}
-
 function draw() {
   screen.fill("#18212f");
   screen.draw.line([48, 112], [260, 112], "#94a3b8", 3);
