@@ -16,7 +16,13 @@ export type RectLike =
       y: number;
       w: number;
       h: number;
+    }
+  | {
+      readonly rect: RectLike | (() => RectLike);
     };
+
+/** A dictionary-like collision target: a `Map`, or a plain object keyed by string. */
+export type RectDict<V> = Map<unknown, V> | Record<string, V>;
 
 type PairLike = readonly [number, number];
 
@@ -201,6 +207,32 @@ export class Rect {
     this.height = height;
   }
 
+  /** Index 0: `left`. Mirrors pygame/pgzero's `rect[0]`. */
+  get 0(): number {
+    return this.left;
+  }
+
+  /** Index 1: `top`. Mirrors pygame/pgzero's `rect[1]`. */
+  get 1(): number {
+    return this.top;
+  }
+
+  /** Index 2: `width`. Mirrors pygame/pgzero's `rect[2]`. */
+  get 2(): number {
+    return this.width;
+  }
+
+  /** Index 3: `height`. Mirrors pygame/pgzero's `rect[3]`. */
+  get 3(): number {
+    return this.height;
+  }
+
+  /** Iterates as `[left, top, width, height]`, so `[...rect]` works like pgzero's ZRect. */
+  [Symbol.iterator](): Iterator<number> {
+    const values: RectTuple = [this.left, this.top, this.width, this.height];
+    return values[Symbol.iterator]();
+  }
+
   copy(): Rect {
     const RectClass = this.constructor as new (
       left: number,
@@ -279,6 +311,11 @@ export class Rect {
     return rect;
   }
 
+  /** Mutating form of {@link clamp}. */
+  clamp_ip(other: RectLike): void {
+    this.applyGeometry(this.clamp(other));
+  }
+
   clip(other: RectLike): Rect {
     const a = normalizedRect(this);
     const b = normalizedRect(other);
@@ -294,6 +331,11 @@ export class Rect {
     );
   }
 
+  /** Mutating form of {@link clip}. */
+  clip_ip(other: RectLike): void {
+    this.applyGeometry(this.clip(other));
+  }
+
   union(other: RectLike): Rect {
     const a = normalizedRect(this);
     const b = normalizedRect(other);
@@ -304,11 +346,21 @@ export class Rect {
     return new Rect(left, top, right - left, bottom - top);
   }
 
+  /** Mutating form of {@link union}. */
+  union_ip(other: RectLike): void {
+    this.applyGeometry(this.union(other));
+  }
+
   unionall(others: RectLike[]): Rect {
     return others.reduce<Rect>(
       (accumulator, other) => accumulator.union(other),
       this.copy(),
     );
+  }
+
+  /** Mutating form of {@link unionall}. */
+  unionall_ip(others: RectLike[]): void {
+    this.applyGeometry(this.unionall(others));
   }
 
   fit(other: RectLike): Rect {
@@ -383,6 +435,50 @@ export class Rect {
     });
     return indexes;
   }
+
+  /**
+   * Returns the first `[key, value]` entry of `dict` that collides with this
+   * rect, or `undefined` if none do. By default the *values* are treated as
+   * rect-likes (matching rect.py's `use_values=True`); pass `useValues:
+   * false` to instead treat the *keys* as rect-likes (only meaningful for a
+   * `Map` whose keys are themselves rect-likes, since plain object keys are
+   * always strings).
+   */
+  collidedict<V>(
+    dict: RectDict<V>,
+    useValues = true,
+  ): [unknown, V] | undefined {
+    for (const [key, value] of dictEntries(dict)) {
+      const candidate = (useValues ? value : key) as unknown as RectLike;
+      if (this.colliderect(candidate)) return [key, value];
+    }
+    return undefined;
+  }
+
+  /** Same as {@link collidedict}, but returns every colliding entry. */
+  collidedictall<V>(dict: RectDict<V>, useValues = true): Array<[unknown, V]> {
+    const results: Array<[unknown, V]> = [];
+    for (const [key, value] of dictEntries(dict)) {
+      const candidate = (useValues ? value : key) as unknown as RectLike;
+      if (this.colliderect(candidate)) results.push([key, value]);
+    }
+    return results;
+  }
+
+  private applyGeometry(source: Rect): void {
+    this.left = source.left;
+    this.top = source.top;
+    this.width = source.width;
+    this.height = source.height;
+  }
+}
+
+function* dictEntries<V>(dict: RectDict<V>): Iterable<[unknown, V]> {
+  if (dict instanceof Map) {
+    yield* dict.entries();
+    return;
+  }
+  yield* Object.entries(dict) as unknown as Iterable<[unknown, V]>;
 }
 
 export class ZRect extends Rect {}
@@ -417,24 +513,48 @@ function parseRectArgs(args: unknown[]): RectTuple {
   }
 
   if (args.length === 1) {
-    const value = args[0];
-    if (value instanceof Rect) {
-      return [value.left, value.top, value.width, value.height];
-    }
-    if (isRectTuple(value)) {
-      const [left, top, width, height] = value;
-      return [left, top, width, height];
-    }
-    if (isRectObject(value)) {
-      return [value.left, value.top, value.width, value.height];
-    }
-    if (isXywhObject(value)) {
-      return [value.x, value.y, value.w, value.h];
-    }
+    return resolveRectLike(args[0], 0);
   }
 
   throw new TypeError(
-    "Rect requires (left, top, width, height), ([left, top], [width, height]), another Rect, or [left, top, width, height].",
+    "Rect requires (left, top, width, height), ([left, top], [width, height]), another Rect, [left, top, width, height], or an object with a `.rect` property/method.",
+  );
+}
+
+/**
+ * Resolves a single constructor argument to a `[left, top, width, height]`
+ * tuple, matching rect.py's `_handle_one_arg`: accepts a Rect, a 4-tuple, a
+ * `{left,top,width,height}` or `{x,y,w,h}` object, or — recursively — any
+ * object exposing a `.rect` property or method (e.g. an `Actor`), so that
+ * `new Rect(actor)` works without `actor.ts` knowing anything about `Rect`.
+ */
+function resolveRectLike(value: unknown, depth: number): RectTuple {
+  if (value instanceof Rect) {
+    return [value.left, value.top, value.width, value.height];
+  }
+  if (isRectTuple(value)) {
+    const [left, top, width, height] = value;
+    return [left, top, width, height];
+  }
+  if (isRectObject(value)) {
+    return [value.left, value.top, value.width, value.height];
+  }
+  if (isXywhObject(value)) {
+    return [value.x, value.y, value.w, value.h];
+  }
+  if (isRecord(value) && "rect" in value) {
+    if (depth > 16) {
+      throw new TypeError(
+        "Rect: exceeded recursion depth resolving a `.rect` reference.",
+      );
+    }
+    const member = (value as { rect: unknown }).rect;
+    const resolved = typeof member === "function" ? member.call(value) : member;
+    return resolveRectLike(resolved, depth + 1);
+  }
+
+  throw new TypeError(
+    "Rect requires (left, top, width, height), ([left, top], [width, height]), another Rect, [left, top, width, height], or an object with a `.rect` property/method.",
   );
 }
 
