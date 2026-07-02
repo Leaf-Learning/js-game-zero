@@ -10,10 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSandboxServerHandler, phaseOneHandler } from "../src/server";
-import {
-  deriveSandboxUiState,
-  normalizeSandboxRelativePath,
-} from "../src/sandbox";
+import { normalizeSandboxRelativePath } from "../src/sandbox";
 
 let projectsRoot = "";
 let handler: (request: Request) => Promise<Response>;
@@ -117,6 +114,150 @@ describe("phase 6 sandbox routes", () => {
     expect(asset.status).toBe(200);
     expect(asset.headers.get("content-type")).toBe("image/png");
     expect(new Uint8Array(await asset.arrayBuffer())).toEqual(bytes);
+
+    const deleted = await request(
+      "/api/projects/demo_game/assets/images/pixel.png",
+      { method: "DELETE" },
+    );
+    expect(deleted.status).toBe(200);
+    const afterDelete = await request("/assets/demo_game/images/pixel.png");
+    expect(afterDelete.status).toBe(404);
+  });
+
+  test("asset paths can never be opened or overwritten as code files", async () => {
+    await createProject();
+    await request("/api/projects/demo_game/assets/images/pixel.png", {
+      method: "PUT",
+      body: new Uint8Array([0, 1, 2, 255]),
+    });
+
+    const readAsCode = await request(
+      "/api/projects/demo_game/files/images/pixel.png",
+    );
+    expect(readAsCode.status).toBe(400);
+
+    const writeAsCode = await request(
+      "/api/projects/demo_game/files/images/pixel.png",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: "corrupted" }),
+      },
+    );
+    expect(writeAsCode.status).toBe(400);
+
+    // Bytes on disk must be untouched by the rejected code-editor write.
+    expect(
+      await readFile(join(projectsRoot, "demo_game", "images", "pixel.png")),
+    ).toEqual(Buffer.from([0, 1, 2, 255]));
+  });
+
+  test("files can be created, renamed, and deleted", async () => {
+    await createProject();
+
+    const created = await request(
+      "/api/projects/demo_game/files/levels/one.js",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: "// level one" }),
+      },
+    );
+    expect(created.status).toBe(200);
+
+    const renamed = await request("/api/projects/demo_game/files/rename", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ from: "levels/one.js", to: "levels/first.js" }),
+    });
+    expect(renamed.status).toBe(200);
+    expect(
+      await readFile(
+        join(projectsRoot, "demo_game", "levels", "first.js"),
+        "utf8",
+      ),
+    ).toBe("// level one");
+
+    const missingOld = await request(
+      "/api/projects/demo_game/files/levels/one.js",
+    );
+    expect(missingOld.status).toBe(404);
+
+    const deleted = await request(
+      "/api/projects/demo_game/files/levels/first.js",
+      { method: "DELETE" },
+    );
+    expect(deleted.status).toBe(200);
+    const afterDelete = await request(
+      "/api/projects/demo_game/files/levels/first.js",
+    );
+    expect(afterDelete.status).toBe(404);
+  });
+
+  test("projects can be renamed and deleted", async () => {
+    await createProject();
+
+    const renamed = await request("/api/projects/demo_game/rename", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "renamed_game" }),
+    });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toMatchObject({
+      project: { name: "renamed_game" },
+    });
+
+    const oldGone = await request("/api/projects/demo_game/files/main.js");
+    expect(oldGone.status).toBe(404);
+    const newThere = await request("/api/projects/renamed_game/files/main.js");
+    expect(newThere.status).toBe(200);
+
+    const deleted = await request("/api/projects/renamed_game", {
+      method: "DELETE",
+    });
+    expect(deleted.status).toBe(200);
+    const list = await request("/api/projects");
+    expect(await list.json()).toEqual({ projects: [] });
+  });
+
+  test("examples manifest is exposed and can be cloned into a new project", async () => {
+    const examples = await request("/api/examples");
+    expect(examples.status).toBe(200);
+    const body = (await examples.json()) as {
+      examples: { slug: string; expectsInput: string }[];
+    };
+    expect(body.examples.length).toBeGreaterThan(0);
+    expect(body.examples.map((example) => example.slug)).toContain(
+      "actor-movement",
+    );
+    // Import-mode examples aren't clonable into the zero-boilerplate sandbox.
+    expect(body.examples.map((example) => example.slug)).not.toContain(
+      "sandbox-starter",
+    );
+
+    const clone = await request("/api/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "cloned_game",
+        exampleSlug: "actor-movement",
+      }),
+    });
+    expect(clone.status).toBe(201);
+    expect(await clone.json()).toMatchObject({
+      project: { name: "cloned_game" },
+    });
+
+    const source = await readFile(
+      join(projectsRoot, "cloned_game", "main.js"),
+      "utf8",
+    );
+    expect(source).toContain("Actor Movement");
+    expect(
+      await Bun.file(
+        join(projectsRoot, "cloned_game", "images", "player.svg"),
+      ).exists(),
+    ).toBe(true);
   });
 
   test("missing projects, missing files, invalid names, and invalid bodies fail clearly", async () => {
@@ -211,8 +352,28 @@ describe("phase 6 sandbox routes", () => {
     expect(finalSymlink.status).toBe(400);
   });
 
-  test("runtime bundle and preview HTML include executable browser entry points", async () => {
+  test("the client shell, bundle, styles, and preview HTML are served", async () => {
     await createProject();
+
+    const index = await request("/");
+    expect(index.status).toBe(200);
+    expect(index.headers.get("content-type")).toContain("text/html");
+    expect(await index.text()).toContain('src="/client/app.js"');
+
+    const appBundle = await request("/client/app.js");
+    expect(appBundle.status).toBe(200);
+    expect(appBundle.headers.get("content-type")).toContain("text/javascript");
+    expect((await appBundle.text()).length).toBeGreaterThan(0);
+
+    const styles = await request("/client/app.css");
+    expect(styles.status).toBe(200);
+    expect(styles.headers.get("content-type")).toContain("text/css");
+
+    const previewBundle = await request("/client/preview.js");
+    expect(previewBundle.status).toBe(200);
+    expect(previewBundle.headers.get("content-type")).toContain(
+      "text/javascript",
+    );
 
     const runtime = await request("/runtime/browser.js");
     expect(runtime.status).toBe(200);
@@ -224,38 +385,6 @@ describe("phase 6 sandbox routes", () => {
     expect(preview.status).toBe(200);
     const previewHtml = await preview.text();
     expect(previewHtml).toContain('data-jgz-entry="main.js"');
-    expect(previewHtml).toContain("/api/projects/demo_game/files/main.js");
-  });
-
-  test("UI state model covers selected file, dirty state, play enabling, and diagnostics", () => {
-    expect(
-      deriveSandboxUiState({
-        selectedProject: null,
-        selectedFile: null,
-        dirty: false,
-        diagnostics: [],
-      }),
-    ).toEqual({
-      selectedFileLabel: "No file selected",
-      dirtyLabel: "Saved",
-      playEnabled: false,
-      saveEnabled: false,
-      diagnosticsText: "No diagnostics",
-    });
-
-    expect(
-      deriveSandboxUiState({
-        selectedProject: "demo_game",
-        selectedFile: "main.js",
-        dirty: true,
-        diagnostics: [{ message: "Did you mean draw instead of drwa?" }],
-      }),
-    ).toEqual({
-      selectedFileLabel: "main.js",
-      dirtyLabel: "Unsaved changes",
-      playEnabled: true,
-      saveEnabled: true,
-      diagnosticsText: "Did you mean draw instead of drwa?",
-    });
+    expect(previewHtml).toContain('src="/client/preview.js"');
   });
 });
