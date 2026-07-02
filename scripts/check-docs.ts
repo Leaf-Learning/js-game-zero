@@ -63,11 +63,11 @@ const requiredPhaseSections = [
 const requiredCiSteps = [
   "oven-sh/setup-bun@v2",
   "bun install --frozen-lockfile",
+  "bunx playwright install --with-deps chromium",
   "bun run lint",
   "bun test",
   "bun run docs:check",
   "bun run build",
-  "bunx playwright install --with-deps chromium",
   "bun run test:e2e",
 ];
 
