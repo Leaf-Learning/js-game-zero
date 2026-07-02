@@ -239,3 +239,94 @@ describe("storage adapters", () => {
     }
   });
 });
+
+describe("synchronous load and change notifications (auto-load/auto-save primitives)", () => {
+  test("loadSync populates values synchronously for a synchronous adapter", () => {
+    const adapter = new MemoryAdapter("sync", JSON.stringify({ score: 3 }));
+    const store = createStorage({ adapter });
+
+    expect(store.loadSync()).toBe(true);
+    expect(store.get("score")).toBe(3);
+  });
+
+  test("loadSync returns false without side effects for an inherently async adapter", async () => {
+    const asyncAdapter: StorageAdapter = {
+      path: "async",
+      async load() {
+        return JSON.stringify({ score: 9 });
+      },
+      async save() {},
+    };
+    const store = createStorage({ adapter: asyncAdapter });
+
+    expect(store.loadSync()).toBe(false);
+    expect(store.get("score")).toBeUndefined();
+
+    await store.load();
+    expect(store.get("score")).toBe(9);
+  });
+
+  test("loadSync treats an empty/missing sync value as empty storage", () => {
+    const adapter = new MemoryAdapter("sync", null);
+    const store = createStorage({ adapter });
+    store.set("stale", true);
+
+    expect(store.loadSync()).toBe(true);
+    expect(store.has("stale")).toBe(false);
+    expect(store.keys()).toEqual([]);
+  });
+
+  test("onChange notifies on set/delete/clear/setdefault-insert but not on no-op mutations or load/save", async () => {
+    const adapter = new MemoryAdapter();
+    const store = createStorage({ adapter });
+    let notifications = 0;
+    const unsubscribe = store.onChange(() => {
+      notifications += 1;
+    });
+
+    store.set("a", 1);
+    expect(notifications).toBe(1);
+
+    store.setdefault("a", 2); // already present: no notification
+    expect(notifications).toBe(1);
+
+    store.setdefault("b", 2); // newly inserted: notifies
+    expect(notifications).toBe(2);
+
+    expect(store.delete("missing")).toBe(false);
+    expect(notifications).toBe(2);
+
+    expect(store.delete("a")).toBe(true);
+    expect(notifications).toBe(3);
+
+    store.clear();
+    expect(notifications).toBe(4);
+
+    store.clear(); // already empty: no notification
+    expect(notifications).toBe(4);
+
+    await store.save();
+    expect(notifications).toBe(4);
+    await store.load();
+    expect(notifications).toBe(4);
+
+    unsubscribe();
+    store.set("z", 1);
+    expect(notifications).toBe(4);
+  });
+
+  test("proxy-style mutation (storage.key = value, delete storage.key) also triggers onChange", () => {
+    const adapter = new MemoryAdapter();
+    const store = proxy(createStorage({ adapter }));
+    let notifications = 0;
+    store.onChange(() => {
+      notifications += 1;
+    });
+
+    store.score = 5;
+    expect(notifications).toBe(1);
+
+    delete store.score;
+    expect(notifications).toBe(2);
+  });
+});
