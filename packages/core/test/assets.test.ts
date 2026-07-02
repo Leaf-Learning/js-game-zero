@@ -148,6 +148,73 @@ describe("image loader cache and surfaces", () => {
     expect(player.get_size()).toEqual([32, 24]);
     expect(player.get_rect().size).toEqual([32, 24]);
   });
+
+  test("pendingCount and waitForIdle track in-flight loads for the runtime preload gate", async () => {
+    let releaseFirst: (() => void) | undefined;
+    const loader = createImageLoader({
+      projectId: "phase_three",
+      loadAsset: async (_url, name) => {
+        if (name === "first.svg") {
+          await new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+          });
+        }
+        return surface(
+          name === "first.svg" ? 4 : 6,
+          name === "first.svg" ? 4 : 6,
+        );
+      },
+    });
+
+    expect(loader.pendingCount()).toBe(0);
+    const firstLoad = loader.load("first.svg");
+    expect(loader.pendingCount()).toBe(1);
+
+    const idle = loader.waitForIdle();
+    releaseFirst?.();
+    await firstLoad;
+    await idle;
+
+    expect(loader.pendingCount()).toBe(0);
+  });
+
+  test("pendingCount clears after a load rejects, and waitForIdle still settles", async () => {
+    const loader = createImageLoader({
+      projectId: "phase_three",
+      loadAsset: async () => {
+        throw new Error("boom");
+      },
+    });
+
+    const rejected = loader.load("ghost.svg").catch(() => "handled");
+    expect(loader.pendingCount()).toBe(1);
+
+    await loader.waitForIdle();
+    expect(loader.pendingCount()).toBe(0);
+    expect(await rejected).toBe("handled");
+  });
+
+  test("waitForIdle re-checks so a load started while waiting is also awaited", async () => {
+    const loadedNames: string[] = [];
+    const loader = createImageLoader({
+      projectId: "phase_three",
+      loadAsset: async (_url, name) => {
+        loadedNames.push(name);
+        if (name === "chain_one.svg") {
+          // Triggers a second, unrelated load before this one resolves.
+          void loader.load("chain_two.svg");
+        }
+        return surface(1, 1);
+      },
+    });
+
+    void loader.load("chain_one.svg");
+    await loader.waitForIdle();
+
+    expect(loader.pendingCount()).toBe(0);
+    expect(loadedNames).toContain("chain_one.svg");
+    expect(loadedNames).toContain("chain_two.svg");
+  });
 });
 
 describe("sound, music, and font loaders", () => {
