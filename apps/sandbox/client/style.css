@@ -834,6 +834,14 @@ p {
   z-index: 60;
 }
 
+/* Prompt/confirm dialogs can open on top of the example gallery (its own
+   .dialog-host), e.g. naming a project after "Use this example". Both
+   hosts are fixed siblings on <body>, so without an explicit layer the
+   winner would be whichever host was appended later. */
+.dialog-host-top {
+  z-index: 70;
+}
+
 .dialog-host:empty {
   display: none;
 }

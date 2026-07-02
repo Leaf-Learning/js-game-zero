@@ -344,6 +344,32 @@ test("cloning an asset-heavy game copies its assets and runs", async ({
   );
 });
 
+test("naming an example project opens above the gallery dialog", async ({
+  page,
+}) => {
+  const name = uniqueName("zorder");
+  await page.goto("/");
+  await createBlankProject(page, name);
+
+  // Regression: the gallery and the prompt dialogs live in separate fixed
+  // hosts, and the naming prompt used to paint *behind* the gallery
+  // whenever the prompt host was created first. Reconstruct that order: a
+  // fresh page load whose first dialog is a plain prompt (new file),
+  // canceled, then the gallery flow.
+  await page.reload();
+  await page.locator("[data-jgz-new-file]").click();
+  await page.locator("[data-jgz-dialog-cancel]").click();
+  await page.locator("[data-jgz-open-examples]").click();
+  await page.locator('[data-jgz-use-example="snake"]').click();
+
+  // fill + click hit-test the prompt: both fail if the gallery covers it.
+  const exampleName = uniqueName("zorder_snake");
+  await submitDialogName(page, exampleName);
+  await expect(
+    page.locator(`[data-jgz-project="${exampleName}"]`),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
 test("viewport 1024x700 shows Play with no clipped controls", async ({
   page,
 }) => {

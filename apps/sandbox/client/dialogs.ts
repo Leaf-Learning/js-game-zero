@@ -4,8 +4,12 @@ let host: HTMLDivElement | null = null;
 
 function ensureHost(): HTMLDivElement {
   if (host) return host;
+  // dialog-host-top: prompts/confirms are leaf dialogs that can open while
+  // a container dialog (the example gallery) is still up, so this host
+  // must stack above the gallery's regardless of which host happened to
+  // be created first.
   host = h("div", {
-    className: "dialog-host",
+    className: "dialog-host dialog-host-top",
     attrs: { "data-jgz-dialog-host": "" },
   });
   document.body.append(host);
