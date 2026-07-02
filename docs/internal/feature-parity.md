@@ -1,10 +1,16 @@
-# Feature Parity Matrix
+# Test Coverage Matrix
 
 ## Summary
 
-The matrix tracks the public [Pygame Zero](https://github.com/lordmauve/pgzero)
-features that `js-game-zero` must support. Each row must have unit tests and
-browser e2e coverage before v1 is considered complete.
+This is an internal engineering artifact, not user-facing documentation: it
+is a **test-coverage matrix**, tracking which public
+[Pygame Zero](https://github.com/lordmauve/pgzero)-inspired features this
+project supports and where each one is covered by tests. It is not a
+compatibility guarantee or a claim that every row's behavior is
+byte-for-byte identical to upstream Pygame Zero — see
+[`docs/migrating-from-pgzero.md`](../migrating-from-pgzero.md) for the
+handful of places behavior genuinely diverges. Each row should have unit
+tests and browser e2e coverage.
 
 | Area      | Feature                                  | Unit Coverage            | Browser E2E Coverage                   |
 | --------- | ---------------------------------------- | ------------------------ | -------------------------------------- |
