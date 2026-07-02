@@ -76,12 +76,23 @@ export class Clock {
     this.tickCallbacks.push({ callback, canceled: false });
   }
 
+  clear(): void {
+    this.scheduled = [];
+    this.tickCallbacks = [];
+  }
+
   tick(dt: number): void {
     const delta = validateDuration(dt, "dt");
     const targetTime = this.time + delta;
     const tickCallbacks = [...this.tickCallbacks];
     for (const event of tickCallbacks) {
-      if (!event.canceled) event.callback(delta);
+      if (event.canceled) continue;
+      try {
+        event.callback(delta);
+      } catch (error) {
+        reportClockCallbackError(error);
+        this.unschedule(event.callback);
+      }
     }
     this.tickCallbacks = this.tickCallbacks.filter((event) => !event.canceled);
     this.time = targetTime;
@@ -91,7 +102,15 @@ export class Clock {
       this.scheduled.splice(this.scheduled.indexOf(event), 1);
       if (!event.canceled) {
         this.active.add(event);
-        event.callback();
+        try {
+          event.callback();
+        } catch (error) {
+          reportClockCallbackError(error);
+          this.active.delete(event);
+          this.unschedule(event.callback);
+          event = this.nextDueEvent();
+          continue;
+        }
         this.active.delete(event);
       }
       if (event.interval !== null && !event.canceled) {
@@ -149,4 +168,8 @@ function validateDuration(value: number, label: string): number {
   }
   if (value < 0) throw new RangeError(`${label} must be non-negative.`);
   return value;
+}
+
+function reportClockCallbackError(error: unknown): void {
+  console.error("Error in scheduled clock callback:", error);
 }
