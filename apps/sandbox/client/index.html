@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>js-game-zero Sandbox</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/client/app.css" />
+  </head>
+  <body data-jgz-dirty="false">
+    <div class="app" data-jgz-app>
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="topbar-mark" aria-hidden="true">🕹️</span>
+          <span class="topbar-title">js-game-zero</span>
+        </div>
+        <button type="button" class="btn btn-ghost" data-jgz-open-examples>
+          Examples
+        </button>
+      </header>
+      <div class="app-shell">
+        <aside class="sidebar" aria-label="Projects and files" data-jgz-sidebar>
+          <div class="sidebar-section">
+            <div class="sidebar-heading">
+              <h2>Projects</h2>
+              <button
+                type="button"
+                class="icon-button icon-button-accent"
+                data-jgz-new-project
+                aria-label="New project"
+                title="New project"
+              >
+                +
+              </button>
+            </div>
+            <p class="sidebar-empty-note" data-jgz-project-empty>
+              No projects yet.
+            </p>
+            <ul
+              class="row-list"
+              data-jgz-project-list
+              aria-label="Projects"
+            ></ul>
+          </div>
+          <div class="sidebar-section" data-jgz-file-section hidden>
+            <div class="sidebar-heading">
+              <h2>Files</h2>
+              <button
+                type="button"
+                class="icon-button icon-button-accent"
+                data-jgz-new-file
+                aria-label="New file"
+                title="New file"
+              >
+                +
+              </button>
+            </div>
+            <ul class="row-list" data-jgz-file-list aria-label="Files"></ul>
+          </div>
+          <div class="sidebar-section" data-jgz-asset-section hidden>
+            <div class="sidebar-heading">
+              <h2>Assets</h2>
+            </div>
+            <div class="asset-upload" data-jgz-asset-drop>
+              <select
+                class="text-input select-input"
+                data-jgz-asset-kind
+                aria-label="Asset type"
+              >
+                <option value="images">Images</option>
+                <option value="sounds">Sounds</option>
+                <option value="music">Music</option>
+                <option value="fonts">Fonts</option>
+              </select>
+              <label class="btn btn-secondary btn-upload">
+                Upload
+                <input
+                  type="file"
+                  multiple
+                  data-jgz-asset-file
+                  class="visually-hidden"
+                  aria-label="Upload asset"
+                />
+              </label>
+              <p class="asset-upload-hint">
+                or drag files anywhere in this box
+              </p>
+              <ul
+                class="asset-grid"
+                data-jgz-asset-grid
+                aria-label="Assets"
+              ></ul>
+            </div>
+          </div>
+        </aside>
+        <main class="workspace" aria-label="Editor">
+          <div class="empty-state" data-jgz-empty-state></div>
+          <section class="editor-pane" data-jgz-editor-pane hidden>
+            <div class="editor-toolbar">
+              <div class="editor-file-label">
+                <span data-jgz-selected-file>No file selected</span>
+                <span class="save-status" data-jgz-save-status>Saved</span>
+              </div>
+              <button type="button" class="btn btn-ghost" data-jgz-save>
+                Save
+              </button>
+            </div>
+            <div class="editor-mount" data-jgz-editor-mount></div>
+          </section>
+        </main>
+        <aside
+          class="preview-pane"
+          aria-label="Preview and console"
+          data-jgz-preview-pane
+        >
+          <div class="preview-toolbar">
+            <span class="preview-status" data-jgz-preview-status>Stopped</span>
+            <div class="preview-controls">
+              <button
+                type="button"
+                class="btn btn-primary"
+                data-jgz-play
+                disabled
+              >
+                ▶ Play
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-jgz-restart
+                disabled
+              >
+                ⟳ Restart
+              </button>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                data-jgz-stop
+                disabled
+              >
+                ■ Stop
+              </button>
+            </div>
+          </div>
+          <div class="preview-frame-wrap">
+            <div class="preview-frame-host" data-jgz-preview-frame-host></div>
+            <div class="focus-overlay" data-jgz-focus-overlay hidden>
+              <p>Click the game to use your keyboard</p>
+            </div>
+          </div>
+          <div class="console-panel">
+            <div class="console-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                class="console-tab"
+                aria-selected="true"
+                data-jgz-console-tab
+              >
+                Console
+              </button>
+              <button
+                type="button"
+                role="tab"
+                class="console-tab"
+                aria-selected="false"
+                data-jgz-problems-tab
+              >
+                Problems
+                <span class="problems-badge" data-jgz-problems-badge hidden
+                  >0</span
+                >
+              </button>
+            </div>
+            <div class="console-output" data-jgz-console-output></div>
+            <ul
+              class="diagnostics-output"
+              data-jgz-diagnostics
+              hidden
+              data-count="0"
+            ></ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <div class="toast-host" data-jgz-toast-host></div>
+    <script type="module" src="/client/app.js"></script>
+  </body>
+</html>

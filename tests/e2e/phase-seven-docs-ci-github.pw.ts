@@ -241,14 +241,22 @@ test("phase 7 sandbox guide workflow runs from a clean project", async ({
   try {
     await page.goto(`http://127.0.0.1:${port}/`);
     await expect(page).toHaveTitle("js-game-zero Sandbox");
-    await page.locator("[data-jgz-project-name]").fill(projectName);
-    await page.locator("[data-jgz-create]").click();
+
+    await page.locator("[data-jgz-new-project]").click();
+    await page.locator("[data-jgz-choose-blank]").click();
+    await page.locator("[data-jgz-dialog-input]").fill(projectName);
+    await page.locator("[data-jgz-dialog-submit]").click();
     await expect(
       page.locator(`[data-jgz-project="${projectName}"]`),
     ).toHaveAttribute("aria-pressed", "true");
 
-    const editor = page.locator("[data-jgz-editor]");
+    const editor = page.locator("[data-jgz-editor-mount] .cm-content");
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+A");
     await editor.fill(source);
+    await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved", {
+      timeout: 4_000,
+    });
 
     const assetPath = testInfo.outputPath("player.svg");
     await writeFile(
@@ -257,9 +265,8 @@ test("phase 7 sandbox guide workflow runs from a clean project", async ({
       "utf8",
     );
     await page.locator("[data-jgz-asset-file]").setInputFiles(assetPath);
-    await page.locator("[data-jgz-upload]").click();
     await expect(
-      page.locator('[data-jgz-file="images/player.svg"]'),
+      page.locator('[data-jgz-asset="images/player.svg"]'),
     ).toBeVisible();
 
     await page.locator("[data-jgz-play]").click();
@@ -285,9 +292,9 @@ test("phase 7 sandbox guide workflow runs from a clean project", async ({
     ).toBeVisible();
     await expect(page.locator('[data-jgz-file="main.js"]')).toBeVisible();
     await expect(
-      page.locator('[data-jgz-file="images/player.svg"]'),
+      page.locator('[data-jgz-asset="images/player.svg"]'),
     ).toBeVisible();
-    await expect(editor).toHaveValue(/Sandbox Starter/);
+    await expect(editor).toContainText("Sandbox Starter");
 
     expect(errors).toEqual([]);
     expect(pageErrors).toEqual([]);

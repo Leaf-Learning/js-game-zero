@@ -5,7 +5,12 @@ import {
   getExample,
   type ExampleManifestEntry,
 } from "../../../examples/manifest";
-import { createSandboxHandler, type SandboxHandlerOptions } from "./sandbox";
+import {
+  cachedBrowserBuild,
+  createSandboxHandler,
+  REPO_ROOT,
+  type SandboxHandlerOptions,
+} from "./sandbox";
 
 const phaseOnePage = `<!doctype html>
 <html lang="en">
@@ -258,31 +263,31 @@ requestAnimationFrame(tick);
 }
 
 async function runtimeBundle(): Promise<Response> {
-  const result = await Bun.build({
-    entrypoints: ["packages/browser-runtime/src/browser.ts"],
-    target: "browser",
-    format: "esm",
-  });
-  if (!result.success || !result.outputs[0]) {
+  try {
+    const build = await cachedBrowserBuild(
+      "runtime-browser",
+      join(REPO_ROOT, "packages/browser-runtime/src/browser.ts"),
+    );
+    return new Response(build.text, {
+      headers: { "content-type": build.contentType },
+    });
+  } catch {
     return new Response("Failed to build runtime", { status: 500 });
   }
-  return new Response(await result.outputs[0].text(), {
-    headers: { "content-type": "text/javascript; charset=utf-8" },
-  });
 }
 
 async function coreRuntimeBundle(): Promise<Response> {
-  const result = await Bun.build({
-    entrypoints: ["packages/core/src/index.ts"],
-    target: "browser",
-    format: "esm",
-  });
-  if (!result.success || !result.outputs[0]) {
+  try {
+    const build = await cachedBrowserBuild(
+      "runtime-core",
+      join(REPO_ROOT, "packages/core/src/index.ts"),
+    );
+    return new Response(build.text, {
+      headers: { "content-type": build.contentType },
+    });
+  } catch {
     return new Response("Failed to build core runtime", { status: 500 });
   }
-  return new Response(await result.outputs[0].text(), {
-    headers: { "content-type": "text/javascript; charset=utf-8" },
-  });
 }
 
 async function legacyPhaseHandler(request: Request): Promise<Response> {
@@ -442,17 +447,17 @@ async function exampleEntryResponse(
   const entryPath = new URL(`../../../${example.entryPoint}`, import.meta.url)
     .pathname;
   if (example.mode === "import") {
-    const result = await Bun.build({
-      entrypoints: [entryPath],
-      target: "browser",
-      format: "esm",
-    });
-    if (!result.success || !result.outputs[0]) {
+    try {
+      const build = await cachedBrowserBuild(
+        `example-${example.slug}`,
+        entryPath,
+      );
+      return new Response(build.text, {
+        headers: { "content-type": build.contentType },
+      });
+    } catch {
       return new Response("Failed to build example", { status: 500 });
     }
-    return new Response(await result.outputs[0].text(), {
-      headers: { "content-type": "text/javascript; charset=utf-8" },
-    });
   }
   const file = Bun.file(entryPath);
   if (!(await file.exists())) return new Response("Not found", { status: 404 });
