@@ -303,6 +303,48 @@ test("cloning an example produces a running game", async ({ page }) => {
   );
 });
 
+test("cloning an asset-heavy game copies its assets and runs", async ({
+  page,
+}) => {
+  const name = uniqueName("flappy");
+  await page.goto("/");
+  await cloneExampleProject(page, "flappy-bird", name);
+
+  await expect(
+    page.locator("[data-jgz-editor-mount] .cm-content"),
+  ).toContainText("Flappy Bird");
+
+  // Every image and sound the game needs must have been copied into the
+  // new project (visible in the assets panel and byte-identical on disk).
+  const expectedAssets = [
+    "images/background.png",
+    "images/plane.png",
+    "images/rock_top.png",
+    "images/rock_bottom.png",
+    "sounds/flap.ogg",
+    "sounds/hit.ogg",
+    "sounds/score.ogg",
+  ];
+  for (const asset of expectedAssets) {
+    await expect(page.locator(`[data-jgz-asset="${asset}"]`)).toBeVisible();
+    const copied = await readFile(resolve(projectsRoot, name, asset));
+    const original = await readFile(
+      resolve(process.cwd(), "examples/flappy-bird/assets", asset),
+    );
+    expect(copied).toEqual(original);
+  }
+
+  await page.locator("[data-jgz-play]").click();
+  const canvas = previewCanvas(page);
+  await expect
+    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .toBe(true);
+  await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
+    "data-count",
+    "0",
+  );
+});
+
 test("viewport 1024x700 shows Play with no clipped controls", async ({
   page,
 }) => {
