@@ -43,16 +43,16 @@ test("phase 3 drawing example renders canvas primitives and gradient pixels", as
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Drawing?: { ready?: boolean };
+          __jgzRenderingDrawing?: { ready?: boolean };
         }
-      ).__jgzPhase3Drawing?.ready,
+      ).__jgzRenderingDrawing?.ready,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Drawing?: {
+          __jgzRenderingDrawing?: {
             gradientTop: number[];
             gradientBottom: number[];
             clearedAlpha: number;
@@ -63,7 +63,7 @@ test("phase 3 drawing example renders canvas primitives and gradient pixels", as
             polygonPixel: number[];
           };
         }
-      ).__jgzPhase3Drawing,
+      ).__jgzRenderingDrawing,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing drawing state.");
@@ -97,16 +97,16 @@ test("phase 3 text example renders text and textbox regions", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Text?: { ready?: boolean };
+          __jgzRenderingText?: { ready?: boolean };
         }
-      ).__jgzPhase3Text?.ready,
+      ).__jgzRenderingText?.ready,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Text?: {
+          __jgzRenderingText?: {
             headingLayout: {
               lineCount: number;
               align: string;
@@ -126,7 +126,7 @@ test("phase 3 text example renders text and textbox regions", async ({
             rotatedChanged: boolean;
           };
         }
-      ).__jgzPhase3Text,
+      ).__jgzRenderingText,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing text state.");
@@ -158,16 +158,16 @@ test("phase 3 loader example resolves cached assets and blits the sprite", async
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Loader?: { ready?: boolean };
+          __jgzRenderingLoader?: { ready?: boolean };
         }
-      ).__jgzPhase3Loader?.ready,
+      ).__jgzRenderingLoader?.ready,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Loader?: {
+          __jgzRenderingLoader?: {
             cacheHit: boolean;
             dimensions: [number, number];
             imagePixel: number[];
@@ -178,7 +178,7 @@ test("phase 3 loader example resolves cached assets and blits the sprite", async
             unloaded: boolean;
           };
         }
-      ).__jgzPhase3Loader,
+      ).__jgzRenderingLoader,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing loader state.");
@@ -205,16 +205,16 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Actor?: { ready?: boolean };
+          __jgzRenderingActor?: { ready?: boolean };
         }
-      ).__jgzPhase3Actor?.ready,
+      ).__jgzRenderingActor?.ready,
   );
 
   const initial = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Actor?: {
+          __jgzRenderingActor?: {
             pos: [number, number];
             spritePixel: number[];
             rect: { width: number; height: number };
@@ -227,7 +227,7 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
             colliding: boolean;
           };
         }
-      ).__jgzPhase3Actor,
+      ).__jgzRenderingActor,
   );
   expect(initial).toBeTruthy();
   if (!initial) throw new Error("Missing initial actor state.");
@@ -247,16 +247,16 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Actor?: { moved?: boolean };
+          __jgzRenderingActor?: { moved?: boolean };
         }
-      ).__jgzPhase3Actor?.moved,
+      ).__jgzRenderingActor?.moved,
   );
 
   const moved = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase3Actor?: {
+          __jgzRenderingActor?: {
             pos: [number, number];
             opacity: number;
             rotatedRect: { width: number; height: number };
@@ -264,7 +264,7 @@ test("phase 3 actor example renders, moves, rotates, and reports collision state
             colliding: boolean;
           };
         }
-      ).__jgzPhase3Actor,
+      ).__jgzRenderingActor,
   );
   expect(moved).toBeTruthy();
   if (!moved) throw new Error("Missing moved actor state.");

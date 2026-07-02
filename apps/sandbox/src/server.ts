@@ -29,7 +29,7 @@ const phaseOnePage = `<!doctype html>
       <h1>js-game-zero sandbox scaffold</h1>
       <canvas data-jgz-phase-one-canvas width="320" height="180"></canvas>
     </main>
-    <script type="module" src="/runtime/browser.js"></script>
+    <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 
@@ -51,7 +51,7 @@ const phaseTwoPage = `<!doctype html>
       <h1>js-game-zero core semantics fixture</h1>
       <canvas data-jgz-phase-two-canvas width="320" height="180"></canvas>
     </main>
-    <script type="module" src="/runtime/browser.js"></script>
+    <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 
@@ -77,7 +77,7 @@ function phaseThreePage(
       <h1>${heading}</h1>
       <canvas ${canvasAttribute} width="240" height="150"></canvas>
     </main>
-    <script type="module" src="/runtime/browser.js"></script>
+    <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 }
@@ -106,7 +106,7 @@ function phaseFourPage(
       <h1>${heading}</h1>
       <button ${buttonAttribute}>${buttonLabel}</button>
     </main>
-    <script type="module" src="/runtime/browser.js"></script>
+    <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 }
@@ -332,14 +332,60 @@ async function coreRuntimeBundle(): Promise<Response> {
   }
 }
 
-async function legacyPhaseHandler(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+/** Bundles the e2e fixture-page harness (tests/e2e/fixtures/browser-harness.ts),
+ * NOT any shipped package. Only reachable through testFixtureRouteResponse,
+ * i.e. only when the server is started with --test-fixtures /
+ * JGZ_TEST_FIXTURES=1 (see playwright.config.ts's webServer command). */
+async function testFixtureRuntimeBundle(): Promise<Response> {
+  try {
+    const build = await cachedBrowserBuild(
+      "test-fixtures-runtime",
+      join(REPO_ROOT, "tests/e2e/fixtures/browser-harness.ts"),
+    );
+    return new Response(build.text, {
+      headers: { "content-type": build.contentType },
+    });
+  } catch {
+    return new Response("Failed to build test-fixture runtime", {
+      status: 500,
+    });
+  }
+}
+
+/** Routes that ship as part of the real product: the sandbox handler
+ * (checked before this by the caller), the runnable examples, and the
+ * runtime bundles they load. Always active, regardless of --test-fixtures. */
+async function productRouteResponse(url: URL): Promise<Response | null> {
   if (url.pathname === "/api/health") {
     return Response.json({ ok: true, phase: 1 });
   }
   if (url.pathname === "/runtime/core.js") return coreRuntimeBundle();
   if (url.pathname === "/runtime/browser.js") return runtimeBundle();
-  if (url.pathname === "/" || url.pathname === "/phase-one") {
+  if (url.pathname === "/examples") {
+    return html(examplesIndexPage());
+  }
+  if (url.pathname.startsWith("/examples/")) {
+    const response = await exampleRouteResponse(url.pathname);
+    if (response) return response;
+  }
+  if (url.pathname.startsWith("/assets/")) {
+    const response = await exampleOwnAssetResponse(url.pathname);
+    if (response) return response;
+  }
+  return null;
+}
+
+/** Legacy e2e fixture pages (`/phase-one` .. `/phase-four/*`) and their
+ * fixture-only asset routes: these exist solely so tests/e2e specs can
+ * observe real browser behavior through window.__jgz* globals (see
+ * tests/e2e/fixtures/browser-harness.ts). Not part of the shipped product —
+ * only reachable when the server is started with --test-fixtures /
+ * JGZ_TEST_FIXTURES=1. */
+async function testFixtureRouteResponse(url: URL): Promise<Response | null> {
+  if (url.pathname === "/test-fixtures/runtime.js") {
+    return testFixtureRuntimeBundle();
+  }
+  if (url.pathname === "/phase-one") {
     return new Response(phaseOnePage, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -349,30 +395,19 @@ async function legacyPhaseHandler(request: Request): Promise<Response> {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
-  if (url.pathname === "/examples") {
-    return html(examplesIndexPage());
-  }
-  if (url.pathname.startsWith("/examples/")) {
-    const response = await exampleRouteResponse(url.pathname);
-    if (response) return response;
-  }
   if (url.pathname.startsWith("/assets/phase_three/")) {
     return exampleAssetResponse(
       url.pathname,
       "/assets/phase_three/",
-      "../../../examples/phase-three/assets",
+      "../../../tests/e2e/fixtures/assets/phase-three/assets",
     );
   }
   if (url.pathname.startsWith("/assets/phase_five/")) {
     return exampleAssetResponse(
       url.pathname,
       "/assets/phase_five/",
-      "../../../examples/phase-five/assets",
+      "../../../tests/e2e/fixtures/assets/phase-five/assets",
     );
-  }
-  if (url.pathname.startsWith("/assets/")) {
-    const response = await exampleOwnAssetResponse(url.pathname);
-    if (response) return response;
   }
   if (url.pathname === "/phase-three/drawing") {
     return html(
@@ -450,23 +485,48 @@ async function legacyPhaseHandler(request: Request): Promise<Response> {
       ),
     );
   }
+  return null;
+}
+
+async function legacyPhaseHandler(
+  request: Request,
+  testFixtures: boolean,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const productResponse = await productRouteResponse(url);
+  if (productResponse) return productResponse;
+  if (testFixtures) {
+    const fixtureResponse = await testFixtureRouteResponse(url);
+    if (fixtureResponse) return fixtureResponse;
+  }
   return new Response("Not found", { status: 404 });
 }
 
+export type SandboxServerHandlerOptions = SandboxHandlerOptions & {
+  /** Enables the legacy `/phase-one` .. `/phase-four/*` e2e fixture routes
+   * (see testFixtureRouteResponse). Off by default so the product server
+   * never serves test-only pages; playwright.config.ts's webServer command
+   * passes `--test-fixtures` to turn them on for the e2e suite. */
+  readonly testFixtures?: boolean;
+};
+
 export function createSandboxServerHandler(
-  options: SandboxHandlerOptions = {},
+  options: SandboxServerHandlerOptions = {},
 ): (request: Request) => Promise<Response> {
-  const sandboxHandler = createSandboxHandler(options);
+  const { testFixtures = false, ...sandboxOptions } = options;
+  const sandboxHandler = createSandboxHandler(sandboxOptions);
   return async function sandboxServerHandler(
     request: Request,
   ): Promise<Response> {
     const sandboxResponse = await sandboxHandler(request);
     if (sandboxResponse) return sandboxResponse;
-    return legacyPhaseHandler(request);
+    return legacyPhaseHandler(request, testFixtures);
   };
 }
 
-export const phaseOneHandler = createSandboxServerHandler();
+export const phaseOneHandler = createSandboxServerHandler({
+  testFixtures: true,
+});
 
 function html(source: string): Response {
   return new Response(source, {
@@ -584,6 +644,7 @@ export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
       host: { type: "string", default: "127.0.0.1" },
       port: { type: "string", default: "4173" },
       "projects-root": { type: "string" },
+      "test-fixtures": { type: "boolean", default: false },
     },
     strict: false,
   });
@@ -594,12 +655,19 @@ export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
     values["projects-root"] === undefined
       ? undefined
       : String(values["projects-root"]);
+  // --test-fixtures is the CLI form; JGZ_TEST_FIXTURES=1 is the env-var form
+  // playwright.config.ts could use instead (both are supported so either a
+  // process manager or a shell script can opt in without touching the
+  // command line).
+  const testFixtures =
+    values["test-fixtures"] === true || process.env.JGZ_TEST_FIXTURES === "1";
   Bun.serve({
     hostname: host,
     port,
-    fetch: createSandboxServerHandler(
-      projectsRoot === undefined ? {} : { projectsRoot },
-    ),
+    fetch: createSandboxServerHandler({
+      ...(projectsRoot === undefined ? {} : { projectsRoot }),
+      testFixtures,
+    }),
   });
   console.log(`js-game-zero sandbox listening on http://${host}:${port}`);
 }

@@ -1,8 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
-const projectsRoot = resolve(process.cwd(), ".jgz-projects");
+import { e2eProjectsRoot as projectsRoot } from "./fixtures/e2e-projects-root";
 
 // A well-known 1x1 transparent PNG, used to verify binary assets survive
 // upload byte-for-byte.
