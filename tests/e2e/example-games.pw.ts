@@ -1,11 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * End-to-end tests for the two complete example games (flappy-bird and
- * breakout). The games are plain teaching code with zero test hooks; all
- * observations happen through canvas pixels and the read-only debug
- * handle (`window.__jgzExampleHandle`) that the server-generated harness
- * page exposes for e2e tooling.
+ * End-to-end tests for the complete example games (flappy-bird, breakout,
+ * space-shooter, snake, and platformer). The games are plain teaching code
+ * with zero test hooks; all observations happen through canvas pixels and
+ * the read-only debug handle (`window.__jgzExampleHandle`) that the
+ * server-generated harness page exposes for e2e tooling.
  */
 
 type ExampleStatus = {
@@ -450,6 +450,438 @@ test.describe("breakout", () => {
         window as typeof window & { __jgzAutopilotStop?: () => void }
       ).__jgzAutopilotStop?.(),
     );
+
+    const status = await exampleStatus(page);
+    expect(status.errors).toEqual([]);
+    expect(status.diagnostics).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+});
+
+/** The ship is the only strongly blue sprite in the bottom quarter of the
+ * space-shooter playfield; returns its centroid x, or -1 when not found. */
+async function spaceShooterShipX(page: Page): Promise<number> {
+  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+    const target = canvas as HTMLCanvasElement;
+    const context = target.getContext("2d", { willReadFrequently: true });
+    if (!context) return -1;
+    const top = Math.floor(target.height * 0.75);
+    const height = target.height - top;
+    const data = context.getImageData(0, top, target.width, height).data;
+    let sum = 0;
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index] ?? 0;
+      const b = data[index + 2] ?? 0;
+      if (b > 150 && b - r > 40) {
+        sum += (index / 4) % target.width;
+        count += 1;
+      }
+    }
+    return count > 0 ? sum / count : -1;
+  });
+}
+
+/** The laser and the ship share the same blue, so a laser is detected by
+ * looking for that colour in the empty band between the ship's starting
+ * row and the enemy formation, where nothing else is ever drawn. */
+async function spaceShooterLaserInFlight(page: Page): Promise<boolean> {
+  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+    const target = canvas as HTMLCanvasElement;
+    const context = target.getContext("2d", { willReadFrequently: true });
+    if (!context) return false;
+    const top = 250;
+    const height = 250;
+    const data = context.getImageData(0, top, target.width, height).data;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index] ?? 0;
+      const g = data[index + 1] ?? 0;
+      const b = data[index + 2] ?? 0;
+      if (
+        Math.abs(r - 54) < 20 &&
+        Math.abs(g - 187) < 20 &&
+        Math.abs(b - 245) < 15
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+test.describe("space-shooter", () => {
+  // The playfield is 480x640 shown 1:1; a taller viewport keeps the whole
+  // vertical canvas on screen alongside the page header.
+  test.use({ viewport: { width: 700, height: 900 } });
+
+  test("loads cleanly, arrow keys move the ship, and space fires a laser", async ({
+    page,
+  }) => {
+    const { errors, pageErrors } = collectPageErrors(page);
+    await openExample(page, "space-shooter");
+    await expect(page).toHaveTitle("Space Shooter");
+    expect(await canvasIsNonblank(page)).toBe(true);
+
+    const before = await spaceShooterShipX(page);
+    expect(before).toBeGreaterThan(0);
+
+    await page.keyboard.down("ArrowLeft");
+    await page.waitForTimeout(500);
+    await page.keyboard.up("ArrowLeft");
+    const afterLeft = await spaceShooterShipX(page);
+    expect(afterLeft).toBeGreaterThan(0);
+    expect(afterLeft).toBeLessThan(before - 30);
+
+    expect(await spaceShooterLaserInFlight(page)).toBe(false);
+    // Firing is polled from `keyboard.space` each frame, so hold the key
+    // down for a beat rather than using a single press() - a down+up pair
+    // fired back-to-back can otherwise resolve between animation frames
+    // and never be observed by the game loop.
+    await page.keyboard.down("Space");
+    await page.waitForTimeout(80);
+    await page.keyboard.up("Space");
+    // Give the laser a moment to clear the ship's nose and enter the
+    // empty band the detector scans.
+    await page.waitForTimeout(150);
+    expect(await spaceShooterLaserInFlight(page)).toBe(true);
+
+    const status = await exampleStatus(page);
+    expect(status.errors).toEqual([]);
+    expect(status.diagnostics).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+});
+
+/** The snake's head is the brightest green pixel cluster on the board (the
+ * body segments use a darker shade); returns its centroid, or null when
+ * the snake hasn't been drawn yet (e.g. mid-reload). */
+async function snakeHeadPos(
+  page: Page,
+): Promise<{ x: number; y: number } | null> {
+  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+    const target = canvas as HTMLCanvasElement;
+    const context = target.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    const data = context.getImageData(0, 0, target.width, target.height).data;
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index] ?? 0;
+      const g = data[index + 1] ?? 0;
+      const b = data[index + 2] ?? 0;
+      if (r > 60 && r < 110 && g > 200 && b > 90 && b < 170) {
+        const pixel = index / 4;
+        sumX += pixel % target.width;
+        sumY += Math.floor(pixel / target.width);
+        count += 1;
+      }
+    }
+    return count > 0 ? { x: sumX / count, y: sumY / count } : null;
+  });
+}
+
+/** The fruit is the only saturated orange sprite on the board; returns its
+ * centroid and pixel count (used to detect "the fruit just respawned
+ * elsewhere", which is how eating is observed from pixels alone). */
+async function snakeFruitPos(
+  page: Page,
+): Promise<{ x: number; y: number; count: number } | null> {
+  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+    const target = canvas as HTMLCanvasElement;
+    const context = target.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    const data = context.getImageData(0, 0, target.width, target.height).data;
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index] ?? 0;
+      const g = data[index + 1] ?? 0;
+      const b = data[index + 2] ?? 0;
+      if (r > 200 && g > 90 && g < 170 && b < 80) {
+        const pixel = index / 4;
+        sumX += pixel % target.width;
+        sumY += Math.floor(pixel / target.width);
+        count += 1;
+      }
+    }
+    return count > 0 ? { x: sumX / count, y: sumY / count, count } : null;
+  });
+}
+
+test.describe("snake", () => {
+  test("loads cleanly and turning changes the snake's heading", async ({
+    page,
+  }) => {
+    const { errors, pageErrors } = collectPageErrors(page);
+    await openExample(page, "snake");
+    await expect(page).toHaveTitle("Snake");
+    expect(await canvasIsNonblank(page)).toBe(true);
+
+    // The snake starts heading right; turning it downward and letting a
+    // couple of scheduled moves play out should move the head down rather
+    // than further right.
+    const before = await snakeHeadPos(page);
+    expect(before).not.toBeNull();
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(500);
+    const after = await snakeHeadPos(page);
+    expect(after).not.toBeNull();
+    expect(after!.y).toBeGreaterThan(before!.y + 20);
+
+    const status = await exampleStatus(page);
+    expect(status.errors).toEqual([]);
+    expect(status.diagnostics).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("eating fruit raises the score and persists a high score across a reload", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const { errors, pageErrors } = collectPageErrors(page);
+    await openExample(page, "snake");
+    // Start from a clean slate so the asserted high score comes from this
+    // run alone.
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+    await openExample(page, "snake");
+    expect(await readStorageNumber(page, "highscore")).toBe(0);
+
+    // Turn away from the starting rightward heading immediately, then a
+    // tiny pixel-driven autopilot steers toward the fruit: real keyboard
+    // input (dispatched at the window, the same target the game's own
+    // listener attaches to) turns the snake whenever the fruit is mostly
+    // to one side of the head.
+    await page.keyboard.press("ArrowDown");
+    await page.evaluate(() => {
+      function headPos(): { x: number; y: number } | null {
+        const canvas = document.querySelector(
+          "[data-jgz-example-canvas]",
+        ) as HTMLCanvasElement;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        const data = context.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        ).data;
+        let sumX = 0;
+        let sumY = 0;
+        let count = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          const r = data[index] ?? 0;
+          const g = data[index + 1] ?? 0;
+          const b = data[index + 2] ?? 0;
+          if (r > 60 && r < 110 && g > 200 && b > 90 && b < 170) {
+            const pixel = index / 4;
+            sumX += pixel % canvas.width;
+            sumY += Math.floor(pixel / canvas.width);
+            count += 1;
+          }
+        }
+        return count > 0 ? { x: sumX / count, y: sumY / count } : null;
+      }
+      function fruitPos(): { x: number; y: number } | null {
+        const canvas = document.querySelector(
+          "[data-jgz-example-canvas]",
+        ) as HTMLCanvasElement;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        const data = context.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        ).data;
+        let sumX = 0;
+        let sumY = 0;
+        let count = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          const r = data[index] ?? 0;
+          const g = data[index + 1] ?? 0;
+          const b = data[index + 2] ?? 0;
+          if (r > 200 && g > 90 && g < 170 && b < 80) {
+            const pixel = index / 4;
+            sumX += pixel % canvas.width;
+            sumY += Math.floor(pixel / canvas.width);
+            count += 1;
+          }
+        }
+        return count > 0 ? { x: sumX / count, y: sumY / count } : null;
+      }
+      function press(code: string): void {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { code, bubbles: true }),
+        );
+        window.dispatchEvent(
+          new KeyboardEvent("keyup", { code, bubbles: true }),
+        );
+      }
+      const WIDTH = 640;
+      const HEIGHT = 480;
+      const MARGIN = 64; // two grid cells - start turning before the wall
+      let lastKey = "ArrowDown";
+      let lastHead: { x: number; y: number } | null = null;
+      let stuckSince = Date.now();
+      const interval = window.setInterval(() => {
+        const head = headPos();
+        if (!head) return;
+        // This greedy autopilot has no path-planning, so an unlucky apple
+        // placement can occasionally run it into a wall or its own tail.
+        // If the head stops moving for a while, treat that as a death,
+        // restart, and keep going rather than stalling out the test.
+        if (
+          !lastHead ||
+          Math.abs(head.x - lastHead.x) > 2 ||
+          Math.abs(head.y - lastHead.y) > 2
+        ) {
+          lastHead = head;
+          stuckSince = Date.now();
+        } else if (Date.now() - stuckSince > 700) {
+          press("Space"); // restarts from the "dead" state
+          lastKey = "ArrowRight"; // matches the game's fresh heading
+          stuckSince = Date.now();
+          return;
+        }
+
+        const fruit = fruitPos();
+        if (!fruit) return;
+        let key = lastKey;
+        // Wall avoidance takes priority over beelining for the fruit.
+        if (lastKey === "ArrowRight" && head.x > WIDTH - MARGIN) {
+          key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
+        } else if (lastKey === "ArrowLeft" && head.x < MARGIN) {
+          key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
+        } else if (lastKey === "ArrowDown" && head.y > HEIGHT - MARGIN) {
+          key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
+        } else if (lastKey === "ArrowUp" && head.y < MARGIN) {
+          key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
+        } else {
+          const dx = fruit.x - head.x;
+          const dy = fruit.y - head.y;
+          if (Math.abs(dx) > 20) key = dx > 0 ? "ArrowRight" : "ArrowLeft";
+          else if (Math.abs(dy) > 20) key = dy > 0 ? "ArrowDown" : "ArrowUp";
+        }
+        if (key !== lastKey) {
+          press(key);
+          lastKey = key;
+        }
+      }, 120);
+      (
+        window as typeof window & { __jgzAutopilotStop?: () => void }
+      ).__jgzAutopilotStop = () => window.clearInterval(interval);
+    });
+
+    await expect
+      .poll(() => readStorageNumber(page, "highscore"), {
+        timeout: 45_000,
+        message: "autopilot should eat at least one fruit",
+      })
+      .toBeGreaterThan(0);
+    await page.evaluate(() =>
+      (
+        window as typeof window & { __jgzAutopilotStop?: () => void }
+      ).__jgzAutopilotStop?.(),
+    );
+    const scored = await readStorageNumber(page, "highscore");
+
+    // Auto-save is debounced; give it a moment, then reload and confirm
+    // the best score came back without the game ever calling save().
+    await page.waitForTimeout(500);
+    await page.reload();
+    await openExample(page, "snake");
+    expect(await readStorageNumber(page, "highscore")).toBeGreaterThanOrEqual(
+      scored,
+    );
+
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+});
+
+/** The player's helmet glass is a light blue-grey that nothing else in the
+ * scene shares (tiles, gems, the flag, and water are all fully saturated
+ * colours); returns its centroid, or null when not found. */
+async function platformerPlayerPos(
+  page: Page,
+): Promise<{ x: number; y: number } | null> {
+  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+    const target = canvas as HTMLCanvasElement;
+    const context = target.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    const data = context.getImageData(0, 0, target.width, target.height).data;
+    let sumX = 0;
+    let sumY = 0;
+    let count = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const r = data[index] ?? 0;
+      const g = data[index + 1] ?? 0;
+      const b = data[index + 2] ?? 0;
+      if (r > 180 && r < 200 && g > 212 && g < 232 && b > 231 && b < 251) {
+        const pixel = index / 4;
+        sumX += pixel % target.width;
+        sumY += Math.floor(pixel / target.width);
+        count += 1;
+      }
+    }
+    return count > 0 ? { x: sumX / count, y: sumY / count } : null;
+  });
+}
+
+test.describe("platformer", () => {
+  test("loads cleanly and a jump moves the player upward", async ({ page }) => {
+    const { errors, pageErrors } = collectPageErrors(page);
+    await openExample(page, "platformer");
+    await expect(page).toHaveTitle("Platformer");
+    expect(await canvasIsNonblank(page)).toBe(true);
+
+    const before = await platformerPlayerPos(page);
+    expect(before).not.toBeNull();
+
+    await page.keyboard.press("Space");
+    // Sampled before the jump's apex (roughly 400ms out, given this
+    // game's gravity/jump constants), so the player is still rising.
+    await page.waitForTimeout(200);
+    const after = await platformerPlayerPos(page);
+    expect(after).not.toBeNull();
+    expect(after!.y).toBeLessThan(before!.y - 20);
+
+    const status = await exampleStatus(page);
+    expect(status.errors).toEqual([]);
+    expect(status.diagnostics).toEqual([]);
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("running and jumping crosses a gap and collects a gem", async ({
+    page,
+  }) => {
+    test.setTimeout(30_000);
+    const { errors, pageErrors } = collectPageErrors(page);
+    await openExample(page, "platformer");
+
+    const before = await platformerPlayerPos(page);
+    expect(before).not.toBeNull();
+
+    await page.keyboard.down("ArrowRight");
+    for (let hop = 0; hop < 3; hop += 1) {
+      await page.waitForTimeout(320);
+      await page.keyboard.down("Space");
+      await page.waitForTimeout(60);
+      await page.keyboard.up("Space");
+    }
+    await page.waitForTimeout(500);
+    await page.keyboard.up("ArrowRight");
+
+    const after = await platformerPlayerPos(page);
+    expect(after).not.toBeNull();
+    // Crossing the first gap and stepping up onto the following platforms
+    // covers well over one tile's width (54px).
+    expect(after!.x).toBeGreaterThan(before!.x + 100);
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);
