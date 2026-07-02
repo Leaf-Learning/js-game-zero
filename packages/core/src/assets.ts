@@ -69,6 +69,17 @@ export type AssetLoader<T> = {
   unload_all(): void;
   unloadAll(): void;
   cache_keys(): string[];
+  /**
+   * Number of loads currently in flight (started but not yet settled).
+   * Used by the runtime's preload gate to hold frames until assets that
+   * were requested during module evaluation (or mid-game) have resolved.
+   */
+  pendingCount(): number;
+  /**
+   * Resolves once there are no in-flight loads. Re-checks after each
+   * settle so loads triggered while waiting are also awaited.
+   */
+  waitForIdle(): Promise<void>;
 };
 
 export type AssetLoaders = {
@@ -420,6 +431,14 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
     },
     cache_keys(): string[] {
       return [...cache.keys()].sort();
+    },
+    pendingCount(): number {
+      return pending.size;
+    },
+    async waitForIdle(): Promise<void> {
+      while (pending.size > 0) {
+        await Promise.allSettled([...pending.values()]);
+      }
     },
   };
 

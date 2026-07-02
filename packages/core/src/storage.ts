@@ -49,6 +49,7 @@ export class JsonStorageError extends Error {
 export class Storage {
   private readonly adapter: StorageAdapter;
   private readonly values = new Map<string, unknown>();
+  private readonly listeners = new Set<() => void>();
 
   constructor(options: StorageOptions = {}) {
     this.adapter =
@@ -74,11 +75,15 @@ export class Storage {
   set(key: string, value: unknown): void {
     requireStorageKey(key);
     this.values.set(key, value);
+    this.notify();
   }
 
   setdefault(key: string, defaultValue: unknown): unknown {
     requireStorageKey(key);
-    if (!this.values.has(key)) this.values.set(key, defaultValue);
+    if (!this.values.has(key)) {
+      this.values.set(key, defaultValue);
+      this.notify();
+    }
     return this.values.get(key);
   }
 
@@ -89,11 +94,15 @@ export class Storage {
 
   delete(key: string): boolean {
     requireStorageKey(key);
-    return this.values.delete(key);
+    const deleted = this.values.delete(key);
+    if (deleted) this.notify();
+    return deleted;
   }
 
   clear(): void {
+    if (this.values.size === 0) return;
     this.values.clear();
+    this.notify();
   }
 
   keys(): string[] {
@@ -104,12 +113,46 @@ export class Storage {
     return this.jsonObject();
   }
 
+  /**
+   * Subscribes to any mutation (set/delete/clear/setdefault-insert),
+   * including mutations made through the PGZero-style proxy (e.g.
+   * `storage.score = 5`). Returns an unsubscribe function. Used by the
+   * runtime to drive debounced auto-save; loading does not notify.
+   */
+  onChange(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   async save(): Promise<void> {
     await this.adapter.save(JSON.stringify(this.jsonObject()));
   }
 
   async load(): Promise<void> {
     const text = await this.adapter.load();
+    this.applyLoadedText(text);
+  }
+
+  /**
+   * Attempts a fully synchronous load: succeeds (returning true) only if
+   * the underlying adapter's `load()` returns a value directly rather
+   * than a Promise (true for the default browser localStorage adapter).
+   * This lets the runtime populate storage before top-level game code
+   * runs, matching the fully synchronous startup of the upstream
+   * reference framework this package reimplements. Returns false
+   * (without side effects) when the adapter is inherently asynchronous;
+   * callers should fall back to `load()` in that case.
+   */
+  loadSync(): boolean {
+    const result = this.adapter.load();
+    if (isPromiseLike(result)) return false;
+    this.applyLoadedText(result);
+    return true;
+  }
+
+  private applyLoadedText(text: string | null): void {
     this.values.clear();
     if (text === null || text === "") return;
     let parsed: unknown;
@@ -131,6 +174,10 @@ export class Storage {
     for (const [key, value] of Object.entries(parsed)) {
       this.values.set(key, value);
     }
+  }
+
+  private notify(): void {
+    for (const listener of this.listeners) listener();
   }
 
   private jsonObject(): Record<string, JsonValue> {
@@ -387,6 +434,14 @@ function isMissingFileError(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
   );
 }
 
