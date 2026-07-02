@@ -9,6 +9,7 @@ import {
   mapBrowserKeyEvent,
   mapBrowserMouseButton,
   mapBrowserMouseEvent,
+  mapBrowserWheelEvent,
   mouse,
 } from "@js-game-zero/core";
 
@@ -96,6 +97,41 @@ describe("browser event mapping", () => {
       }).rel,
     ).toEqual([7, -3]);
   });
+
+  test("DOM back/forward buttons (3/4) are not reported as wheel input", () => {
+    // Real wheel input arrives through the separate `wheel` DOM event, not
+    // through button indices 3/4 on mousedown/mouseup -- those are the
+    // browser's back/forward buttons.
+    expect(mapBrowserMouseButton(3)).toBeNull();
+    expect(mapBrowserMouseButton(4)).toBeNull();
+    expect(mapBrowserMouseButton(undefined)).toBeNull();
+  });
+
+  test("maps wheel events to mouse.WHEEL_UP/WHEEL_DOWN at the pointer position", () => {
+    const target = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
+    expect(
+      mapBrowserWheelEvent({ clientX: 30, clientY: 50, deltaY: -100 }, target),
+    ).toEqual({
+      pos: [20, 30],
+      button: mouse.WHEEL_UP,
+      buttons: new Set(),
+      rel: [0, 0],
+    });
+    expect(
+      mapBrowserWheelEvent({ clientX: 30, clientY: 50, deltaY: 100 }, target),
+    ).toMatchObject({ button: mouse.WHEEL_DOWN });
+    expect(
+      mapBrowserWheelEvent({ clientX: 30, clientY: 50, deltaY: 0 }, target),
+    ).toBeNull();
+    expect(
+      mapBrowserWheelEvent({
+        clientX: 30,
+        clientY: 50,
+        deltaY: -1,
+        buttons: 1,
+      })?.buttons,
+    ).toEqual(new Set([mouse.LEFT]));
+  });
 });
 
 describe("InputDispatcher", () => {
@@ -145,6 +181,30 @@ describe("InputDispatcher", () => {
       { type: "up", key: keys.A, mod: 0, a: false },
       { type: "mouseDown", pos: [10, 20], button: mouse.LEFT },
       { type: "mouseMove", pos: [13, 25], rel: [3, 5], buttons: [mouse.LEFT] },
+    ]);
+  });
+
+  test("handleWheel dispatches on_mouse_down with WHEEL_UP/WHEEL_DOWN and ignores zero-delta scroll", () => {
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      on_mouse_down(pos: unknown, button: unknown) {
+        events.push({ pos, button });
+      },
+    });
+
+    expect(
+      dispatcher.handleWheel({ clientX: 5, clientY: 5, deltaY: -50 }),
+    ).toBe(true);
+    expect(dispatcher.handleWheel({ clientX: 5, clientY: 5, deltaY: 50 })).toBe(
+      true,
+    );
+    expect(dispatcher.handleWheel({ clientX: 5, clientY: 5, deltaY: 0 })).toBe(
+      false,
+    );
+
+    expect(events).toEqual([
+      { pos: [5, 5], button: mouse.WHEEL_UP },
+      { pos: [5, 5], button: mouse.WHEEL_DOWN },
     ]);
   });
 });

@@ -740,12 +740,17 @@ function attachDispatcher(
     withRuntimeContext(context, () =>
       dispatcher.handleMouseMove(event as MouseEvent, canvas),
     );
+  const wheel = (event: Event) =>
+    withRuntimeContext(context, () =>
+      dispatcher.handleWheel(event as WheelEvent, canvas),
+    );
 
   keyboardTarget.addEventListener("keydown", keyDown);
   keyboardTarget.addEventListener("keyup", keyUp);
   canvas.addEventListener("mousedown", mouseDown);
   canvas.addEventListener("mouseup", mouseUp);
   canvas.addEventListener("mousemove", mouseMove);
+  canvas.addEventListener("wheel", wheel, { passive: true });
 
   return () => {
     keyboardTarget.removeEventListener("keydown", keyDown);
@@ -753,6 +758,7 @@ function attachDispatcher(
     canvas.removeEventListener("mousedown", mouseDown);
     canvas.removeEventListener("mouseup", mouseUp);
     canvas.removeEventListener("mousemove", mouseMove);
+    canvas.removeEventListener("wheel", wheel);
   };
 }
 
