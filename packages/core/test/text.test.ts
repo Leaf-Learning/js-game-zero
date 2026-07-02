@@ -228,7 +228,7 @@ describe("draw.textbox", () => {
     expect(height).toBeLessThanOrEqual(28);
   });
 
-  test("textbox still anchors on the rect center even with an explicit anchor override", () => {
+  test("textbox honors an explicit anchor override like pgzero's drawbox", () => {
     const { screen, context } = screenAndContext();
     screen.draw.textbox("hi", [10, 12, 70, 28], {
       fontsize: 12,
@@ -236,12 +236,12 @@ describe("draw.textbox", () => {
       anchor: "topleft",
     });
 
-    // The position point passed to layoutText is always rect.center; an
-    // explicit `anchor` only changes where the text sits *relative to*
-    // that point (here, the text's own top-left corner lands on center).
+    // Upstream drawbox computes the position point as
+    // rect.topleft + anchor * rect.size and anchors the text there, so an
+    // explicit "topleft" lays the text out from the rect's own top-left.
     expect(context.operations).toContainEqual({
       name: "translate",
-      args: [45, 26],
+      args: [10, 12],
     });
   });
 });

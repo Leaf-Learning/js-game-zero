@@ -339,15 +339,23 @@ export class Screen {
   ): void {
     const rect = new Rect(rectLike);
     const fit = fitTextboxFontSize(this.context, text, rect, options);
-    // pgzero's drawbox centers the rendered text on the rect (anchor 0.5,
-    // 0.5) rather than laying it out from the top-left corner; callers may
-    // still override via an explicit `anchor`.
-    const layout = layoutText(this.context, text, rect.center, {
+    // pgzero's drawbox anchors the text on the rect at the anchor fraction
+    // (default 0.5, 0.5 -> centered both ways): the position point is
+    // rect.topleft + anchor * rect.size, and the same anchor places the
+    // text block relative to that point. So the default centers the text
+    // in the rect, while e.g. anchor "topleft" lays out from rect.topleft.
+    const anchor = options.anchor ?? "center";
+    const rectAnchorOffset = anchorOffsetFor(anchor, rect.width, rect.height);
+    const point: Point = [
+      rect.left + rectAnchorOffset[0],
+      rect.top + rectAnchorOffset[1],
+    ];
+    const layout = layoutText(this.context, text, point, {
       ...options,
       fontsize: fit.fontSize,
       width: rect.width,
       lineheight: fit.lineHeight,
-      anchor: options.anchor ?? "center",
+      anchor,
     });
     renderTextLayout(this.context, String(text), layout, options);
   }
