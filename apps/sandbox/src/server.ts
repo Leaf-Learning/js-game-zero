@@ -142,16 +142,18 @@ function examplesIndexPage(): string {
 </html>`;
 }
 
-function examplePage(example: ExampleManifestEntry): string {
-  const loaderScript =
-    example.mode === "import"
-      ? `<script type="module" src="/examples/${example.slug}/main.js"></script>`
-      : `<script type="module">
-	import { ImageSurface, run } from "/runtime/core.js";
-
-const status = {
+/**
+ * Harness-only status/listener setup shared by every `/examples/<slug>`
+ * page, for both "global" (zero-boilerplate) and "import" mode examples.
+ * This is test/debug infrastructure the *server* injects around an
+ * example; none of it lives inside the example's own teaching code, and
+ * none of the example's game logic needs to cooperate with it (frames,
+ * canvas contents, and input are observed independently).
+ */
+function harnessPrelude(example: ExampleManifestEntry): string {
+  return `const status = {
   slug: ${JSON.stringify(example.slug)},
-  mode: "global",
+  mode: ${JSON.stringify(example.mode)},
   ready: false,
   nonblank: false,
   frames: 0,
@@ -178,6 +180,42 @@ canvas.addEventListener("mousedown", () => {
   status.interactions.mouse = true;
 });
 
+function canvasIsNonblank() {
+  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let index = 3; index < data.length; index += 4) {
+    if (data[index] !== 0) return true;
+  }
+  return false;
+}
+`;
+}
+
+/** Polls frame count / canvas contents / (optionally) live storage every
+ * animation frame. `readsHandle` is only true for global-mode examples,
+ * where the harness itself called `run()` and holds the resulting handle. */
+function harnessTickLoop(readsHandle: boolean): string {
+  return `function tick() {
+  status.frames += 1;
+  status.nonblank = canvasIsNonblank();
+  ${
+    readsHandle
+      ? `status.storage = Object.fromEntries(
+    handle.storage.keys().map((key) => [key, handle.storage.get(key)])
+  );
+  `
+      : ""
+  }status.ready = status.nonblank && status.diagnostics.length === 0;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+`;
+}
+
+function globalModeHarnessScript(example: ExampleManifestEntry): string {
+  return `<script type="module">
+import { ImageSurface, run } from "/runtime/core.js";
+
+${harnessPrelude(example)}
 const declaredAssets = ${JSON.stringify(example.assets)};
 
 function loadImage(url) {
@@ -194,7 +232,7 @@ async function preloadDeclaredAssets() {
   for (const asset of declaredAssets) {
     if (!asset.startsWith("images/")) continue;
     const name = asset.slice("images/".length);
-    const image = await loadImage("/assets/phase_five/" + asset);
+    const image = await loadImage("/assets/${example.slug}/" + asset);
     preloaded.images[name] = new ImageSurface(image);
   }
   return preloaded;
@@ -208,7 +246,7 @@ const preloadedAssets = await preloadDeclaredAssets();
 
 const handle = run(source, {
   canvas,
-  projectId: "phase_five",
+  projectId: ${JSON.stringify(example.slug)},
   assetBaseUrl: "/assets",
   preload: ${JSON.stringify(example.assets)},
   preloadedAssets,
@@ -217,25 +255,27 @@ const handle = run(source, {
   }
 });
 
-function canvasIsNonblank() {
-  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-  for (let index = 3; index < data.length; index += 4) {
-    if (data[index] !== 0) return true;
-  }
-  return false;
+// A read-only handle for e2e/debug tooling only: the example's own game
+// code never sees or touches this. Lets tests simulate state (e.g.
+// writing to storage to check persistence) without the taught example
+// publishing any test-only globals itself.
+window.__jgzExampleHandle = handle;
+
+${harnessTickLoop(true)}</script>`;
 }
 
-function tick() {
-  status.frames += 1;
-  status.nonblank = canvasIsNonblank();
-  status.storage = Object.fromEntries(
-    handle.storage.keys().map((key) => [key, handle.storage.get(key)])
-  );
-  status.ready = status.nonblank && status.diagnostics.length === 0;
-  requestAnimationFrame(tick);
+function importModeHarnessScript(example: ExampleManifestEntry): string {
+  return `<script type="module">
+${harnessPrelude(example)}
+${harnessTickLoop(false)}</script>
+<script type="module" src="/examples/${example.slug}/main.js"></script>`;
 }
-requestAnimationFrame(tick);
-</script>`;
+
+function examplePage(example: ExampleManifestEntry): string {
+  const loaderScript =
+    example.mode === "import"
+      ? importModeHarnessScript(example)
+      : globalModeHarnessScript(example);
 
   return `<!doctype html>
 <html lang="en">
@@ -246,7 +286,9 @@ requestAnimationFrame(tick);
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; background: #101417; color: white; }
       main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
-      canvas { width: min(640px, calc(100vw - 32px)); height: auto; border: 1px solid #94a3b8; background: #0f172a; outline: 2px solid transparent; }
+      /* Shown 1:1 (no CSS scaling) so mouse events land exactly on game
+         coordinates; capped to the viewport for small windows. */
+      canvas { width: auto; max-width: calc(100vw - 32px); height: auto; border: 1px solid #94a3b8; background: #0f172a; outline: 2px solid transparent; }
       canvas:focus { outline-color: #facc15; }
       a { color: #bae6fd; }
     </style>
@@ -327,6 +369,10 @@ async function legacyPhaseHandler(request: Request): Promise<Response> {
       "/assets/phase_five/",
       "../../../examples/phase-five/assets",
     );
+  }
+  if (url.pathname.startsWith("/assets/")) {
+    const response = await exampleOwnAssetResponse(url.pathname);
+    if (response) return response;
   }
   if (url.pathname === "/phase-three/drawing") {
     return html(
@@ -489,11 +535,45 @@ async function exampleAssetResponse(
   });
 }
 
+const EXAMPLE_ASSET_ROUTE = /^\/assets\/([a-z][a-z0-9-]*)\//;
+
+/**
+ * Serves each example's own `assets/` directory at `/assets/<slug>/...`,
+ * generalizing what used to be a single hardcoded `/assets/phase_five/`
+ * route shared (incorrectly) by every example. Only kicks in for a
+ * pathname whose first segment names a real example in the manifest, so
+ * it never shadows the sandbox's own `/assets/<projectId>/...` route for
+ * user projects (see `reservedAssetProjectIds` in sandbox.ts, which keeps
+ * example slugs out of that route so requests fall through to here).
+ */
+async function exampleOwnAssetResponse(
+  pathname: string,
+): Promise<Response | null> {
+  const match = EXAMPLE_ASSET_ROUTE.exec(pathname);
+  const slug = match?.[1];
+  if (!slug) return null;
+  const example = getExample(slug);
+  if (!example) return null;
+  return exampleAssetResponse(
+    pathname,
+    `/assets/${slug}/`,
+    `../../../examples/${slug}/assets`,
+  );
+}
+
 function contentType(pathname: string): string {
   if (pathname.endsWith(".svg")) return "image/svg+xml";
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".gif")) return "image/gif";
+  if (pathname.endsWith(".jpg") || pathname.endsWith(".jpeg"))
+    return "image/jpeg";
+  if (pathname.endsWith(".webp")) return "image/webp";
   if (pathname.endsWith(".wav")) return "audio/wav";
   if (pathname.endsWith(".ogg")) return "audio/ogg";
+  if (pathname.endsWith(".mp3")) return "audio/mpeg";
+  if (pathname.endsWith(".m4a")) return "audio/mp4";
   if (pathname.endsWith(".woff")) return "font/woff";
+  if (pathname.endsWith(".woff2")) return "font/woff2";
   return "application/octet-stream";
 }
 

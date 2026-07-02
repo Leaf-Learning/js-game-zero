@@ -16,5 +16,4 @@ function draw() {
     fontsize: 28,
     color: "#ffffff",
   });
-  storage.set("drawn", true);
 }

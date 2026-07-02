@@ -8,6 +8,10 @@ type ExampleStatus = {
   slug: string;
   ready: boolean;
   nonblank: boolean;
+  interactions?: {
+    keyboard: boolean;
+    mouse: boolean;
+  };
   storage?: Record<string, unknown>;
   errors: string[];
   diagnostics: unknown[];
@@ -95,10 +99,6 @@ function slugFromRoute(route: string): string {
   return slug;
 }
 
-function numeric(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
 async function freePort(): Promise<number> {
   const server = createServer();
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -184,8 +184,13 @@ test("phase 7 tutorial-backed examples launch from docs routes", async ({
     expect(status.diagnostics).toEqual([]);
 
     if (slug === "storage-save") {
-      expect(status.storage?.drawn).toBe(true);
-      expect(numeric(status.storage?.score)).toBeGreaterThan(0);
+      await page.waitForFunction(() => {
+        const current = (
+          window as typeof window & { __jgzExampleStatus?: ExampleStatus }
+        ).__jgzExampleStatus;
+        const score = current?.storage?.score;
+        return typeof score === "number" && score > 0;
+      });
     }
     if (slug === "sound-tone") {
       const canvas = page.locator("[data-jgz-example-canvas]");
@@ -193,7 +198,7 @@ test("phase 7 tutorial-backed examples launch from docs routes", async ({
       await page.waitForFunction(
         () =>
           (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
-            .__jgzExampleStatus?.storage?.soundPropertyAccess === true,
+            .__jgzExampleStatus?.interactions?.mouse === true,
       );
     }
 

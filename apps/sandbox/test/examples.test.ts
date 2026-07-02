@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { collectRuntimeDiagnostics } from "@js-game-zero/core";
 import { exampleManifest } from "../../../examples/manifest";
 import { phaseOneHandler } from "../src/server";
 
@@ -23,7 +24,7 @@ test("phase 5 example manifest exposes complete smoke metadata", async () => {
     expect(await tutorial.exists()).toBe(true);
     for (const asset of example.assets) {
       expect(
-        await Bun.file(`examples/phase-five/assets/${asset}`).exists(),
+        await Bun.file(`examples/${example.slug}/assets/${asset}`).exists(),
       ).toBe(true);
     }
   }
@@ -31,11 +32,27 @@ test("phase 5 example manifest exposes complete smoke metadata", async () => {
   expect([...slugs].sort()).toEqual([
     "actor-movement",
     "animation-basics",
+    "breakout",
     "drawing-basics",
+    "flappy-bird",
     "sandbox-starter",
     "sound-tone",
     "storage-save",
   ]);
+});
+
+test("global-mode example sources are free of runtime diagnostics", async () => {
+  // The example pages only report ready when the runtime emits zero
+  // diagnostics, so a stray warning (e.g. an identifier the typo checker
+  // mistakes for a hook name) would break every /examples/<slug> page.
+  for (const example of exampleManifest) {
+    if (example.mode !== "global") continue;
+    const source = await Bun.file(example.entryPoint).text();
+    expect({
+      slug: example.slug,
+      diagnostics: collectRuntimeDiagnostics(source),
+    }).toEqual({ slug: example.slug, diagnostics: [] });
+  }
 });
 
 test("phase 5 example routes serve an index, pages, and learner source", async () => {

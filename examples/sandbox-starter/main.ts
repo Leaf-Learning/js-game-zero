@@ -1,55 +1,17 @@
-import { keyboard, keys, run, screen } from "@js-game-zero/core";
+import { run, screen, keyboard } from "@js-game-zero/core";
 
-declare global {
-  interface Window {
-    __jgzExampleStatus?: {
-      slug: string;
-      mode: string;
-      ready: boolean;
-      nonblank: boolean;
-      frames: number;
-      interactions: {
-        keyboard: boolean;
-        mouse: boolean;
-      };
-      x: number;
-      errors: string[];
-      diagnostics: unknown[];
-    };
-  }
+// Every other example uses the "zero-boilerplate" style: WIDTH/HEIGHT/TITLE
+// and update()/draw() as bare top-level globals. That's convenient, but it
+// only works because the sandbox evaluates your file for you. If you embed
+// js-game-zero inside your own page or build, import the pieces you need
+// and call run() yourself, like this.
+
+const canvas = document.querySelector("[data-jgz-example-canvas]");
+if (!(canvas instanceof HTMLCanvasElement)) {
+  throw new Error("Missing example canvas.");
 }
 
-const status = {
-  slug: "sandbox-starter",
-  mode: "import",
-  ready: false,
-  nonblank: false,
-  frames: 0,
-  interactions: {
-    keyboard: false,
-    mouse: false,
-  },
-  x: 64,
-  errors: [] as string[],
-  diagnostics: [] as unknown[],
-};
-
-window.__jgzExampleStatus = status;
-
-const canvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-example-canvas]",
-);
-if (!canvas) throw new Error("Missing example canvas.");
-const context = canvas.getContext("2d", { willReadFrequently: true });
-if (!context) throw new Error("Missing example canvas context.");
-
-function canvasIsNonblank(): boolean {
-  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-  for (let index = 3; index < data.length; index += 4) {
-    if (data[index] !== 0) return true;
-  }
-  return false;
-}
+let x = 64;
 
 run(
   {
@@ -57,38 +19,27 @@ run(
     HEIGHT: 180,
     TITLE: "Sandbox Starter",
     update(dt) {
-      status.frames += 1;
-      if (keyboard.right) {
-        status.x = Math.min(268, status.x + 140 * (dt as number));
-        status.interactions.keyboard = true;
-      }
-      if (keyboard.left) {
-        status.x = Math.max(32, status.x - 140 * (dt as number));
-        status.interactions.keyboard = true;
-      }
+      if (keyboard.right) x = Math.min(268, x + 140 * dt);
+      if (keyboard.left) x = Math.max(32, x - 140 * dt);
     },
     draw() {
       screen.fill("#10243d");
       screen.draw.filled_rect([28, 128, 264, 16], "#f59e0b");
-      screen.draw.filled_circle([status.x, 92], 24, "#e0f2fe");
+      screen.draw.filled_circle([x, 92], 24, "#e0f2fe");
       screen.draw.text("import mode", [112, 28], {
         fontsize: 20,
         color: "#ffffff",
       });
-      status.nonblank = canvasIsNonblank();
-      status.ready = status.nonblank;
-    },
-    onKeyDown(key) {
-      if (key === keys.LEFT || key === keys.RIGHT) {
-        status.interactions.keyboard = true;
-      }
     },
   },
   {
     canvas,
+    projectId: "sandbox-starter",
+    // Any host embedding the runtime can pass a diagnostics callback like
+    // this to surface friendly warnings (typo'd hook names, bad WIDTH/
+    // HEIGHT values, ...) in its own console or UI.
     diagnostics(diagnostic) {
-      status.diagnostics.push(diagnostic);
+      if (diagnostic.severity === "error") console.error(diagnostic.message);
     },
-    projectId: "phase_five",
   },
 );

@@ -2,14 +2,9 @@ WIDTH = 320;
 HEIGHT = 180;
 TITLE = "Sound And Tone";
 
-const clickSound = createBrowserSoundAsset({
-  kind: "sound",
-  name: "click.wav",
-  url: "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=",
-});
-
-sounds.define("click.wav", clickSound);
-
+// Files under assets/sounds/ are played through the `sounds` loader.
+// `sounds.click` matches assets/sounds/click.ogg — no setup needed beyond
+// naming the file.
 let clicks = 0;
 
 function draw() {
@@ -23,8 +18,7 @@ function draw() {
 
 function on_mouse_down() {
   clicks = Math.min(6, clicks + 1);
-  storage.set("clicks", clicks);
-  storage.set("soundPropertyAccess", typeof sounds.click.play === "function");
   sounds.click.play();
+  // tone.play() synthesizes a short note without needing an asset file.
   tone.play("C5", 0.08, { volume: 0.15 });
 }
