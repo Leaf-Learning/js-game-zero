@@ -177,6 +177,45 @@ describe("browser sound effects", () => {
       MissingAssetError,
     );
   });
+
+  test("play() overlaps rather than stopping prior instances, like pygame Sounds mixing on channels", async () => {
+    const { sound, elements } = soundFixture();
+
+    sound.play();
+    sound.play();
+    const [first, second] = elements;
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    if (!first || !second) throw new Error("Missing mock audio elements.");
+    await Promise.resolve();
+
+    // Both instances are distinct audio elements that are actively playing
+    // at the same time -- the second play() must not have stopped the first.
+    expect(first.playCalls).toBe(1);
+    expect(second.playCalls).toBe(1);
+    expect(first.paused).toBe(false);
+    expect(second.paused).toBe(false);
+    expect(first.pauseCalls).toBe(0);
+    expect(sound.debug_instance_count()).toBe(2);
+    expect(sound.debug_state().active).toBe(true);
+
+    sound.stop();
+    expect(first.paused).toBe(true);
+    expect(second.paused).toBe(true);
+    expect(sound.debug_instance_count()).toBe(0);
+    expect(sound.debug_state().active).toBe(false);
+  });
+
+  test("set_volume applies to already-playing instances and future ones", () => {
+    const { sound, elements } = soundFixture();
+
+    sound.play();
+    sound.set_volume(0.2);
+    sound.play();
+
+    expect(elements[0]?.volume).toBe(0.2);
+    expect(elements[1]?.volume).toBe(0.2);
+  });
 });
 
 describe("music player", () => {
@@ -312,5 +351,43 @@ describe("music player", () => {
       isPlaying: false,
       lastError: "codec unsupported",
     });
+  });
+
+  test("rewind, get_pos, and set_pos control playback position on the underlying element", async () => {
+    const { player, elements } = musicFixture();
+    await player.play_once("theme.ogg");
+    const element = elements[0];
+    expect(element).toBeTruthy();
+    if (!element) throw new Error("Missing mock audio element.");
+
+    expect(player.get_pos()).toBe(0);
+    element.currentTime = 12.5;
+    expect(player.get_pos()).toBeCloseTo(12_500, 5);
+
+    player.set_pos(3);
+    expect(element.currentTime).toBe(3);
+    expect(player.setPos).toBeInstanceOf(Function);
+
+    player.rewind();
+    expect(element.currentTime).toBe(0);
+
+    expect(() => player.set_pos(-1)).toThrow(RangeError);
+  });
+
+  test("get_pos returns -1 and rewind/set_pos are no-ops when nothing is loaded", () => {
+    const { player } = musicFixture();
+    expect(player.get_pos()).toBe(-1);
+    expect(player.getPos()).toBe(-1);
+    expect(() => player.rewind()).not.toThrow();
+    expect(() => player.set_pos(5)).not.toThrow();
+  });
+
+  test("is_playing accepts and ignores an optional track name argument", async () => {
+    const { player } = musicFixture();
+    await player.play_once("theme.ogg");
+    expect(player.is_playing()).toBe(true);
+    expect(player.is_playing("theme.ogg")).toBe(true);
+    expect(player.is_playing("some-other-track.ogg")).toBe(true);
+    expect(player.isPlaying("theme.ogg")).toBe(true);
   });
 });
