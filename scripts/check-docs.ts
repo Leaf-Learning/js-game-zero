@@ -4,22 +4,52 @@ type PackageJson = {
   readonly scripts?: Record<string, string>;
 };
 
-const requiredDocs = [
+const topLevelDocs = [
   "README.md",
   "LICENSE",
-  "docs/engineering-design.md",
-  "docs/implementation-plan.md",
-  "docs/feature-parity.md",
-  "docs/api.md",
+  "CONTRIBUTING.md",
+  "CHANGELOG.md",
+];
+
+const userFacingDocs = [
+  "docs/getting-started.md",
+  "docs/tutorial.md",
+  "docs/cookbook.md",
   "docs/sandbox.md",
-  "docs/tutorials.md",
-  "docs/phases/phase-01-repo-tooling-docs.md",
-  "docs/phases/phase-02-core-semantics.md",
-  "docs/phases/phase-03-rendering-assets-actor.md",
-  "docs/phases/phase-04-audio-music-tone-storage.md",
-  "docs/phases/phase-05-runtime-examples-parity.md",
-  "docs/phases/phase-06-web-sandbox.md",
-  "docs/phases/phase-07-docs-ci-github.md",
+  "docs/examples.md",
+  "docs/migrating-from-pgzero.md",
+  "docs/reference/hooks.md",
+  "docs/reference/screen.md",
+  "docs/reference/actor.md",
+  "docs/reference/rect.md",
+  "docs/reference/clock.md",
+  "docs/reference/audio.md",
+  "docs/reference/storage.md",
+  "docs/reference/loaders.md",
+  "docs/reference/runtime.md",
+];
+
+const internalDocs = [
+  "docs/internal/engineering-design.md",
+  "docs/internal/implementation-plan.md",
+  "docs/internal/feature-parity.md",
+];
+
+const phaseDocs = [
+  "docs/internal/phases/phase-01-repo-tooling-docs.md",
+  "docs/internal/phases/phase-02-core-semantics.md",
+  "docs/internal/phases/phase-03-rendering-assets-actor.md",
+  "docs/internal/phases/phase-04-audio-music-tone-storage.md",
+  "docs/internal/phases/phase-05-runtime-examples-parity.md",
+  "docs/internal/phases/phase-06-web-sandbox.md",
+  "docs/internal/phases/phase-07-docs-ci-github.md",
+];
+
+const requiredDocs = [
+  ...topLevelDocs,
+  ...userFacingDocs,
+  ...internalDocs,
+  ...phaseDocs,
 ];
 
 const requiredPhaseSections = [
@@ -41,12 +71,15 @@ const requiredCiSteps = [
   "bun run test:e2e",
 ];
 
-const requiredTutorialRoutes = [
-  "/examples/drawing-basics",
-  "/examples/actor-movement",
-  "/examples/sound-tone",
-  "/examples/storage-save",
-  "/examples/sandbox-starter",
+const requiredReadmeScripts = [
+  "lint",
+  "test",
+  "docs:check",
+  "test:e2e",
+  "build",
+  "dev:sandbox",
+  "check",
+  "format",
 ];
 
 const packageManifests = [
@@ -61,7 +94,9 @@ async function main(): Promise<void> {
   await checkPhaseDocs();
   await checkImplementationPlanLinks();
   await checkReadmeCommands();
-  await checkTutorials();
+  await checkTutorialAndCookbook();
+  await checkExamplesDoc();
+  await checkNoForbiddenLanguage();
   await checkCiWorkflow();
   await checkBuildMetadata();
   await checkLicenseBoundary();
@@ -78,21 +113,27 @@ async function checkRequiredDocs(): Promise<void> {
     fail(`Missing docs:\n${missing.map((path) => `- ${path}`).join("\n")}`);
   }
 
-  for (const path of requiredDocs.filter(
-    (path) => path.startsWith("docs/") && path.endsWith(".md"),
-  )) {
+  for (const path of [...userFacingDocs, ...internalDocs, ...phaseDocs]) {
     const text = await Bun.file(path).text();
-    if (!text.includes("Verification Criteria")) {
-      fail(`${path} must include a Verification Criteria section.`);
-    }
     if (/\b(TBD|TODO|placeholder)\b/i.test(text)) {
       fail(`${path} contains unfinished marker language.`);
+    }
+  }
+
+  // "Verification Criteria" is internal-spec language: phase docs must keep
+  // it (checked separately below), but it must not leak into the pages a
+  // learner actually reads.
+  for (const path of userFacingDocs) {
+    const text = await Bun.file(path).text();
+    if (text.includes("Verification Criteria")) {
+      fail(
+        `${path} is user-facing and must not include a "Verification Criteria" section.`,
+      );
     }
   }
 }
 
 async function checkPhaseDocs(): Promise<void> {
-  const phaseDocs = requiredDocs.filter((path) => path.includes("/phases/"));
   for (const path of phaseDocs) {
     const text = await Bun.file(path).text();
     const status = /^> Status: (.+)$/m.exec(text)?.[1]?.trim();
@@ -115,14 +156,14 @@ async function checkPhaseDocs(): Promise<void> {
 
 async function checkImplementationPlanLinks(): Promise<void> {
   const implementationPlan = await Bun.file(
-    "docs/implementation-plan.md",
+    "docs/internal/implementation-plan.md",
   ).text();
   const links = markdownLinks(implementationPlan);
-  for (const path of requiredDocs.filter((path) => path.includes("/phases/"))) {
-    const relativeLink = path.replace("docs/", "");
+  for (const path of phaseDocs) {
+    const relativeLink = path.replace("docs/internal/", "");
     if (!links.includes(relativeLink)) {
       fail(
-        `docs/implementation-plan.md must include a Markdown link to ${relativeLink}.`,
+        `docs/internal/implementation-plan.md must include a Markdown link to ${relativeLink}.`,
       );
     }
   }
@@ -140,11 +181,12 @@ async function checkReadmeCommands(): Promise<void> {
 
   for (const command of commands) {
     const [binary, subcommand, script] = command.split(/\s+/);
+    if (binary === "git" || binary === "cd") continue;
     if (binary !== "bun" && binary !== "bunx") {
-      fail(`README command must start with bun or bunx: ${command}`);
+      fail(`README command must start with bun, bunx, git, or cd: ${command}`);
     }
     if (binary === "bunx") {
-      if (!command.startsWith("bunx playwright install chromium")) {
+      if (!command.startsWith("bunx playwright install")) {
         fail(`README bunx command is not recognized: ${command}`);
       }
       continue;
@@ -161,41 +203,74 @@ async function checkReadmeCommands(): Promise<void> {
     fail(`README command is not smoke-checkable: ${command}`);
   }
 
-  for (const requiredScript of [
-    "lint",
-    "test",
-    "docs:check",
-    "test:e2e",
-    "build",
-    "dev:sandbox",
-    "check",
-  ]) {
+  for (const requiredScript of requiredReadmeScripts) {
     requireScript(scripts, requiredScript, `required script ${requiredScript}`);
   }
 }
 
-async function checkTutorials(): Promise<void> {
-  const tutorials = await Bun.file("docs/tutorials.md").text();
-  const routes = [...tutorials.matchAll(/Example route: `([^`]+)`/g)].map(
-    (match) => match[1] ?? "",
-  );
-  for (const route of requiredTutorialRoutes) {
-    if (!routes.includes(route)) fail(`docs/tutorials.md must link ${route}.`);
+async function checkTutorialAndCookbook(): Promise<void> {
+  const tutorial = await Bun.file("docs/tutorial.md").text();
+  const cookbook = await Bun.file("docs/cookbook.md").text();
+
+  const tutorialBlocks = jsFencedBlocks(tutorial);
+  if (tutorialBlocks.length < 8) {
+    fail(
+      "docs/tutorial.md must include a JavaScript snippet for each build step (at least 8).",
+    );
+  }
+  for (const [index, block] of tutorialBlocks.entries()) {
+    compileJavaScriptSnippet(block, `docs/tutorial.md snippet ${index + 1}`);
   }
 
-  const blocks = extractFencedBlocks(tutorials).filter((block) =>
-    /^js(?:\s|$)|^javascript(?:\s|$)/.test(block.info.trim()),
+  const cookbookBlocks = jsFencedBlocks(cookbook);
+  if (cookbookBlocks.length < 6) {
+    fail("docs/cookbook.md must include at least 6 recipe snippets.");
+  }
+  for (const [index, block] of cookbookBlocks.entries()) {
+    compileJavaScriptSnippet(block, `docs/cookbook.md snippet ${index + 1}`);
+  }
+}
+
+function jsFencedBlocks(markdown: string): string[] {
+  return extractFencedBlocks(markdown)
+    .filter((block) =>
+      /^js(?:\s|$)|^javascript(?:\s|$)/.test(block.info.trim()),
+    )
+    .map((block) => block.code);
+}
+
+async function checkExamplesDoc(): Promise<void> {
+  const manifest = await Bun.file("examples/manifest.ts").text();
+  const slugs = [...manifest.matchAll(/slug:\s*"([^"]+)"/g)].map(
+    (match) => match[1] ?? "",
   );
-  if (blocks.length < 5) {
+  if (slugs.length === 0) fail("Could not find any example slugs to check.");
+
+  const examplesDoc = await Bun.file("docs/examples.md").text();
+  const missing = slugs.filter(
+    (slug) => !examplesDoc.includes(`\`/examples/${slug}\``),
+  );
+  if (missing.length) {
     fail(
-      "docs/tutorials.md must include JavaScript snippets for each tutorial.",
+      `docs/examples.md must document an Example route for: ${missing.join(", ")}`,
     );
   }
-  for (const [index, block] of blocks.entries()) {
-    compileJavaScriptSnippet(
-      block.code,
-      `docs/tutorials.md snippet ${index + 1}`,
-    );
+}
+
+async function checkNoForbiddenLanguage(): Promise<void> {
+  const scannedPaths = [
+    "README.md",
+    ...userFacingDocs,
+    ...internalDocs,
+    ...phaseDocs,
+  ];
+  for (const path of scannedPaths) {
+    const text = await Bun.file(path).text();
+    if (/clean.room/i.test(text)) {
+      fail(
+        `${path} must not describe this project as a "clean-room" implementation.`,
+      );
+    }
   }
 }
 
@@ -284,8 +359,14 @@ function markdownLinks(markdown: string): string[] {
 }
 
 function compileJavaScriptSnippet(source: string, label: string): void {
+  // `new Function` can't parse a top-level ES module `import` statement (it
+  // compiles a plain function body, not a module). A handful of snippets
+  // legitimately show `import { ... } from "@js-game-zero/core"` for
+  // import-mode code; strip those lines before compiling so the rest of the
+  // snippet is still checked for real syntax errors.
+  const withoutImports = source.replace(/^\s*import\b[^\n]*;?\s*$/gm, "");
   try {
-    new Function(source);
+    new Function(withoutImports);
   } catch (error) {
     fail(`${label} must compile: ${errorMessage(error)}`);
   }
