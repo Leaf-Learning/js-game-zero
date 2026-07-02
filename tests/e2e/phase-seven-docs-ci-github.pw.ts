@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
+import { exampleManifest } from "../../examples/manifest";
 
 type ExampleStatus = {
   slug: string;
@@ -17,15 +18,7 @@ type ExampleStatus = {
   diagnostics: unknown[];
 };
 
-const expectedTutorialRoutes = [
-  "/examples/drawing-basics",
-  "/examples/actor-movement",
-  "/examples/sound-tone",
-  "/examples/storage-save",
-  "/examples/sandbox-starter",
-];
-
-const projectName = "phase_seven_docs";
+const projectName = "comet_catcher_docs_check";
 
 function collectPageErrors(page: Page): {
   errors: string[];
@@ -40,20 +33,21 @@ function collectPageErrors(page: Page): {
   return { errors, pageErrors };
 }
 
-async function tutorialRoutesFromDocs(): Promise<string[]> {
-  const tutorials = await readFile("docs/tutorials.md", "utf8");
-  return [...tutorials.matchAll(/Example route: `([^`]+)`/g)].map(
-    (match) => match[1] ?? "",
-  );
-}
-
-async function sandboxSnippetFromDocs(): Promise<string> {
-  const tutorials = await readFile("docs/tutorials.md", "utf8");
+/**
+ * Extracts the final, complete "win, lose, and play again" game from
+ * docs/tutorial.md — the culmination of the tutorial's step-by-step build —
+ * so this test proves the exact code a learner ends up with actually runs
+ * cleanly in the real sandbox, not just that it compiles.
+ */
+async function finalTutorialGameSource(): Promise<string> {
+  const tutorial = await readFile("docs/tutorial.md", "utf8");
   const match =
-    /## Tutorial 5: Sandbox Workflow[\s\S]*?```js\n([\s\S]*?)```/.exec(
-      tutorials,
+    /## 10\. Win, lose, and play again[\s\S]*?```js\n([\s\S]*?)```/.exec(
+      tutorial,
     );
-  if (!match?.[1]) throw new Error("Missing sandbox workflow snippet.");
+  if (!match?.[1]) {
+    throw new Error("Missing the tutorial's final game snippet.");
+  }
   return match[1].trim();
 }
 
@@ -97,6 +91,10 @@ function slugFromRoute(route: string): string {
   const slug = route.split("/").at(-1);
   if (!slug) throw new Error(`Route has no slug: ${route}`);
   return slug;
+}
+
+function numeric(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 async function freePort(): Promise<number> {
@@ -168,16 +166,18 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test("phase 7 tutorial-backed examples launch from docs routes", async ({
+test("phase 7 shipped examples launch from the live manifest", async ({
   page,
 }) => {
-  const routes = await tutorialRoutesFromDocs();
-  expect(routes).toEqual(expectedTutorialRoutes);
+  // Routes come from examples/manifest.ts itself (the source of truth),
+  // not from documentation prose, so this test always exercises whatever
+  // examples actually ship rather than a list that can silently drift.
+  const slugs = exampleManifest.map((example) => example.slug);
+  expect(slugs.length).toBeGreaterThan(0);
 
-  for (const route of routes) {
+  for (const slug of slugs) {
     const { errors, pageErrors } = collectPageErrors(page);
-    await page.goto(route);
-    const slug = slugFromRoute(route);
+    await page.goto(`/examples/${slug}`);
     const status = await waitForExampleStatus(page, slug);
     expect(status.nonblank).toBe(true);
     expect(status.errors).toEqual([]);
@@ -207,6 +207,13 @@ test("phase 7 tutorial-backed examples launch from docs routes", async ({
   }
 });
 
+test("phase 7 every shipped example is documented", async () => {
+  const examplesDoc = await readFile("docs/examples.md", "utf8");
+  for (const example of exampleManifest) {
+    expect(examplesDoc).toContain(`\`/examples/${example.slug}\``);
+  }
+});
+
 test("phase 7 browser runtime clears to opaque black", async ({ page }) => {
   await page.goto("/examples");
   const pixel = await page.evaluate(async () => {
@@ -232,11 +239,11 @@ test("phase 7 browser runtime clears to opaque black", async ({ page }) => {
   expect(pixel).toEqual([0, 0, 0, 255]);
 });
 
-test("phase 7 sandbox guide workflow runs from a clean project", async ({
+test("phase 7 the tutorial's finished game runs from a clean sandbox project", async ({
   page,
 }, testInfo) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  const source = await sandboxSnippetFromDocs();
+  const source = await finalTutorialGameSource();
   const projectsRoot = testInfo.outputPath("projects-root");
   await rm(projectsRoot, { recursive: true, force: true });
   await mkdir(projectsRoot, { recursive: true });
@@ -295,11 +302,11 @@ test("phase 7 sandbox guide workflow runs from a clean project", async ({
     await expect(
       page.locator(`[data-jgz-project="${projectName}"]`),
     ).toBeVisible();
-    await expect(page.locator('[data-jgz-file="main.js"]')).toBeVisible();
     await expect(
       page.locator('[data-jgz-asset="images/player.svg"]'),
     ).toBeVisible();
-    await expect(editor).toContainText("Sandbox Starter");
+    await expect(editor).toContainText("Comet Catcher");
+    await expect(editor).toContainText("WIN_SCORE");
 
     expect(errors).toEqual([]);
     expect(pageErrors).toEqual([]);

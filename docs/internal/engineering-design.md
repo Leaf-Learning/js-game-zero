@@ -2,11 +2,12 @@
 
 ## Summary
 
-`js-game-zero` is a clean-room JavaScript framework for teaching browser game
-development with a Pygame Zero-like model. It must be beginner friendly, browser
-native, LGPL-3.0-only licensed in line with Pygame Zero, and behavior-compatible
+`js-game-zero` is a JavaScript framework for teaching browser game
+development with a Pygame Zero-like model, inspired by and derived in part
+from Pygame Zero. It must be beginner friendly, browser native,
+LGPL-3.0-only licensed in line with Pygame Zero, and behavior-compatible
 with Pygame Zero's documented surface without copying upstream implementation
-code.
+code verbatim.
 
 ## Architecture
 
@@ -226,7 +227,7 @@ missing assets/tweens.
   first offending path. File-backed sandbox storage writes atomically via a
   temporary file and rename.
 
-## Clean-Room License Boundary
+## License Boundary
 
 Pygame Zero's upstream implementation is LGPL-3.0, and this project uses the
 same LGPL-3.0-only license family. Public documentation, observable behavior,
@@ -253,7 +254,7 @@ runtime errors back to the editor.
 
 ## Verification Criteria
 
-- Unit tests cover each public API behavior listed in `docs/feature-parity.md`.
+- Unit tests cover each public API behavior listed in `docs/internal/feature-parity.md`.
 - Browser e2e tests launch the sandbox, run examples, interact with canvas input,
   and verify visible/nonblank rendering plus console health.
 - Docs checks confirm every phase spec exists and contains verification criteria.

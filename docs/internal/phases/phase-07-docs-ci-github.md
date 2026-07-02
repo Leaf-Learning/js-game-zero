@@ -17,8 +17,8 @@ completed system can be used, tested, and reviewed.
 - Initialize the local git repo, commit implementation files, and create/push a
   private GitHub repository named `js-game-zero` using the authenticated `gh`
   CLI account.
-- README includes install, test, sandbox, example, build, license, and clean-room
-  compatibility notes.
+- README includes install, test, sandbox, example, build, license, and
+  upstream-compatibility notes.
 - Tutorials include runnable snippets for drawing, actors/input, sound/tone,
   storage, and sandbox workflow.
 - CI installs Bun, installs dependencies with a frozen lockfile, runs
@@ -61,7 +61,7 @@ js-game-zero --json visibility` reports `PRIVATE`.
 
 - Expanded README, API, tutorial, sandbox, phase, and parity docs to cover
   install, commands, examples, sandbox workflow, build output, license, and
-  clean-room compatibility.
+  upstream-compatibility notes.
 - Added docs checks for required docs, complete phase status/sections, Markdown
   phase links, README command smoke coverage, tutorial snippet compilation,
   tutorial routes, CI step order, build metadata, LGPL package licenses, and
