@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test";
 import {
   collectRuntimeDiagnostics,
   clock,
+  createImageLoader,
+  images as globalImages,
   ImageSurface,
   keyboard,
   keys,
   run,
   screen,
+  type AssetLoader,
   type DrawableImage,
   type RuntimeCanvas,
   type RuntimeDiagnostic,
@@ -17,6 +20,7 @@ class MockContext {
   fillStyle: unknown = "";
   clearCalls = 0;
   fillCalls = 0;
+  drawImageCalls = 0;
 
   clearRect(): void {
     this.clearCalls += 1;
@@ -24,6 +28,10 @@ class MockContext {
 
   fillRect(): void {
     this.fillCalls += 1;
+  }
+
+  drawImage(): void {
+    this.drawImageCalls += 1;
   }
 }
 
@@ -67,6 +75,41 @@ function surface(width = 20, height = 10): SurfaceLike {
     width,
     height,
   );
+}
+
+/**
+ * An image loader whose loads never settle until the test explicitly
+ * resolves/rejects them by exact candidate name. Used to deterministically
+ * exercise the runtime's preload gate and late-load pausing without
+ * depending on a real browser Image/fetch stack.
+ */
+function controllableImageLoader(): {
+  readonly loader: AssetLoader<SurfaceLike>;
+  resolve(name: string, value: SurfaceLike): void;
+  reject(name: string, error: unknown): void;
+} {
+  const pending = new Map<
+    string,
+    { resolve: (value: SurfaceLike) => void; reject: (error: unknown) => void }
+  >();
+  const loader = createImageLoader({
+    projectId: "gate_test",
+    loadAsset: (_url, name) =>
+      new Promise<SurfaceLike>((resolvePromise, rejectPromise) => {
+        pending.set(name, { resolve: resolvePromise, reject: rejectPromise });
+      }),
+  });
+  return {
+    loader,
+    resolve(name, value) {
+      pending.get(name)?.resolve(value);
+      pending.delete(name);
+    },
+    reject(name, error) {
+      pending.get(name)?.reject(error);
+      pending.delete(name);
+    },
+  };
 }
 
 function keyEvent(type: "keydown" | "keyup", code: string, key: string): Event {
@@ -278,13 +321,12 @@ function update() {
 });
 
 describe("runtime diagnostics", () => {
-  test("warns for hook and constant typos, arity mistakes, and asset names", () => {
+  test("warns for hook and constant typos, update arity mistakes, and asset names", () => {
     const diagnostics: RuntimeDiagnostic[] = [];
     const handle = run(
       `
 WIDHT = 320;
 function drwa() {}
-function draw(context) {}
 function update(dt, extra) {}
 const asset = "Player Ship.svg";
 `,
@@ -304,10 +346,40 @@ const asset = "Player Ship.svg";
     );
     expect(
       diagnostics.filter((diagnostic) => diagnostic.code === "hook-arity"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
       "asset-name",
     );
+  });
+
+  test("throws a TypeError at startup when draw declares parameters, matching the upstream reference framework", () => {
+    expect(() =>
+      run(
+        `
+function draw(context) {}
+`,
+        { autostart: false, canvas: canvas() },
+      ),
+    ).toThrow(TypeError);
+    expect(() =>
+      run(
+        { draw: (context: unknown) => context },
+        { autostart: false, canvas: canvas() },
+      ),
+    ).toThrow(/draw\(\) must not take any arguments\./);
+  });
+
+  test("does not throw for a zero-argument draw or a missing draw", () => {
+    const handle = run(
+      `
+function draw() {}
+`,
+      { autostart: false, canvas: canvas() },
+    );
+    handle.stop();
+
+    const noDraw = run({}, { autostart: false, canvas: canvas() });
+    noDraw.stop();
   });
 
   test("reports duplicate run configuration and duplicate hook aliases", () => {
@@ -334,5 +406,300 @@ const asset = "Player Ship.svg";
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
       "hook-arity",
     );
+  });
+});
+
+describe("preload gate", () => {
+  test("holds the first frame until an Actor constructed in top-level code finishes loading", async () => {
+    const target = canvas();
+    const { loader, resolve } = controllableImageLoader();
+    const handle = run(
+      `
+let hero = new Actor("hero.svg", { center: [50, 40] });
+
+function draw() {
+  storage.set("width", hero.width);
+  storage.set("height", hero.height);
+  storage.set("pos", hero.pos);
+}
+`,
+      {
+        autostart: false,
+        canvas: target,
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    // The image is still loading: the loop must hold the frame rather
+    // than draw an Actor with a zero-sized, mispositioned surface.
+    handle.step(0.1);
+    expect(handle.storage.get("width")).toBeUndefined();
+
+    resolve("hero.svg", surface(20, 10));
+    await handle.ready;
+
+    handle.step(0.1);
+    expect(handle.storage.get("width")).toBe(20);
+    expect(handle.storage.get("height")).toBe(10);
+    expect(handle.storage.get("pos")).toEqual([50, 40]);
+
+    handle.stop();
+  });
+
+  test("holds the first frame until a top-level images.<name> touch finishes loading", async () => {
+    const target = canvas();
+    const { loader, resolve } = controllableImageLoader();
+    // Referencing `images["hero.svg"]` (without immediately calling a
+    // method on it) starts the load without throwing, matching the
+    // documented `images.player` top-level touch pattern; the surface
+    // is only read once the gate has held frames until it is ready.
+    const handle = run(
+      `
+let heroRef = images["hero.svg"];
+
+function draw() {
+  storage.set("size", heroRef.get_size());
+}
+`,
+      {
+        autostart: false,
+        canvas: target,
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    handle.step(0);
+    expect(handle.storage.get("size")).toBeUndefined();
+
+    resolve("hero.svg", surface(40, 24));
+    await handle.ready;
+
+    handle.step(0);
+    expect(handle.storage.get("size")).toEqual([40, 24]);
+    handle.stop();
+  });
+
+  test("resolves handle.ready immediately when nothing was requested during module evaluation", async () => {
+    const handle = run(
+      { draw() {} },
+      { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+    );
+    await handle.ready;
+    handle.stop();
+  });
+
+  test("also gates on the package-level singleton loaders used by plain import-mode Actor/images code", async () => {
+    const target = canvas();
+    // Simulate `new Actor("ghost.svg")` constructed at import-mode
+    // top-level code, which defaults to the singleton `images` loader
+    // (not the runtime's context-scoped loader).
+    const probeName = "jgz_runtime_gate_probe.svg";
+    const pendingLoad = globalImages.load(probeName).catch(() => undefined);
+    expect(globalImages.pendingCount()).toBeGreaterThan(0);
+
+    let drew = false;
+    const handle = run(
+      { draw: () => (drew = true) },
+      { autostart: false, canvas: target, storage: new MemoryAdapter() },
+    );
+
+    handle.step(0);
+    expect(drew).toBe(false);
+
+    await pendingLoad;
+    await globalImages.waitForIdle();
+
+    handle.step(0);
+    expect(drew).toBe(true);
+    handle.stop();
+  });
+});
+
+describe("late asset request pausing", () => {
+  test("pauses presenting draw() while a first-referenced blit image is loading, then shows correct data", async () => {
+    const target = canvas();
+    const { loader, resolve } = controllableImageLoader();
+    let drawCount = 0;
+    const handle = run(
+      {
+        draw() {
+          drawCount += 1;
+          screen.blit("bg.svg", [0, 0]);
+        },
+      },
+      {
+        autostart: false,
+        canvas: target,
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    await handle.ready; // nothing to preload; resolves promptly
+
+    handle.step(0); // draw() runs, kicks off the (uncached) "bg.svg" load
+    expect(drawCount).toBe(1);
+
+    handle.step(0); // gated: the load from the previous tick is still pending
+    expect(drawCount).toBe(1);
+
+    resolve("bg.svg", surface(8, 8));
+    await loader.waitForIdle();
+
+    handle.step(0); // ungated: draw() runs again, this time "bg.svg" is cached
+    expect(drawCount).toBe(2);
+
+    handle.stop();
+  });
+
+  test("pauses draw when update() sets a new actor.image, then reports correct size on the next executed frame", async () => {
+    const target = canvas();
+    const { loader, resolve } = controllableImageLoader();
+    loader.define("start.svg", surface(10, 10));
+    const handle = run(
+      `
+let hero = new Actor("start.svg", [0, 0]);
+let swapped = false;
+
+function update() {
+  if (!swapped) {
+    hero.image = "next.svg";
+    swapped = true;
+  }
+}
+
+function draw() {
+  storage.set("width", hero.width);
+  storage.set("height", hero.height);
+}
+`,
+      {
+        autostart: false,
+        canvas: target,
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    await handle.ready; // "start.svg" is already cached via define()
+
+    handle.step(0); // update() swaps the image; draw() is held back this tick
+    expect(handle.storage.get("width")).toBeUndefined();
+
+    handle.step(0); // still gated: "next.svg" has not resolved yet
+    expect(handle.storage.get("width")).toBeUndefined();
+
+    resolve("next.svg", surface(50, 30));
+    await loader.waitForIdle();
+
+    handle.step(0); // ungated: draw() now sees the fully loaded new image
+    expect(handle.storage.get("width")).toBe(50);
+    expect(handle.storage.get("height")).toBe(30);
+
+    handle.stop();
+  });
+});
+
+describe("storage auto-load and auto-save", () => {
+  test("auto-loads storage synchronously before top-level code runs (no explicit load())", () => {
+    const target = canvas();
+    const adapter = new MemoryAdapter();
+    adapter.text = JSON.stringify({ score: 7 });
+    const handle = run(
+      `
+let score = storage.get("score") ?? 0;
+
+function update() {
+  score += 1;
+  storage.set("score", score);
+}
+`,
+      { autostart: false, canvas: target, storage: adapter },
+    );
+
+    handle.step(0.1);
+    expect(handle.storage.get("score")).toBe(8);
+
+    handle.stop();
+  });
+
+  test("flushes a pending debounced save immediately on handle.stop() (no explicit save())", async () => {
+    const target = canvas();
+    const adapter = new MemoryAdapter();
+    const handle = run(
+      { update() {}, draw() {} },
+      { autostart: false, canvas: target, storage: adapter },
+    );
+    await handle.ready;
+
+    handle.storage.set("coins", 3);
+    expect(adapter.text).toBeNull();
+
+    handle.stop();
+    expect(adapter.text).toBe(JSON.stringify({ coins: 3 }));
+  });
+
+  test("auto-saves a mutation after a short debounce with no explicit save() call", async () => {
+    const target = canvas();
+    const adapter = new MemoryAdapter();
+    const handle = run(
+      { update() {}, draw() {} },
+      { autostart: false, canvas: target, storage: adapter },
+    );
+    await handle.ready;
+
+    handle.storage.set("coins", 5);
+    expect(adapter.text).toBeNull();
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    expect(adapter.text).toBe(JSON.stringify({ coins: 5 }));
+    handle.stop();
+  });
+
+  test("flushes a pending debounced save when window fires pagehide", async () => {
+    const target = canvas();
+    const adapter = new MemoryAdapter();
+    const fakeWindow = new EventTarget();
+    const globalWithWindow = globalThis as unknown as {
+      window: EventTarget | undefined;
+    };
+    const originalWindow = globalWithWindow.window;
+    globalWithWindow.window = fakeWindow;
+    try {
+      const handle = run(
+        { update() {}, draw() {} },
+        { autostart: false, canvas: target, storage: adapter },
+      );
+      await handle.ready;
+
+      handle.storage.set("coins", 11);
+      expect(adapter.text).toBeNull();
+
+      fakeWindow.dispatchEvent(new Event("pagehide"));
+      expect(adapter.text).toBe(JSON.stringify({ coins: 11 }));
+
+      handle.stop();
+    } finally {
+      globalWithWindow.window = originalWindow;
+    }
+  });
+
+  test("keeps explicit storage.save()/load() working alongside auto-save", async () => {
+    const target = canvas();
+    const adapter = new MemoryAdapter();
+    const handle = run(
+      { update() {}, draw() {} },
+      { autostart: false, canvas: target, storage: adapter },
+    );
+    await handle.ready;
+
+    handle.storage.set("explicit", true);
+    await handle.storage.save();
+    expect(adapter.text).toBe(JSON.stringify({ explicit: true }));
+
+    handle.stop();
   });
 });

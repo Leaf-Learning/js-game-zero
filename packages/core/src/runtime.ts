@@ -1,7 +1,12 @@
 import { Actor, type ActorOptions } from "./actor";
 import { Animation, animate, withAnimationClock } from "./animation";
 import {
+  assetUrl,
   createAssetLoaders,
+  fonts as globalFonts,
+  images as globalImages,
+  musicAssets as globalMusicAssets,
+  sounds as globalSounds,
   validateAssetName,
   type AssetLoaders,
   type FontAsset,
@@ -89,6 +94,13 @@ export type RunOptions = Partial<GameModule> & {
   readonly projectId?: string;
   readonly scheduler?: RuntimeScheduler;
   readonly storage?: Storage | StorageAdapter;
+  /**
+   * Overrides the loaders used for `images`/`Actor` (zero-boilerplate
+   * mode) and `sounds`/`music`/`fonts`. Defaults to fresh loaders scoped
+   * by `projectId`/`assetBaseUrl`. Mainly useful for embedding hosts and
+   * tests that need deterministic control over asset load timing.
+   */
+  readonly loaders?: Partial<AssetLoaders>;
 };
 
 export type PreloadedAssets = {
@@ -108,6 +120,15 @@ export type GameHandle = {
   readonly storage: Storage;
   readonly diagnostics: readonly RuntimeDiagnostic[];
   readonly module: GameModule;
+  /**
+   * Resolves once the "preload gate" is satisfied: storage has been
+   * loaded and every asset requested while the game module was
+   * evaluated (Actor constructions, `images.x` touches, etc.) has
+   * settled. The runtime itself already holds frames until this is
+   * true; this is exposed for tests and host integrations that want to
+   * await readiness explicitly instead of polling `step()`.
+   */
+  readonly ready: Promise<void>;
   pause(): void;
   resume(): void;
   step(dt: number): void;
@@ -216,8 +237,10 @@ export function run(
 
   diagnoseGameModule(module, options, emit, mode);
   const game = mergeModuleOptions(module, options);
+  requireDrawArity(game.draw);
   applyCanvasConfiguration(context.canvas, game, emit);
   configureDocumentTitle(game);
+  applyFavicon(context, game.ICON, emit);
 
   const hooks: InputHooks = game;
   const dispatcher = createInputDispatcher(hooks, context.keyboard);
@@ -240,6 +263,8 @@ export function run(
   let frameHandle: unknown = null;
   let lastTimestamp: number | null = null;
 
+  const ready = waitForPreloadGate(context);
+
   const handle: GameHandle = {
     mode,
     canvas: context.canvas,
@@ -250,6 +275,7 @@ export function run(
     storage: context.storage,
     diagnostics,
     module: game,
+    ready,
     pause() {
       paused = true;
     },
@@ -259,12 +285,15 @@ export function run(
     },
     step(dt: number) {
       if (stopped || paused) return;
+      if (isRuntimeGated(context)) return;
       runFrame(game, context, dt);
     },
     stop() {
       if (stopped) return;
       stopped = true;
       detachInput();
+      context.autosave.flush();
+      context.autosave.detach();
       context.scheduler.cancelAnimationFrame(frameHandle);
       context.keyboard.clear();
       if (activeHandle === handle) {
@@ -286,7 +315,7 @@ export function run(
       if (stopped) return;
       const previous = lastTimestamp ?? timestamp;
       lastTimestamp = timestamp;
-      if (!paused) {
+      if (!paused && !isRuntimeGated(context)) {
         const dt = Math.min(0.25, Math.max(0, (timestamp - previous) / 1000));
         runFrame(game, context, dt);
       }
@@ -325,6 +354,11 @@ type RuntimeContext = {
   readonly music: ReturnType<typeof createMusicPlayer>;
   readonly storage: Storage;
   readonly scheduler: RuntimeScheduler;
+  /** Mutable flag flipped once the storage preload has settled. */
+  readonly storageReadyState: { current: boolean };
+  /** Resolves once the storage preload has settled (success or handled failure). */
+  readonly storageReady: Promise<void>;
+  readonly autosave: Autosave;
 };
 
 function createRuntimeContext(
@@ -335,10 +369,16 @@ function createRuntimeContext(
 ): RuntimeContext {
   const canvas = options.canvas ?? createCanvas();
   const scheduler = options.scheduler ?? createDefaultScheduler();
-  const loaders = createAssetLoaders({
+  const defaultLoaders = createAssetLoaders({
     projectId: options.projectId ?? "default",
     assetBaseUrl: options.assetBaseUrl ?? "/assets",
   });
+  const loaders: AssetLoaders = {
+    images: options.loaders?.images ?? defaultLoaders.images,
+    sounds: options.loaders?.sounds ?? defaultLoaders.sounds,
+    music: options.loaders?.music ?? defaultLoaders.music,
+    fonts: options.loaders?.fonts ?? defaultLoaders.fonts,
+  };
   const screen = new Screen(canvas, canvas.getContext("2d"), {
     imageLoader: loaders.images,
   });
@@ -347,6 +387,16 @@ function createRuntimeContext(
   const keyboard = new KeyboardState();
   const clock = new Clock();
   const storage = resolveStorage(options);
+  const { state: storageReadyState, promise: storageReady } = primeStorage(
+    storage,
+    emit,
+  );
+  // Attached before any top-level game code runs (in particular before
+  // executeZeroBoilerplateSource evaluates the zero-boilerplate script),
+  // so a top-level mutation like `storage.score = 5` is captured by the
+  // auto-save listener from the very first tick, not just mutations made
+  // later inside update()/draw().
+  const autosave = attachAutosave(storage, emit);
   const onMusicEnd = module
     ? (getHook(module, "on_music_end") as (() => void) | undefined)
     : undefined;
@@ -364,6 +414,9 @@ function createRuntimeContext(
     music,
     storage,
     scheduler,
+    storageReadyState,
+    storageReady,
+    autosave,
   };
 }
 
@@ -501,8 +554,239 @@ function runFrame(
       if (parameters.length === 0) module.update();
       else module.update(dt);
     }
+    // A late asset request (e.g. `actor.image = "other"` inside update())
+    // may have just started a new load. Hold this tick's draw rather than
+    // paint a frame that mixes updated state with a stale/missing image;
+    // the loop keeps retrying on subsequent ticks (see isRuntimeGated)
+    // until the load resolves, then draws with fully correct data.
+    if (isRuntimeGated(context)) return;
     module.draw?.();
   });
+}
+
+/**
+ * True while the runtime should hold frames: storage hasn't finished its
+ * initial load, or some asset loader (context-scoped or the package-level
+ * singletons used by plain `import { Actor, images } from ...` code) has
+ * an in-flight load. Checked synchronously so it is cheap to call every
+ * tick; the underlying counts only change on load start (synchronous) or
+ * load settle (observed on the next macrotask, after microtasks drain).
+ */
+function isRuntimeGated(context: RuntimeContext): boolean {
+  if (!context.storageReadyState.current) return true;
+  return totalPendingAssetCount(context) > 0;
+}
+
+function totalPendingAssetCount(context: RuntimeContext): number {
+  return (
+    loaderGroupPendingCount(context.loaders) +
+    context.loaders.images.pendingCount() +
+    globalImages.pendingCount() +
+    globalSounds.pendingCount() +
+    globalMusicAssets.pendingCount() +
+    globalFonts.pendingCount()
+  );
+}
+
+function loaderGroupPendingCount(loaders: AssetLoaders): number {
+  return (
+    loaders.sounds.pendingCount() +
+    loaders.music.pendingCount() +
+    loaders.fonts.pendingCount()
+  );
+}
+
+/**
+ * One-shot promise resolving once the preload gate is satisfied: storage
+ * has settled and every asset in flight (across both the context-scoped
+ * loaders used by zero-boilerplate `Actor`/`images` globals, and the
+ * package-level singleton loaders used by plain `import`-mode code) has
+ * settled. Loads triggered while waiting (chained loads) are also
+ * awaited via each loader's `waitForIdle()`.
+ */
+function waitForPreloadGate(context: RuntimeContext): Promise<void> {
+  return Promise.all([
+    context.storageReady,
+    context.loaders.images.waitForIdle(),
+    context.loaders.sounds.waitForIdle(),
+    context.loaders.music.waitForIdle(),
+    context.loaders.fonts.waitForIdle(),
+    globalImages.waitForIdle(),
+    globalSounds.waitForIdle(),
+    globalMusicAssets.waitForIdle(),
+    globalFonts.waitForIdle(),
+  ]).then(() => undefined);
+}
+
+function requireDrawArity(hook: Hook | undefined): void {
+  if (!hook) return;
+  if (getParameterNames(hook).length > 0) {
+    throw new TypeError("draw() must not take any arguments.");
+  }
+}
+
+function applyFavicon(
+  context: RuntimeContext,
+  icon: string | null | undefined,
+  emit: (diagnostic: RuntimeDiagnostic) => void,
+): void {
+  if (!icon || typeof document === "undefined") return;
+  try {
+    validateAssetName("image", icon, context.loaders.images.extensions);
+  } catch (error) {
+    emit({
+      code: "invalid-config",
+      severity: "warning",
+      name: "ICON",
+      message: `ICON is not a usable image asset name: ${describeError(error)}`,
+    });
+    return;
+  }
+  const href = assetUrl(
+    context.loaders.images.assetBaseUrl,
+    context.loaders.images.projectId,
+    context.loaders.images.directory,
+    icon,
+  );
+  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head?.append(link);
+  }
+  link.href = href;
+}
+
+const AUTOSAVE_DEBOUNCE_MS = 250;
+
+type Autosave = {
+  /** Cancels any pending debounce timer and saves immediately, if dirty. */
+  flush(): void;
+  /** Unsubscribes from storage changes and browser lifecycle events. */
+  detach(): void;
+};
+
+/**
+ * Wires debounced auto-save: any storage mutation (including via the
+ * PGZero-style proxy, e.g. `storage.score = 5`) schedules a save a short
+ * while later so rapid mutations coalesce into one write. Also flushes
+ * immediately on `pagehide`/`visibilitychange` (tab close/backgrounding)
+ * so data is not lost; `handle.stop()` calls `flush()` explicitly too.
+ */
+function attachAutosave(
+  storage: Storage,
+  emit: (diagnostic: RuntimeDiagnostic) => void,
+): Autosave {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const saveNow = (): void => {
+    void storage.save().catch((error: unknown) => {
+      emit({
+        code: "runtime-error",
+        severity: "warning",
+        message: `Failed to auto-save storage: ${describeError(error)}`,
+      });
+    });
+  };
+
+  const flush = (): void => {
+    if (timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+    saveNow();
+  };
+
+  const unsubscribe = storage.onChange(() => {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      saveNow();
+    }, AUTOSAVE_DEBOUNCE_MS);
+  });
+
+  const hasWindow =
+    typeof window !== "undefined" &&
+    typeof window.addEventListener === "function";
+  const pagehideHandler = hasWindow ? () => flush() : undefined;
+  const visibilityHandler =
+    hasWindow && typeof document !== "undefined"
+      ? () => {
+          if (document.visibilityState === "hidden") flush();
+        }
+      : undefined;
+  if (hasWindow && pagehideHandler) {
+    window.addEventListener("pagehide", pagehideHandler);
+  }
+  if (hasWindow && visibilityHandler && typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", visibilityHandler);
+  }
+
+  return {
+    flush,
+    detach() {
+      unsubscribe();
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (hasWindow && pagehideHandler) {
+        window.removeEventListener("pagehide", pagehideHandler);
+      }
+      if (hasWindow && visibilityHandler && typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", visibilityHandler);
+      }
+    },
+  };
+}
+
+/**
+ * Attempts a synchronous storage load first (works for the default
+ * browser localStorage adapter) so top-level game code — e.g.
+ * `let score = storage.get("score") ?? 0` in a zero-boilerplate script —
+ * sees persisted data immediately, matching the fully synchronous
+ * startup of the upstream reference framework this package
+ * reimplements. Falls back to the async `load()` for adapters
+ * that are inherently asynchronous (e.g. sandboxed file storage); in
+ * that case the runtime's preload gate holds frames until it settles,
+ * but top-level reads that happen before `run()` returns will not see
+ * persisted values.
+ */
+function primeStorage(
+  storage: Storage,
+  emit: (diagnostic: RuntimeDiagnostic) => void,
+): { state: { current: boolean }; promise: Promise<void> } {
+  const state = { current: false };
+  try {
+    if (storage.loadSync()) {
+      state.current = true;
+      return { state, promise: Promise.resolve() };
+    }
+  } catch (error) {
+    emit({
+      code: "runtime-error",
+      severity: "warning",
+      message: `Failed to load storage: ${describeError(error)}`,
+    });
+    state.current = true;
+    return { state, promise: Promise.resolve() };
+  }
+  const promise = storage
+    .load()
+    .catch((error: unknown) => {
+      emit({
+        code: "runtime-error",
+        severity: "warning",
+        message: `Failed to load storage: ${describeError(error)}`,
+      });
+    })
+    .then(() => {
+      state.current = true;
+    });
+  return { state, promise };
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function diagnoseGameModule(
