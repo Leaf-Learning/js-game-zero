@@ -39,6 +39,13 @@ export type BrowserMouseLike = {
   movementY?: number;
 };
 
+export type BrowserWheelLike = {
+  clientX: number;
+  clientY: number;
+  deltaY: number;
+  buttons?: number;
+};
+
 type BoundsTarget = {
   getBoundingClientRect?: () => {
     left: number;
@@ -209,9 +216,33 @@ export function mapBrowserMouseButton(
   if (button === 0) return mouse.LEFT;
   if (button === 1) return mouse.MIDDLE;
   if (button === 2) return mouse.RIGHT;
-  if (button === 3) return mouse.WHEEL_UP;
-  if (button === 4) return mouse.WHEEL_DOWN;
+  // DOM buttons 3/4 are the browser back/forward buttons, not the scroll
+  // wheel. pygame/pgzero only recognize LEFT/MIDDLE/RIGHT/WHEEL_UP/
+  // WHEEL_DOWN as mouse buttons, so back/forward are intentionally
+  // unmapped rather than misreported as wheel input.
   return null;
+}
+
+/**
+ * Maps a native `wheel` DOM event to a mouse-down-shaped event, matching
+ * pygame's convention of reporting scroll wheel motion as button 4 (up) /
+ * button 5 (down) presses (see pgzero.constants.mouse.WHEEL_UP/WHEEL_DOWN).
+ *
+ * Returns null for a zero (or missing) deltaY, since that carries no
+ * wheel-button semantics.
+ */
+export function mapBrowserWheelEvent(
+  event: BrowserWheelLike,
+  target?: BoundsTarget,
+): MappedMouseEvent | null {
+  if (!(event.deltaY < 0) && !(event.deltaY > 0)) return null;
+  const button = event.deltaY < 0 ? mouse.WHEEL_UP : mouse.WHEEL_DOWN;
+  return {
+    pos: pointFromMouseEvent(event, target),
+    button,
+    buttons: buttonsFromBrowserButtons(event.buttons ?? 0),
+    rel: [0, 0],
+  };
 }
 
 export function buttonsFromBrowserButtons(buttons: number): Set<number> {
@@ -271,6 +302,19 @@ export class InputDispatcher {
     return true;
   }
 
+  /**
+   * Handles a native `wheel` event. pygame/pgzero report scroll wheel
+   * motion through the same channel as mouse button presses (button 4/5),
+   * so this dispatches `on_mouse_down` just like handleMouseDown.
+   */
+  handleWheel(event: BrowserWheelLike, target?: BoundsTarget): boolean {
+    const mapped = mapBrowserWheelEvent(event, target);
+    if (!mapped) return false;
+    this.lastMousePos = mapped.pos;
+    dispatchHook(getHook(this.hooks, "on_mouse_down"), mapped);
+    return true;
+  }
+
   attach(
     mouseTarget: EventTarget & BoundsTarget,
     keyboardTarget: EventTarget = mouseTarget,
@@ -284,12 +328,15 @@ export class InputDispatcher {
       this.handleMouseUp(event as MouseEvent, mouseTarget);
     const mouseMove = (event: Event) =>
       this.handleMouseMove(event as MouseEvent, mouseTarget);
+    const wheel = (event: Event) =>
+      this.handleWheel(event as WheelEvent, mouseTarget);
 
     keyboardTarget.addEventListener("keydown", keyDown);
     keyboardTarget.addEventListener("keyup", keyUp);
     mouseTarget.addEventListener("mousedown", mouseDown);
     mouseTarget.addEventListener("mouseup", mouseUp);
     mouseTarget.addEventListener("mousemove", mouseMove);
+    mouseTarget.addEventListener("wheel", wheel, { passive: true });
 
     return () => {
       keyboardTarget.removeEventListener("keydown", keyDown);
@@ -297,6 +344,7 @@ export class InputDispatcher {
       mouseTarget.removeEventListener("mousedown", mouseDown);
       mouseTarget.removeEventListener("mouseup", mouseUp);
       mouseTarget.removeEventListener("mousemove", mouseMove);
+      mouseTarget.removeEventListener("wheel", wheel);
     };
   }
 }

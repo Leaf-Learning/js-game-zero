@@ -67,4 +67,91 @@ describe("Clock scheduling", () => {
     clock.tick(0.34);
     expect(dts).toEqual([0.16, 0.34]);
   });
+
+  test("a throwing scheduled callback is logged and auto-unscheduled without aborting the frame", () => {
+    const clock = new Clock();
+    const calls: string[] = [];
+    const originalConsoleError = console.error;
+    const loggedErrors: unknown[][] = [];
+    console.error = (...args: unknown[]) => {
+      loggedErrors.push(args);
+    };
+    try {
+      clock.schedule(() => {
+        throw new Error("boom");
+      }, 0.1);
+      clock.schedule(() => calls.push("safe"), 0.1);
+      clock.tick(0.1);
+      expect(calls).toEqual(["safe"]);
+      expect(loggedErrors.length).toBe(1);
+
+      let intervalCalls = 0;
+      clock.schedule_interval(() => {
+        intervalCalls += 1;
+        if (intervalCalls === 2) throw new Error("interval boom");
+      }, 0.1);
+      clock.tick(0.1);
+      expect(intervalCalls).toBe(1);
+      clock.tick(0.1);
+      expect(intervalCalls).toBe(2);
+      // The offending interval callback should be unscheduled after throwing,
+      // so it must not fire again on subsequent ticks.
+      clock.tick(0.5);
+      expect(intervalCalls).toBe(2);
+      expect(loggedErrors.length).toBe(2);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+
+  test("a throwing each_tick callback is logged and auto-unscheduled while others keep running", () => {
+    const clock = new Clock();
+    const originalConsoleError = console.error;
+    const loggedErrors: unknown[][] = [];
+    console.error = (...args: unknown[]) => {
+      loggedErrors.push(args);
+    };
+    try {
+      let throwingCalls = 0;
+      let safeCalls = 0;
+      clock.each_tick(() => {
+        throwingCalls += 1;
+        throw new Error("each_tick boom");
+      });
+      clock.each_tick(() => {
+        safeCalls += 1;
+      });
+      clock.tick(0.1);
+      expect(throwingCalls).toBe(1);
+      expect(safeCalls).toBe(1);
+      expect(loggedErrors.length).toBe(1);
+
+      clock.tick(0.1);
+      expect(throwingCalls).toBe(1);
+      expect(safeCalls).toBe(2);
+    } finally {
+      console.error = originalConsoleError;
+    }
+  });
+
+  test("clear removes all scheduled and each_tick callbacks", () => {
+    const clock = new Clock();
+    let scheduledCalls = 0;
+    let intervalCalls = 0;
+    let tickCalls = 0;
+    clock.schedule(() => {
+      scheduledCalls += 1;
+    }, 0.1);
+    clock.schedule_interval(() => {
+      intervalCalls += 1;
+    }, 0.1);
+    clock.each_tick(() => {
+      tickCalls += 1;
+    });
+    clock.clear();
+    clock.tick(1);
+    expect(scheduledCalls).toBe(0);
+    expect(intervalCalls).toBe(0);
+    expect(tickCalls).toBe(0);
+  });
 });

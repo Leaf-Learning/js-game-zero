@@ -57,6 +57,14 @@ export type BrowserSoundOptions = {
   readonly volume?: number;
 };
 
+/** One overlapping playback instance backing a BrowserSoundAsset. */
+type SoundInstance = {
+  readonly element: AudioElementLike;
+  readonly loopCount: number;
+  remainingLoops: number;
+  readonly ended: () => void;
+};
+
 export class BrowserSoundAsset implements SoundAsset {
   readonly kind: "sound";
   readonly name: string;
@@ -65,9 +73,11 @@ export class BrowserSoundAsset implements SoundAsset {
 
   private readonly createElement: AudioElementFactory;
   private readonly unlockState: AudioUnlockState;
-  private activeElement: AudioElementLike | null = null;
+  // pygame Sounds mix on channels, so multiple play() calls overlap rather
+  // than cutting each other off; this pool tracks every concurrently
+  // playing instance of this sound.
+  private readonly activeInstances = new Set<SoundInstance>();
   private metadataElement: AudioElementLike | null = null;
-  private activeEndedListener: (() => void) | null = null;
   private volumeValue: number;
   private lastErrorMessage: string | null = null;
 
@@ -83,7 +93,6 @@ export class BrowserSoundAsset implements SoundAsset {
 
   play(loops = 0): void {
     const loopCount = requireLoopCount(loops);
-    this.stop();
 
     let element: AudioElementLike;
     try {
@@ -93,36 +102,30 @@ export class BrowserSoundAsset implements SoundAsset {
       return;
     }
 
-    this.activeElement = element;
     element.volume = this.volumeValue;
     element.loop = loopCount < 0;
-    let remainingLoops = loopCount;
-    const ended = () => {
-      if (this.activeElement !== element) return;
-      if (loopCount < 0) return;
-      if (remainingLoops > 0) {
-        remainingLoops -= 1;
-        element.currentTime = 0;
-        this.playElement(element, () => {
-          if (this.activeElement === element) this.clearActive(true);
-        });
-        return;
-      }
-      this.clearActive(false);
+    const instance: SoundInstance = {
+      element,
+      loopCount,
+      remainingLoops: loopCount,
+      ended: () => this.handleInstanceEnded(instance),
     };
-    this.activeEndedListener = ended;
-    element.addEventListener("ended", ended);
+    this.activeInstances.add(instance);
+    element.addEventListener("ended", instance.ended);
     this.playElement(element, () => {
-      if (this.activeElement === element) this.clearActive(true);
+      if (this.activeInstances.has(instance))
+        this.removeInstance(instance, true);
     });
   }
 
   stop(): void {
-    this.clearActive(true);
+    for (const instance of [...this.activeInstances]) {
+      this.removeInstance(instance, true);
+    }
   }
 
   get_length(): number {
-    const element = this.activeElement ?? this.getMetadataElement();
+    const element = this.firstActiveElement() ?? this.getMetadataElement();
     return Number.isFinite(element.duration) && element.duration > 0
       ? element.duration
       : 0;
@@ -130,7 +133,9 @@ export class BrowserSoundAsset implements SoundAsset {
 
   set_volume(volume: number): void {
     this.volumeValue = clampVolume(volume);
-    if (this.activeElement) this.activeElement.volume = this.volumeValue;
+    for (const instance of this.activeInstances) {
+      instance.element.volume = this.volumeValue;
+    }
     if (this.metadataElement) this.metadataElement.volume = this.volumeValue;
   }
 
@@ -140,12 +145,39 @@ export class BrowserSoundAsset implements SoundAsset {
 
   debug_state(): BrowserSoundDebugState {
     return {
-      active: this.activeElement !== null,
-      loop: Boolean(this.activeElement?.loop),
+      active: this.activeInstances.size > 0,
+      loop: [...this.activeInstances].some((instance) =>
+        Boolean(instance.element.loop),
+      ),
       volume: this.volumeValue,
       unlocked: this.unlockState.is_unlocked(),
       lastError: this.lastErrorMessage,
     };
+  }
+
+  /** Number of currently overlapping playback instances of this sound. */
+  debug_instance_count(): number {
+    return this.activeInstances.size;
+  }
+
+  private handleInstanceEnded(instance: SoundInstance): void {
+    if (!this.activeInstances.has(instance)) return;
+    if (instance.loopCount < 0) return;
+    if (instance.remainingLoops > 0) {
+      instance.remainingLoops -= 1;
+      instance.element.currentTime = 0;
+      this.playElement(instance.element, () => {
+        if (this.activeInstances.has(instance))
+          this.removeInstance(instance, true);
+      });
+      return;
+    }
+    this.removeInstance(instance, false);
+  }
+
+  private firstActiveElement(): AudioElementLike | null {
+    for (const instance of this.activeInstances) return instance.element;
+    return null;
   }
 
   private getMetadataElement(): AudioElementLike {
@@ -178,17 +210,13 @@ export class BrowserSoundAsset implements SoundAsset {
     }
   }
 
-  private clearActive(resetTime: boolean): void {
-    const element = this.activeElement;
-    if (!element) return;
-    if (this.activeEndedListener) {
-      element.removeEventListener("ended", this.activeEndedListener);
-    }
+  private removeInstance(instance: SoundInstance, resetTime: boolean): void {
+    const { element } = instance;
+    element.removeEventListener("ended", instance.ended);
     element.pause();
     element.loop = false;
     if (resetTime) element.currentTime = 0;
-    this.activeElement = null;
-    this.activeEndedListener = null;
+    this.activeInstances.delete(instance);
   }
 }
 
@@ -283,6 +311,45 @@ export class MusicPlayer {
     this.playElement(element);
   }
 
+  /** Restarts the current track from the beginning (pygame.mixer.music.rewind). */
+  rewind(): void {
+    const element = this.currentTrack?.element;
+    if (!element) return;
+    element.currentTime = 0;
+  }
+
+  /**
+   * Milliseconds the current track has been playing for, or -1 if nothing
+   * is loaded (matches pygame.mixer.music.get_pos()).
+   */
+  get_pos(): number {
+    const element = this.currentTrack?.element;
+    if (!element) return -1;
+    return element.currentTime * 1000;
+  }
+
+  getPos(): number {
+    return this.get_pos();
+  }
+
+  /** Seeks the current track to the given position in seconds. */
+  set_pos(seconds: number): void {
+    if (
+      typeof seconds !== "number" ||
+      !Number.isFinite(seconds) ||
+      seconds < 0
+    ) {
+      throw new RangeError("set_pos seconds must be a non-negative number.");
+    }
+    const element = this.currentTrack?.element;
+    if (!element) return;
+    element.currentTime = seconds;
+  }
+
+  setPos(seconds: number): void {
+    this.set_pos(seconds);
+  }
+
   fadeout(seconds: number): void {
     if (
       typeof seconds !== "number" ||
@@ -323,8 +390,17 @@ export class MusicPlayer {
     return this.volumeValue;
   }
 
-  is_playing(): boolean {
+  /**
+   * True if music is currently playing (and not paused). Accepts and
+   * ignores an optional track name argument, matching pgzero's
+   * `music.is_playing(name)` signature.
+   */
+  is_playing(_name?: string): boolean {
     return Boolean(this.currentTrack && !this.currentTrack.element.paused);
+  }
+
+  isPlaying(name?: string): boolean {
+    return this.is_playing(name);
   }
 
   set_on_music_end(callback: (() => void) | undefined): void {

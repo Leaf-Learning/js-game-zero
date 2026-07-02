@@ -2,6 +2,11 @@ import { audioUnlock, clampVolume, type AudioUnlockState } from "./audio";
 
 export type Waveform = OscillatorType;
 
+/** pgzero's tone.Waveform names that don't match the Web Audio OscillatorType spelling. */
+export type WaveformAlias = "sin" | "saw";
+
+export type WaveformInput = Waveform | WaveformAlias;
+
 export type AudioParamLike = {
   value: number;
   setValueAtTime?: (value: number, startTime: number) => void;
@@ -32,11 +37,14 @@ export type AudioContextLike = {
 export type ToneOptions = {
   readonly audioContext?: AudioContextLike;
   readonly unlockState?: AudioUnlockState;
-  readonly waveform?: Waveform;
+  readonly waveform?: WaveformInput;
   readonly volume?: number;
 };
 
 export type TonePlayOptions = Omit<ToneOptions, "audioContext" | "unlockState">;
+
+/** pgzero's tone module defaults to volume 0.8 (see pgzero.tone._convert_args). */
+export const DEFAULT_TONE_VOLUME = 0.8;
 
 export type ToneSpec = {
   readonly frequency: number;
@@ -163,8 +171,8 @@ export class ToneGenerator {
     return {
       frequency: parseToneFrequency(noteOrFrequency),
       duration: requireToneDuration(duration),
-      waveform: options.waveform ?? "sine",
-      volume: clampVolume(options.volume ?? 1),
+      waveform: normalizeWaveform(options.waveform ?? "sine"),
+      volume: clampVolume(options.volume ?? DEFAULT_TONE_VOLUME),
     };
   }
 
@@ -230,6 +238,12 @@ export function requireToneDuration(duration: number): number {
   throw new RangeError(
     "tone duration must be greater than 0 and at most 4 seconds.",
   );
+}
+
+export function normalizeWaveform(waveform: WaveformInput): Waveform {
+  if (waveform === "sin") return "sine";
+  if (waveform === "saw") return "sawtooth";
+  return waveform;
 }
 
 function setAudioParam(
