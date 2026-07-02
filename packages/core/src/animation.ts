@@ -1,3 +1,6 @@
+// The tween easing curves below are ported from Pygame Zero's animation
+// module (LGPL-3.0), which in turn credits: "Easing Functions ported from
+// the Clutter Project via kivy.org".
 import { Clock, clock } from "./clock";
 
 export type TweenName = keyof typeof tweens;
