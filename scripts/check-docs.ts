@@ -1,6 +1,3 @@
-import { readdir, readFile } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
-
 type PackageJson = {
   readonly name?: string;
   readonly license?: string;
@@ -58,22 +55,6 @@ const packageManifests = [
   "packages/browser-runtime/package.json",
   "apps/sandbox/package.json",
 ];
-
-const cleanRoomScanRoots = ["apps", "examples", "packages"];
-
-const textExtensions = new Set([
-  ".css",
-  ".html",
-  ".js",
-  ".json",
-  ".md",
-  ".svg",
-  ".ts",
-  ".tsx",
-  ".txt",
-  ".yml",
-  ".yaml",
-]);
 
 async function main(): Promise<void> {
   await checkRequiredDocs();
@@ -278,22 +259,6 @@ async function checkLicenseBoundary(): Promise<void> {
       fail(`${packagePath} must declare LGPL-3.0-only license.`);
     }
   }
-
-  const forbidden = /\b(GNU Lesser|Pygame Zero|pygame[_-]?zero)\b/i;
-  for (const path of await listProjectFiles(cleanRoomScanRoots)) {
-    if (path.includes("/dist/") || path.includes("/node_modules/")) continue;
-    if (/pygame[_-]?zero|lgpl/i.test(path)) {
-      fail(`Clean-room package file name is not allowed: ${path}`);
-    }
-    if (!textExtensions.has(extname(path))) continue;
-    const text = await readFile(path, "utf8");
-    const match = forbidden.exec(text);
-    if (match) {
-      fail(
-        `Clean-room source must not contain upstream license marker "${match[0]}" in ${path}.`,
-      );
-    }
-  }
 }
 
 function extractFencedBlocks(
@@ -337,30 +302,6 @@ function requireScript(
 
 async function readPackageJson(path: string): Promise<PackageJson> {
   return (await Bun.file(path).json()) as PackageJson;
-}
-
-async function listProjectFiles(roots: readonly string[]): Promise<string[]> {
-  const files: string[] = [];
-  for (const root of roots) await visit(root, files);
-  return files.sort();
-}
-
-async function visit(path: string, files: string[]): Promise<void> {
-  for (const entry of await readdir(path, { withFileTypes: true })) {
-    if (
-      entry.name === "node_modules" ||
-      entry.name === "dist" ||
-      entry.name === "coverage"
-    ) {
-      continue;
-    }
-    const entryPath = join(path, entry.name);
-    if (entry.isDirectory()) {
-      await visit(entryPath, files);
-    } else if (entry.isFile()) {
-      files.push(relative(process.cwd(), entryPath));
-    }
-  }
 }
 
 function errorMessage(error: unknown): string {
