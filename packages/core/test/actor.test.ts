@@ -155,6 +155,124 @@ describe("Actor positioning and anchors", () => {
   });
 });
 
+describe("Actor edge/position setters", () => {
+  test("left/top/right/bottom setters translate the rect, preserving width/height", () => {
+    // hero.svg is 20x10 (see loaderWithSprites). Starting from
+    // topleft [0, 0] with the default center/center anchor gives
+    // rect() = {left: 0, top: 0, width: 20, height: 10}.
+    const left = new Actor("hero.svg", {
+      topleft: [0, 0],
+      loader: loaderWithSprites(),
+    });
+    left.left = 5;
+    expect(left.left).toBe(5);
+    // left moves only the left edge: top/width/height stay put.
+    expect(left.rect()).toMatchObject({
+      left: 5,
+      top: 0,
+      width: 20,
+      height: 10,
+    });
+
+    const top = new Actor("hero.svg", {
+      topleft: [0, 0],
+      loader: loaderWithSprites(),
+    });
+    top.top = 8;
+    expect(top.top).toBe(8);
+    expect(top.rect()).toMatchObject({
+      left: 0,
+      top: 8,
+      width: 20,
+      height: 10,
+    });
+
+    const right = new Actor("hero.svg", {
+      topleft: [0, 0],
+      loader: loaderWithSprites(),
+    });
+    right.right = 50;
+    expect(right.right).toBe(50);
+    // right = left + width (fixed at 20), so left becomes 50 - 20 = 30.
+    expect(right.rect()).toMatchObject({
+      left: 30,
+      top: 0,
+      width: 20,
+      height: 10,
+    });
+
+    const bottom = new Actor("hero.svg", {
+      topleft: [0, 0],
+      loader: loaderWithSprites(),
+    });
+    bottom.bottom = 40;
+    expect(bottom.bottom).toBe(40);
+    // bottom = top + height (fixed at 10), so top becomes 40 - 10 = 30.
+    expect(bottom.rect()).toMatchObject({
+      left: 0,
+      top: 30,
+      width: 20,
+      height: 10,
+    });
+  });
+
+  test("x/y setters move the anchor point along a single axis, independent of rect edges", () => {
+    // Explicit pos [10, 5] with the default center/center anchor on a
+    // 20x10 image puts the rect's topleft at (0, 0).
+    const x = new Actor("hero.svg", [10, 5], { loader: loaderWithSprites() });
+    x.x = 100;
+    expect(x.x).toBe(100);
+    expect(x.pos).toEqual([100, 5]);
+    // left = x - anchorX(10) = 90; top is untouched.
+    expect(x.rect()).toMatchObject({ left: 90, top: 0, width: 20, height: 10 });
+
+    const y = new Actor("hero.svg", [10, 5], { loader: loaderWithSprites() });
+    y.y = 55;
+    expect(y.y).toBe(55);
+    expect(y.pos).toEqual([10, 55]);
+    // top = y - anchorY(5) = 50; left is untouched.
+    expect(y.rect()).toMatchObject({ left: 0, top: 50, width: 20, height: 10 });
+  });
+});
+
+describe("Actor asset lifecycle", () => {
+  test("ready() awaits an in-flight load and then resolves synchronously from cache", async () => {
+    const loader = loaderWithSprites();
+    // "mystery.svg" is not pre-defined via loader.define(), so
+    // loaderWithSprites' loadAsset fallback (any unrecognized name -> a
+    // 20x10 surface) is exercised through a genuine async load.
+    const actor = new Actor("mystery.svg", { loader });
+
+    const surface = await actor.ready();
+    expect(surface.get_size()).toEqual([20, 10]);
+    expect(actor.width).toBe(20);
+    expect(actor.height).toBe(10);
+
+    // Once loaded, ready() takes the `if (this._surface)` fast path and
+    // resolves to the same cached surface instance.
+    const again = await actor.ready();
+    expect(again).toBe(surface);
+  });
+
+  test("unload_image() evicts the loader cache entry and clears the actor's own surface", async () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
+    expect(actor.width).toBe(20);
+    expect(loader.has("hero.svg")).toBe(true);
+
+    actor.unload_image();
+
+    expect(loader.has("hero.svg")).toBe(false);
+    // With no surface, width/height fall back to 0 (surfaceWidth/Height
+    // default when `_surface` is null).
+    expect(actor.width).toBe(0);
+    expect(actor.height).toBe(0);
+    // unload_image() also clears the pending-load promise, so ready()
+    // has nothing left to await.
+    await expect(actor.ready()).rejects.toThrow("Actor image is not loading.");
+  });
+});
+
 describe("Actor behavior", () => {
   test("computes rotated bounding rectangles and clamps opacity", () => {
     const actor = new Actor("hero.svg", {
@@ -175,6 +293,42 @@ describe("Actor behavior", () => {
     expect(Math.round(rect.height)).toBe(20);
     expect(Math.round(rect.left)).toBe(5);
     expect(Math.round(rect.top)).toBe(-5);
+  });
+
+  test("computes a genuinely rotated (non-axis-aligned) bounding rectangle at angle 30", () => {
+    const actor = new Actor("hero.svg", {
+      topleft: [0, 0],
+      loader: loaderWithSprites(),
+    });
+    // hero.svg is 20x10 (see loaderWithSprites). The default anchor is
+    // center/center, so rotation pivots around the rect's own center,
+    // which sits at pos = (10, 5) for a rect at topleft [0, 0].
+    actor.angle = 30;
+
+    // Standard rotated-rectangle AABB formula for a w x h rect rotated
+    // by angle θ around its own center:
+    //   width'  = w*|cos θ| + h*|sin θ|
+    //   height' = w*|sin θ| + h*|cos θ|
+    // w=20, h=10, θ=30°: cos30° ≈ 0.8660254, sin30° = 0.5
+    //   width'  = 20*0.8660254 + 10*0.5      = 17.320508 + 5  = 22.320508
+    //   height' = 20*0.5       + 10*0.8660254 = 10       + 8.660254 = 18.660254
+    // The rotated rect stays centered at (10, 5), so:
+    //   left = 10 - width'/2  = 10 - 11.160254 = -1.160254
+    //   top  = 5  - height'/2 = 5  - 9.330127   = -4.330127
+    const expectedWidth = 22.320508;
+    const expectedHeight = 18.660254;
+    const expectedLeft = -1.160254;
+    const expectedTop = -4.330127;
+
+    const rect = actor.rect();
+    expect(rect.left).toBeCloseTo(expectedLeft, 4);
+    expect(rect.top).toBeCloseTo(expectedTop, 4);
+    expect(rect.width).toBeCloseTo(expectedWidth, 4);
+    expect(rect.height).toBeCloseTo(expectedHeight, 4);
+    expect(actor.left).toBeCloseTo(expectedLeft, 4);
+    expect(actor.top).toBeCloseTo(expectedTop, 4);
+    expect(actor.width).toBeCloseTo(expectedWidth, 4);
+    expect(actor.height).toBeCloseTo(expectedHeight, 4);
   });
 
   test("swaps images and delegates collision helpers", () => {

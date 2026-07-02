@@ -154,4 +154,48 @@ describe("Clock scheduling", () => {
     expect(intervalCalls).toBe(0);
     expect(tickCalls).toBe(0);
   });
+
+  test("now() starts at 0 and advances by the sum of tick(dt) calls", () => {
+    const clock = new Clock();
+    expect(clock.now()).toBe(0);
+    clock.tick(0.5);
+    expect(clock.now()).toBe(0.5);
+    clock.tick(0.25);
+    expect(clock.now()).toBe(0.75);
+    clock.tick(0);
+    expect(clock.now()).toBe(0.75);
+  });
+
+  test("schedule rejects a negative delay with RangeError and a non-finite delay with TypeError", () => {
+    const clock = new Clock();
+    expect(() => clock.schedule(() => {}, -1)).toThrow(RangeError);
+    expect(() => clock.schedule(() => {}, -1)).toThrow(
+      /delay must be non-negative/,
+    );
+    expect(() => clock.schedule(() => {}, Number.NaN)).toThrow(TypeError);
+    expect(() => clock.schedule(() => {}, Number.NaN)).toThrow(
+      /delay must be a finite number/,
+    );
+    expect(() => clock.schedule(() => {}, Number.POSITIVE_INFINITY)).toThrow(
+      TypeError,
+    );
+  });
+
+  test("schedule_interval rejects a negative interval with RangeError, a non-finite interval with TypeError, and an interval of exactly 0 with a distinct RangeError", () => {
+    const clock = new Clock();
+    expect(() => clock.schedule_interval(() => {}, -1)).toThrow(RangeError);
+    expect(() => clock.schedule_interval(() => {}, -1)).toThrow(
+      /interval must be non-negative/,
+    );
+    expect(() => clock.schedule_interval(() => {}, Number.NaN)).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      clock.schedule_interval(() => {}, Number.POSITIVE_INFINITY),
+    ).toThrow(TypeError);
+    expect(() => clock.schedule_interval(() => {}, 0)).toThrow(RangeError);
+    expect(() => clock.schedule_interval(() => {}, 0)).toThrow(
+      /interval must be greater than 0/,
+    );
+  });
 });

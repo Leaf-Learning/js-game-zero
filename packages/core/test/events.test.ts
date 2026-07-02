@@ -13,6 +13,48 @@ import {
   mouse,
 } from "@js-game-zero/core";
 
+// The `BoundsTarget` type that `attach()`'s first parameter is intersected
+// with is not exported from events.ts, so derive the parameter type
+// structurally instead of importing it directly.
+type AttachMouseTarget = Parameters<InputDispatcher["attach"]>[0];
+
+/**
+ * A minimal EventTarget-like test double used to verify `attach()` wires up
+ * (and `detach()` tears down) DOM listeners, without depending on any
+ * particular DOM implementation being globally available.
+ */
+function createFakeEventTarget() {
+  const listeners = new Map<string, Set<(event: unknown) => void>>();
+  const addCalls: string[] = [];
+  const removeCalls: string[] = [];
+  const target = {
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    addEventListener(
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+    ) {
+      addCalls.push(type);
+      let set = listeners.get(type);
+      if (!set) {
+        set = new Set();
+        listeners.set(type, set);
+      }
+      set.add(listener as (event: unknown) => void);
+    },
+    removeEventListener(
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+    ) {
+      removeCalls.push(type);
+      listeners.get(type)?.delete(listener as (event: unknown) => void);
+    },
+    dispatch(type: string, event: unknown) {
+      for (const listener of listeners.get(type) ?? []) listener(event);
+    },
+  };
+  return { target, addCalls, removeCalls };
+}
+
 describe("hook dispatch", () => {
   test("calls hooks by parameter name or event object", () => {
     const calls: unknown[][] = [];
@@ -206,5 +248,140 @@ describe("InputDispatcher", () => {
       { pos: [5, 5], button: mouse.WHEEL_UP },
       { pos: [5, 5], button: mouse.WHEEL_DOWN },
     ]);
+  });
+
+  test("handleMouseUp dispatches on_mouse_up with pos/button and tracks lastMousePos", () => {
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseUp(pos: unknown, button: unknown) {
+        events.push({ pos, button });
+      },
+    });
+    const target = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
+
+    expect(
+      dispatcher.handleMouseUp(
+        { clientX: 15, clientY: 25, button: 0, buttons: 0 },
+        target,
+      ),
+    ).toBe(true);
+    expect(events).toEqual([{ pos: [5, 5], button: mouse.LEFT }]);
+  });
+
+  test("handleMouseUp returns false and skips the hook for an unresolvable button", () => {
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseUp(pos: unknown, button: unknown) {
+        events.push({ pos, button });
+      },
+    });
+
+    expect(
+      dispatcher.handleMouseUp({ clientX: 1, clientY: 1, button: 3 }),
+    ).toBe(false);
+    expect(events).toEqual([]);
+  });
+
+  test("attach() wires up mouse/keyboard/wheel DOM listeners and detach() removes them", () => {
+    const { target, addCalls, removeCalls } = createFakeEventTarget();
+    const downEvents: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseDown(pos: unknown, button: unknown) {
+        downEvents.push({ pos, button });
+      },
+    });
+
+    const detach = dispatcher.attach(target as unknown as AttachMouseTarget);
+
+    expect(addCalls.sort()).toEqual(
+      ["keydown", "keyup", "mousedown", "mouseup", "mousemove", "wheel"].sort(),
+    );
+
+    target.dispatch("mousedown", {
+      clientX: 1,
+      clientY: 2,
+      button: 0,
+      buttons: 1,
+    });
+    expect(downEvents).toEqual([{ pos: [1, 2], button: mouse.LEFT }]);
+
+    detach();
+
+    expect(removeCalls.sort()).toEqual(addCalls.sort());
+
+    downEvents.length = 0;
+    target.dispatch("mousedown", {
+      clientX: 1,
+      clientY: 2,
+      button: 0,
+      buttons: 1,
+    });
+    expect(downEvents).toEqual([]);
+  });
+
+  test("drag-release sequence: mousedown -> mousemove -> mouseup produces a coherent event sequence", () => {
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseDown(pos: unknown, button: unknown) {
+        events.push({ type: "down", pos, button });
+      },
+      onMouseMove(pos: unknown, rel: unknown, buttons: unknown) {
+        events.push({
+          type: "move",
+          pos,
+          rel,
+          buttons: [...(buttons as Set<number>)],
+        });
+      },
+      onMouseUp(pos: unknown, button: unknown, buttons: unknown) {
+        events.push({
+          type: "up",
+          pos,
+          button,
+          buttons: [...(buttons as Set<number>)],
+        });
+      },
+    });
+
+    expect(
+      dispatcher.handleMouseDown({
+        clientX: 10,
+        clientY: 10,
+        button: 0,
+        buttons: 1,
+      }),
+    ).toBe(true);
+    expect(
+      dispatcher.handleMouseMove({ clientX: 15, clientY: 12, buttons: 1 }),
+    ).toBe(true);
+    expect(
+      dispatcher.handleMouseUp({
+        clientX: 15,
+        clientY: 12,
+        button: 0,
+        buttons: 0,
+      }),
+    ).toBe(true);
+
+    expect(events).toEqual([
+      { type: "down", pos: [10, 10], button: mouse.LEFT },
+      { type: "move", pos: [15, 12], rel: [5, 2], buttons: [mouse.LEFT] },
+      { type: "up", pos: [15, 12], button: mouse.LEFT, buttons: [] },
+    ]);
+  });
+
+  test("resolves .code-absent .key fallbacks for named keys, lowercase letters, and punctuation", () => {
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onKeyDown(key: unknown) {
+        events.push(key);
+      },
+    });
+
+    expect(dispatcher.handleKeyDown({ key: "ArrowLeft" })).toBe(true);
+    expect(dispatcher.handleKeyDown({ key: "a" })).toBe(true);
+    expect(dispatcher.handleKeyDown({ key: "!" })).toBe(true);
+
+    expect(events).toEqual([keys.LEFT, keys.A, keys.EXCLAIM]);
   });
 });

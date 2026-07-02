@@ -4,7 +4,9 @@ import {
   ImageSurface,
   Screen,
   createImageLoader,
+  getScreen,
   normalizeColor,
+  setScreen,
   type CanvasLike,
   type DrawableImage,
   type SurfaceLike,
@@ -321,5 +323,27 @@ describe("Screen canvas drawing", () => {
       name: "drawImage",
       args: [expect.anything(), 0, 0],
     });
+  });
+});
+
+describe("getScreen() active-screen tracking", () => {
+  test("throws with no active Screen configured, then resolves once one is activated via setScreen()", () => {
+    // rendering.ts tracks the "active" Screen in module-level state
+    // toggled by setScreen(); other test files sharing this process may
+    // leave a stray Screen active, so reset explicitly first to make
+    // this assertion deterministic regardless of file/test execution
+    // order.
+    setScreen(null);
+    try {
+      expect(() => getScreen()).toThrow(
+        "No active Screen has been configured.",
+      );
+
+      const { screen } = mockScreen();
+      setScreen(screen);
+      expect(getScreen()).toBe(screen);
+    } finally {
+      setScreen(null);
+    }
   });
 });

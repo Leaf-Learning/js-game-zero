@@ -3,6 +3,7 @@ import {
   collectRuntimeDiagnostics,
   clock,
   createImageLoader,
+  exit,
   images as globalImages,
   ImageSurface,
   keyboard,
@@ -13,6 +14,7 @@ import {
   type DrawableImage,
   type RuntimeCanvas,
   type RuntimeDiagnostic,
+  type RuntimeScheduler,
   type SurfaceLike,
 } from "@js-game-zero/core";
 
@@ -125,6 +127,45 @@ function keyEvent(type: "keydown" | "keyup", code: string, key: string): Event {
     getModifierState: { value: () => false },
   });
   return event;
+}
+
+/**
+ * A deterministic fake `requestAnimationFrame` scheduler: `run()`'s
+ * autostart loop stores its callback here instead of it actually being
+ * scheduled by the browser/event loop, so tests can invoke frames
+ * one-by-one with controlled timestamps via `flush(timestamp)`.
+ */
+function fakeScheduler(): {
+  readonly scheduler: RuntimeScheduler;
+  flush(timestamp: number): void;
+  pendingCount(): number;
+} {
+  const pending = new Map<number, (timestamp: number) => void>();
+  let nextHandle = 0;
+  const scheduler: RuntimeScheduler = {
+    requestAnimationFrame(callback) {
+      nextHandle += 1;
+      pending.set(nextHandle, callback);
+      return nextHandle;
+    },
+    cancelAnimationFrame(handle) {
+      if (typeof handle === "number") pending.delete(handle);
+    },
+  };
+  return {
+    scheduler,
+    flush(timestamp: number) {
+      const [handle, callback] = [...pending.entries()][0] ?? [];
+      if (handle === undefined || !callback) {
+        throw new Error("fakeScheduler: no pending animation frame callback.");
+      }
+      pending.delete(handle);
+      callback(timestamp);
+    },
+    pendingCount() {
+      return pending.size;
+    },
+  };
 }
 
 describe("runtime zero-boilerplate mode", () => {
@@ -701,5 +742,189 @@ function update() {
     expect(adapter.text).toBe(JSON.stringify({ explicit: true }));
 
     handle.stop();
+  });
+});
+
+describe("GameHandle lifecycle: autostart scheduler, pause/resume, reload, exit", () => {
+  test("autostart drives frames through the injected scheduler and reschedules each tick", () => {
+    const target = canvas();
+    const { scheduler, flush, pendingCount } = fakeScheduler();
+    let updates = 0;
+    let draws = 0;
+    let lastDt: number | undefined;
+
+    const handle = run(
+      {
+        update(dt: unknown) {
+          updates += 1;
+          lastDt = dt as number;
+        },
+        draw() {
+          draws += 1;
+        },
+      },
+      { canvas: target, autostart: true, scheduler },
+    );
+
+    // run() immediately schedules the first frame.
+    expect(pendingCount()).toBe(1);
+
+    // The first frame has no previous timestamp to diff against, so dt
+    // clamps to 0 (see runtime.ts's `lastTimestamp ?? timestamp`).
+    flush(1000);
+    expect(updates).toBe(1);
+    expect(draws).toBe(1);
+    expect(lastDt).toBe(0);
+    // Each frame reschedules the next one via requestAnimationFrame.
+    expect(pendingCount()).toBe(1);
+
+    // A second frame 250ms later reports dt derived from the timestamp delta.
+    flush(1250);
+    expect(updates).toBe(2);
+    expect(draws).toBe(2);
+    expect(lastDt).toBeCloseTo(0.25, 5);
+    expect(pendingCount()).toBe(1);
+
+    handle.stop();
+    expect(pendingCount()).toBe(0);
+  });
+
+  test("pause() suspends step()-driven updates and resume() restores them", () => {
+    const target = canvas();
+    let updates = 0;
+    const handle = run(
+      {
+        update() {
+          updates += 1;
+        },
+      },
+      { autostart: false, canvas: target },
+    );
+
+    handle.step(0.1);
+    expect(updates).toBe(1);
+
+    handle.pause();
+    handle.step(0.1);
+    handle.step(0.1);
+    expect(updates).toBe(1); // no updates while paused
+
+    handle.resume();
+    handle.step(0.1);
+    expect(updates).toBe(2);
+
+    handle.stop();
+  });
+
+  test("resume() is a no-op once the handle has been stopped", () => {
+    const target = canvas();
+    let updates = 0;
+    const handle = run(
+      {
+        update() {
+          updates += 1;
+        },
+      },
+      { autostart: false, canvas: target },
+    );
+
+    handle.stop();
+    handle.resume(); // must not resurrect a stopped handle
+    handle.step(0.1);
+    expect(updates).toBe(0);
+  });
+
+  test("reload(source) stops the current handle and returns a fresh handle running the new module", () => {
+    const target = canvas();
+    let firstUpdates = 0;
+    let secondUpdates = 0;
+    const handle = run(
+      {
+        update() {
+          firstUpdates += 1;
+        },
+      },
+      { autostart: false, canvas: target },
+    );
+
+    handle.step(0.1);
+    expect(firstUpdates).toBe(1);
+
+    const reloaded = handle.reload({
+      update() {
+        secondUpdates += 1;
+      },
+    });
+
+    expect(reloaded).not.toBe(handle);
+    expect(reloaded.mode).toBe("import");
+
+    // The original handle is stopped by reload(): further step() calls
+    // are no-ops on it.
+    handle.step(0.1);
+    expect(firstUpdates).toBe(1);
+
+    reloaded.step(0.1);
+    expect(secondUpdates).toBe(1);
+
+    reloaded.stop();
+  });
+
+  test("reload() with no arguments restarts the same module/source as a fresh handle", () => {
+    const target = canvas();
+    let updates = 0;
+    const handle = run(
+      {
+        update() {
+          updates += 1;
+        },
+      },
+      { autostart: false, canvas: target },
+    );
+
+    handle.step(0.1);
+    expect(updates).toBe(1);
+
+    const reloaded = handle.reload();
+    expect(reloaded).not.toBe(handle);
+
+    // Reloading re-evaluates the *same* module object, so its `update`
+    // closure still increments the shared counter.
+    reloaded.step(0.1);
+    expect(updates).toBe(2);
+
+    reloaded.stop();
+  });
+
+  test("exit() stops the currently active handle, matching handle.stop()", () => {
+    const target = canvas();
+    let updates = 0;
+    let keyDowns = 0;
+    const handle = run(
+      {
+        update() {
+          updates += 1;
+        },
+        onKeyDown() {
+          keyDowns += 1;
+        },
+      },
+      { autostart: false, canvas: target },
+    );
+
+    handle.step(0.1);
+    target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
+    expect(updates).toBe(1);
+    expect(keyDowns).toBe(1);
+
+    exit();
+
+    // exit() calls stop() on the module-level active handle: step() is now
+    // a no-op and input listeners have been detached, exactly as if
+    // handle.stop() had been called directly.
+    handle.step(0.1);
+    target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
+    expect(updates).toBe(1);
+    expect(keyDowns).toBe(1);
   });
 });
