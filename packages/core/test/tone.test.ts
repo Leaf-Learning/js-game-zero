@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   AudioUnlockState,
+  DEFAULT_TONE_VOLUME,
   createToneGenerator,
   noteToFrequency,
+  normalizeWaveform,
   parseToneFrequency,
   type AudioContextLike,
   type AudioParamLike,
@@ -111,7 +113,8 @@ describe("tone Web Audio scheduling", () => {
     expect(created.frequency).toBeCloseTo(440, 8);
     expect(created.duration).toBe(0.5);
     expect(created.waveform).toBe("sine");
-    expect(created.volume).toBe(1);
+    expect(created.volume).toBe(DEFAULT_TONE_VOLUME);
+    expect(DEFAULT_TONE_VOLUME).toBe(0.8);
 
     const playback = await created.play({ waveform: "square", volume: 0.25 });
 
@@ -156,5 +159,27 @@ describe("tone Web Audio scheduling", () => {
     expect(playback.waveform).toBe("triangle");
     expect(playback.volume).toBe(1);
     expect(context.resumeCalls).toBe(0);
+  });
+});
+
+describe("pgzero waveform aliases", () => {
+  test("normalizeWaveform maps pgzero's sin/saw names to Web Audio types", () => {
+    expect(normalizeWaveform("sin")).toBe("sine");
+    expect(normalizeWaveform("saw")).toBe("sawtooth");
+    expect(normalizeWaveform("square")).toBe("square");
+    expect(normalizeWaveform("triangle")).toBe("triangle");
+  });
+
+  test("create() and play() accept sin/saw aliases end-to-end", async () => {
+    const context = new MockAudioContext();
+    context.state = "running";
+    const generator = createToneGenerator({ audioContext: context });
+
+    const created = generator.create("A4", 0.5, { waveform: "sin" });
+    expect(created.waveform).toBe("sine");
+
+    const playback = await generator.play(440, 0.5, { waveform: "saw" });
+    expect(playback.waveform).toBe("sawtooth");
+    expect(context.oscillators[0]?.type).toBe("sawtooth");
   });
 });
