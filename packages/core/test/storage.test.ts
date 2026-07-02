@@ -161,6 +161,46 @@ describe("storage adapters", () => {
     ).toBe('{"score":10}');
   });
 
+  test("createLocalStorageAdapter rejects an invalid projectId with a TypeError", () => {
+    // validateStorageProjectId requires /^[a-z][a-z0-9_-]*$/: lowercase,
+    // starting with a letter, only letters/digits/underscore/hyphen.
+    expect(() => createLocalStorageAdapter({ projectId: "" })).toThrow(
+      TypeError,
+    );
+    expect(() => createLocalStorageAdapter({ projectId: "" })).toThrow(
+      /projectId must be lowercase, start with a letter/,
+    );
+    // Uppercase letters are not allowed.
+    expect(() => createLocalStorageAdapter({ projectId: "Phase4" })).toThrow(
+      /projectId must be lowercase, start with a letter/,
+    );
+    // Must start with a letter, not a digit.
+    expect(() => createLocalStorageAdapter({ projectId: "4phase" })).toThrow(
+      /projectId must be lowercase, start with a letter/,
+    );
+  });
+
+  test("createLocalStorageAdapter rejects an invalid path with a TypeError", () => {
+    // normalizeStoragePath rejects empty/absolute/backslash paths outright...
+    expect(() => createLocalStorageAdapter({ path: "" })).toThrow(TypeError);
+    expect(() => createLocalStorageAdapter({ path: "" })).toThrow(
+      /relative forward-slash path/,
+    );
+    expect(() => createLocalStorageAdapter({ path: "/absolute/save" })).toThrow(
+      /relative forward-slash path/,
+    );
+    expect(() => createLocalStorageAdapter({ path: "back\\slash" })).toThrow(
+      /relative forward-slash path/,
+    );
+    // ...and rejects "." / ".." traversal segments separately.
+    expect(() =>
+      createLocalStorageAdapter({ path: "saves/../outside" }),
+    ).toThrow(/cannot include empty or traversal segments/);
+    expect(() =>
+      createLocalStorageAdapter({ path: "saves//high_score" }),
+    ).toThrow(/cannot include empty or traversal segments/);
+  });
+
   test("sandbox file adapter exposes scoped paths and rejects traversal", async () => {
     const writes: Array<{ path: string; text: string }> = [];
     const adapter = createSandboxFileStorageAdapter({

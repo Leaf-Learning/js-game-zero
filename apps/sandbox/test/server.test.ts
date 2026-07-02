@@ -375,16 +375,69 @@ describe("phase 6 sandbox routes", () => {
       "text/javascript",
     );
 
+    // @js-game-zero/browser-runtime is an honest thin re-export of core: the
+    // bundle it builds to has no fixture-harness code, just the package's
+    // script-tag entry attaching everything to `window.JGZ`.
     const runtime = await request("/runtime/browser.js");
     expect(runtime.status).toBe(200);
     expect(runtime.headers.get("content-type")).toContain("text/javascript");
     const runtimeSource = await runtime.text();
-    expect(runtimeSource).toContain("document.querySelector");
+    expect(runtimeSource).toContain("window.JGZ");
+    expect(runtimeSource).not.toContain("__jgz");
 
     const preview = await request("/play/demo_game");
     expect(preview.status).toBe(200);
     const previewHtml = await preview.text();
     expect(previewHtml).toContain('data-jgz-entry="main.js"');
     expect(previewHtml).toContain('src="/client/preview.js"');
+  });
+
+  test("legacy e2e fixture routes are gated behind testFixtures", async () => {
+    // Default handler (as used by the real product server without
+    // --test-fixtures / JGZ_TEST_FIXTURES=1): fixture pages/assets 404,
+    // while real product routes keep working.
+    const fixturesOff = createSandboxServerHandler({ projectsRoot });
+    const gatedPage = await fixturesOff(
+      new Request("http://localhost/phase-three/drawing"),
+    );
+    expect(gatedPage.status).toBe(404);
+    const gatedAsset = await fixturesOff(
+      new Request("http://localhost/assets/phase_three/images/player.svg"),
+    );
+    expect(gatedAsset.status).toBe(404);
+    const gatedRuntime = await fixturesOff(
+      new Request("http://localhost/test-fixtures/runtime.js"),
+    );
+    expect(gatedRuntime.status).toBe(404);
+    const health = await fixturesOff(
+      new Request("http://localhost/api/health"),
+    );
+    expect(health.status).toBe(200);
+    const examples = await fixturesOff(
+      new Request("http://localhost/examples"),
+    );
+    expect(examples.status).toBe(200);
+
+    // With testFixtures enabled (as playwright.config.ts's webServer command
+    // does via --test-fixtures), the legacy fixture pages/assets respond.
+    const fixturesOn = createSandboxServerHandler({
+      projectsRoot,
+      testFixtures: true,
+    });
+    const openPage = await fixturesOn(
+      new Request("http://localhost/phase-three/drawing"),
+    );
+    expect(openPage.status).toBe(200);
+    const openAsset = await fixturesOn(
+      new Request("http://localhost/assets/phase_three/images/player.svg"),
+    );
+    expect(openAsset.status).toBe(200);
+    const openRuntime = await fixturesOn(
+      new Request("http://localhost/test-fixtures/runtime.js"),
+    );
+    expect(openRuntime.status).toBe(200);
+    expect(openRuntime.headers.get("content-type")).toContain(
+      "text/javascript",
+    );
   });
 });

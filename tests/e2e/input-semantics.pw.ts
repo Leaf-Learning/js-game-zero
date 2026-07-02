@@ -17,12 +17,14 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
     page.getByRole("heading", { name: "js-game-zero core semantics fixture" }),
   ).toBeVisible();
   await page.waitForFunction(
-    () => (window as typeof window & { __jgzTest?: unknown }).__jgzTest,
+    () =>
+      (window as typeof window & { __jgzInputSemantics?: unknown })
+        .__jgzInputSemantics,
   );
   await page.waitForFunction(
     () =>
-      (window as typeof window & { __jgzTest?: { ready?: boolean } }).__jgzTest
-        ?.ready,
+      (window as typeof window & { __jgzInputSemantics?: { ready?: boolean } })
+        .__jgzInputSemantics?.ready,
   );
 
   const canvas = page.locator("[data-jgz-phase-two-canvas]");
@@ -43,9 +45,12 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
     () => {
       const state = (
         window as typeof window & {
-          __jgzTest?: { clockFired?: boolean; animationDone?: boolean };
+          __jgzInputSemantics?: {
+            clockFired?: boolean;
+            animationDone?: boolean;
+          };
         }
-      ).__jgzTest;
+      ).__jgzInputSemantics;
       return state?.clockFired && state.animationDone;
     },
     undefined,
@@ -56,7 +61,7 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
     () =>
       (
         window as typeof window & {
-          __jgzTest?: {
+          __jgzInputSemantics?: {
             events: Array<Record<string, unknown>>;
             keyboardState: Record<string, boolean>;
             clockFired: boolean;
@@ -64,7 +69,7 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
             animationDone: boolean;
           };
         }
-      ).__jgzTest,
+      ).__jgzInputSemantics,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing phase 2 fixture state.");

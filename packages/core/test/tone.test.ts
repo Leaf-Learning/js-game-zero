@@ -162,6 +162,47 @@ describe("tone Web Audio scheduling", () => {
   });
 });
 
+describe("tone falls back to a helpful error with no Web Audio available", () => {
+  test("play() rejects with 'Web Audio is not available in this environment.' when neither AudioContext nor webkitAudioContext exist and no audioContext was passed", async () => {
+    const globals = globalThis as typeof globalThis & {
+      AudioContext?: unknown;
+      webkitAudioContext?: unknown;
+    };
+    const hadAudioContext = "AudioContext" in globals;
+    const hadWebkitAudioContext = "webkitAudioContext" in globals;
+    const previousAudioContext = globals.AudioContext;
+    const previousWebkitAudioContext = globals.webkitAudioContext;
+
+    // Bun's test environment does not define either constructor, but
+    // delete/save-and-restore defensively so this test can't leak state
+    // into others even if that ever changes.
+    delete globals.AudioContext;
+    delete globals.webkitAudioContext;
+
+    try {
+      expect(typeof globals.AudioContext).toBe("undefined");
+      expect(typeof globals.webkitAudioContext).toBe("undefined");
+
+      // No `audioContext` option is passed, so createToneGenerator must
+      // fall through to `globalThis.AudioContext ?? globalThis.webkitAudioContext`
+      // inside getContext() when play() is called.
+      const generator = createToneGenerator();
+
+      await expect(generator.play("A4", 0.5)).rejects.toThrow(
+        "Web Audio is not available in this environment.",
+      );
+    } finally {
+      if (hadAudioContext) globals.AudioContext = previousAudioContext;
+      else delete globals.AudioContext;
+      if (hadWebkitAudioContext) {
+        globals.webkitAudioContext = previousWebkitAudioContext;
+      } else {
+        delete globals.webkitAudioContext;
+      }
+    }
+  });
+});
+
 describe("pgzero waveform aliases", () => {
   test("normalizeWaveform maps pgzero's sin/saw names to Web Audio types", () => {
     expect(normalizeWaveform("sin")).toBe("sine");

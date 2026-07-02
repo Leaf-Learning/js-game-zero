@@ -23,9 +23,9 @@ test("phase 4 sound fixture plays, loops, and stops after a browser gesture", as
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Sound?: { ready?: boolean };
+          __jgzAudioSound?: { ready?: boolean };
         }
-      ).__jgzPhase4Sound?.ready,
+      ).__jgzAudioSound?.ready,
   );
 
   await page.getByRole("button", { name: "Play Sound" }).click();
@@ -33,24 +33,24 @@ test("phase 4 sound fixture plays, loops, and stops after a browser gesture", as
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Sound?: {
+          __jgzAudioSound?: {
             clicked?: boolean;
             activeAfterStop?: boolean;
           };
         }
-      ).__jgzPhase4Sound?.clicked &&
+      ).__jgzAudioSound?.clicked &&
       (
         window as typeof window & {
-          __jgzPhase4Sound?: { activeAfterStop?: boolean };
+          __jgzAudioSound?: { activeAfterStop?: boolean };
         }
-      ).__jgzPhase4Sound?.activeAfterStop === false,
+      ).__jgzAudioSound?.activeAfterStop === false,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Sound?: {
+          __jgzAudioSound?: {
             clicked: boolean;
             dataUrlSound: boolean;
             activeAfterPlay: boolean;
@@ -61,7 +61,7 @@ test("phase 4 sound fixture plays, loops, and stops after a browser gesture", as
             errors: string[];
           };
         }
-      ).__jgzPhase4Sound,
+      ).__jgzAudioSound,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing sound state.");
@@ -87,9 +87,9 @@ test("phase 4 tone fixture unlocks browser audio and schedules a tone", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Tone?: { ready?: boolean };
+          __jgzAudioTone?: { ready?: boolean };
         }
-      ).__jgzPhase4Tone?.ready,
+      ).__jgzAudioTone?.ready,
   );
 
   await page.getByRole("button", { name: "Play Tone" }).click();
@@ -97,16 +97,16 @@ test("phase 4 tone fixture unlocks browser audio and schedules a tone", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Tone?: { scheduled?: number };
+          __jgzAudioTone?: { scheduled?: number };
         }
-      ).__jgzPhase4Tone?.scheduled === 1,
+      ).__jgzAudioTone?.scheduled === 1,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Tone?: {
+          __jgzAudioTone?: {
             clicked: boolean;
             scheduled: number;
             unlocked: boolean;
@@ -114,7 +114,7 @@ test("phase 4 tone fixture unlocks browser audio and schedules a tone", async ({
             errors: string[];
           };
         }
-      ).__jgzPhase4Tone,
+      ).__jgzAudioTone,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing tone state.");
@@ -137,9 +137,9 @@ test("phase 4 music fixture triggers on_music_end for a generated data URL track
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Music?: { ready?: boolean };
+          __jgzAudioMusic?: { ready?: boolean };
         }
-      ).__jgzPhase4Music?.ready,
+      ).__jgzAudioMusic?.ready,
   );
 
   await page.getByRole("button", { name: "Play Music" }).click();
@@ -147,16 +147,16 @@ test("phase 4 music fixture triggers on_music_end for a generated data URL track
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Music?: { endedCount?: number };
+          __jgzAudioMusic?: { endedCount?: number };
         }
-      ).__jgzPhase4Music?.endedCount === 1,
+      ).__jgzAudioMusic?.endedCount === 1,
   );
 
   const state = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Music?: {
+          __jgzAudioMusic?: {
             clicked: boolean;
             current: string | null;
             endedCount: number;
@@ -164,7 +164,7 @@ test("phase 4 music fixture triggers on_music_end for a generated data URL track
             errors: string[];
           };
         }
-      ).__jgzPhase4Music,
+      ).__jgzAudioMusic,
   );
   expect(state).toBeTruthy();
   if (!state) throw new Error("Missing music state.");
@@ -186,9 +186,9 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: { ready?: boolean };
+          __jgzAudioStorage?: { ready?: boolean };
         }
-      ).__jgzPhase4Storage?.ready,
+      ).__jgzAudioStorage?.ready,
   );
   await page.evaluate(() => {
     localStorage.removeItem("js-game-zero:phase_four_e2e:save/high_score");
@@ -198,18 +198,18 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: { ready?: boolean; loadedScore?: unknown };
+          __jgzAudioStorage?: { ready?: boolean; loadedScore?: unknown };
         }
-      ).__jgzPhase4Storage?.ready,
+      ).__jgzAudioStorage?.ready,
   );
 
   const initial = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: { loadedScore: unknown; errors: string[] };
+          __jgzAudioStorage?: { loadedScore: unknown; errors: string[] };
         }
-      ).__jgzPhase4Storage,
+      ).__jgzAudioStorage,
   );
   expect(initial?.loadedScore).toBe(null);
   expect(initial?.errors).toEqual([]);
@@ -219,9 +219,9 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: { wrote?: boolean };
+          __jgzAudioStorage?: { wrote?: boolean };
         }
-      ).__jgzPhase4Storage?.wrote,
+      ).__jgzAudioStorage?.wrote,
   );
 
   await page.reload();
@@ -229,21 +229,21 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: { loadedScore?: unknown };
+          __jgzAudioStorage?: { loadedScore?: unknown };
         }
-      ).__jgzPhase4Storage?.loadedScore === 4242,
+      ).__jgzAudioStorage?.loadedScore === 4242,
   );
   const persisted = await page.evaluate(
     () =>
       (
         window as typeof window & {
-          __jgzPhase4Storage?: {
+          __jgzAudioStorage?: {
             loadedScore: unknown;
             path: string;
             errors: string[];
           };
         }
-      ).__jgzPhase4Storage,
+      ).__jgzAudioStorage,
   );
   expect(persisted).toBeTruthy();
   if (!persisted) throw new Error("Missing storage state.");
