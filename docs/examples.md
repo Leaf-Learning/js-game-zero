@@ -65,20 +65,24 @@ injected globals.
 ## Flappy Bird
 
 A complete arcade game: tap or press space to flap upward against constant
-gravity, dodge a stream of scrolling pipe gaps, and try to beat your high
+gravity, dodge a stream of scrolling rock gaps, and try to beat your high
 score. Teaches: gravity/velocity movement, scrolling procedurally-spawned
 obstacles, precise collision detection against multiple `Actor`s at once,
-and a full game-over/restart loop backed by `storage`.
+and a full game-over/restart loop with a high score backed by `storage`.
+
+Example route: `/examples/flappy-bird`
 
 ![Flappy Bird example gameplay](media/game-flappy.png)
 
 ## Breakout
 
 A complete arcade game: steer a paddle with the keyboard or mouse to keep a
-bouncing ball in play and clear a grid of bricks, racing against a limited
+bouncing ball in play and clear a wall of bricks, racing against a limited
 number of lives. Teaches: velocity-based ball physics and reflection,
-collision against a grid of many short-lived `Actor`s, paddle input from
-both keyboard and mouse, and scorekeeping across a multi-level structure.
+collision against a grid of bricks, paddle input from both keyboard and
+mouse, and win/lose states with scorekeeping.
+
+Example route: `/examples/breakout`
 
 ![Breakout example gameplay](media/game-breakout.png)
 
