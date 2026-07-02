@@ -104,7 +104,8 @@ class MockContext {
   }
 
   measureText(text: string): TextMetrics {
-    const size = Number.parseFloat(this.font) || 10;
+    const match = /(\d+(?:\.\d+)?)px/.exec(this.font);
+    const size = match ? Number(match[1]) : 10;
     return { width: text.length * size * 0.5 } as TextMetrics;
   }
 
