@@ -86,6 +86,42 @@ Example route: `/examples/breakout`
 
 ![Breakout example gameplay](media/game-breakout.png)
 
+## Space Shooter
+
+A wave-based shoot-'em-up: fly with the arrow keys (or WASD), fire lasers
+with space, and survive descending enemy formations that speed up with
+every wave you clear. Teaches: multi-actor management (lasers, enemies,
+explosions), frame-based animation, timed invulnerability, escalating
+difficulty, and lives/score HUD drawing.
+
+Example route: `/examples/space-shooter`
+
+![Space Shooter example gameplay](media/game-space-shooter.png)
+
+## Snake
+
+The classic grid snake: steer with the arrow keys, eat fruit to grow, and
+avoid the walls and your own tail. Movement is driven entirely by
+`clock.schedule_interval`, and the game speeds up each time you eat.
+Teaches: grid-based movement, the clock scheduling API, queued input,
+and a persisted high score via `storage`.
+
+Example route: `/examples/snake`
+
+![Snake example gameplay](media/game-snake.png)
+
+## Platformer
+
+A single handcrafted level built from a tile-string map: run and jump with
+the arrow keys, collect gems, and reach the goal flag — with forgiving
+coyote-time jumping and a respawn if you fall off the world. Teaches:
+tilemap level design, gravity and AABB tile collision, jump feel, and
+collectibles.
+
+Example route: `/examples/platformer`
+
+![Platformer example gameplay](media/game-platformer.png)
+
 ## Assets
 
 The example games' art and sound (where not generated in code, like
