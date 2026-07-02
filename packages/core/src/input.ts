@@ -141,6 +141,7 @@ export const keys = Object.freeze({
 });
 
 export const keymods = Object.freeze({
+  NONE: 0x0000,
   LSHIFT: 0x0001,
   RSHIFT: 0x0002,
   SHIFT: 0x0003,
@@ -179,6 +180,26 @@ for (const [name, value] of Object.entries(keys)) {
 keyCodesByAttribute.set("enter", keys.RETURN);
 keyCodesByAttribute.set("return", keys.RETURN);
 
+// Property names that JS runtimes/tooling probe on arbitrary objects (thenable
+// checks, JSON serialization, console/util inspection, ...). These must never
+// throw, even though they aren't real pgzero key names, or the keyboard
+// object becomes unusable outside of direct key lookups.
+const safeUnknownKeyboardProperties = new Set<string>([
+  "then",
+  "toJSON",
+  "constructor",
+  "valueOf",
+  "toString",
+  "inspect",
+  "asymmetricMatch",
+]);
+
+function isSafeUnknownKeyboardProperty(property: string): boolean {
+  return (
+    safeUnknownKeyboardProperties.has(property) || property in Object.prototype
+  );
+}
+
 export class KeyboardState {
   [key: string]: unknown;
   [key: number]: unknown;
@@ -199,7 +220,12 @@ export class KeyboardState {
           return isKeyConstant(key) ? target.isPressed(key) : false;
         }
         const key = keyCodesByAttribute.get(property.toLowerCase());
-        return key === undefined ? false : target.isPressed(key);
+        if (key !== undefined) return target.isPressed(key);
+        if (isSafeUnknownKeyboardProperty(property)) return undefined;
+        // Matches pgzero's Keyboard.__getattr__, which raises
+        // AttributeError('The key "%s" does not exist') for unknown
+        // attributes (see pgzero/keyboard.py).
+        throw new Error(`The key "${property}" does not exist`);
       },
       has(target, property) {
         return (

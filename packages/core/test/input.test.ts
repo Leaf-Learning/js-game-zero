@@ -41,13 +41,34 @@ describe("keyboard constants and state", () => {
     expect(() => keyName(999_999)).toThrow(TypeError);
   });
 
-  test("unknown keyboard attributes return false without masking methods", () => {
+  test("unknown keyboard attributes throw, matching pgzero's AttributeError, without masking methods", () => {
     const state = new KeyboardState();
-    expect(state.this_key_does_not_exist).toBe(false);
+    const unknown = state as unknown as Record<string, unknown>;
+    expect(() => unknown.this_key_does_not_exist).toThrow(
+      'The key "this_key_does_not_exist" does not exist',
+    );
     expect(typeof state.clear).toBe("function");
+    expect(state.a).toBe(false);
+  });
+
+  test("meta-property probes (thenables, JSON, inspection) stay safe and never throw", () => {
+    const state = new KeyboardState();
+    const probed = state as unknown as Record<string | symbol, unknown>;
+    expect(probed.then).toBeUndefined();
+    expect(probed.toJSON).toBeUndefined();
+    expect(probed.inspect).toBeUndefined();
+    expect(typeof probed.constructor).toBe("function");
+    expect(typeof probed.valueOf).toBe("function");
+    expect(typeof probed.toString).toBe("function");
+    expect(typeof probed.hasOwnProperty).toBe("function");
+    expect(probed[Symbol.iterator]).toBeUndefined();
+    expect(probed[Symbol.for("nodejs.util.inspect.custom")]).toBeUndefined();
+    expect(() => JSON.stringify(state)).not.toThrow();
+    expect(() => String(state)).not.toThrow();
   });
 
   test("exports modifier and mouse bitmask constants", () => {
+    expect(keymods.NONE as number).toBe(0);
     expect(keymods.SHIFT as number).toBe(keymods.LSHIFT | keymods.RSHIFT);
     expect(keymods.CTRL as number).toBe(keymods.LCTRL | keymods.RCTRL);
     expect(keymods.ALT as number).toBe(keymods.LALT | keymods.RALT);
