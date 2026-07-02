@@ -94,7 +94,10 @@ p {
 /* ---------- App shell ---------- */
 
 .app {
-  min-height: 100vh;
+  /* Lock the app to the viewport so panels size to it and scroll
+     internally; without this, tall editor content grows the shared grid
+     row and drags every panel (and the page) along with it. */
+  height: 100vh;
   display: flex;
   flex-direction: column;
   min-width: 960px;
@@ -130,9 +133,54 @@ p {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 224px minmax(340px, 1fr) minmax(300px, 360px);
-  gap: 12px;
+  /* The 12px resizer columns replace what used to be the grid gap. Panel
+     widths are driven by client/layout.ts via the custom properties. */
+  grid-template-columns:
+    var(--jgz-sidebar-width, 224px) 12px minmax(340px, 1fr) 12px
+    var(--jgz-preview-width, 400px);
+  /* The single row must track the shell's own height, not the tallest
+     panel's content, so panels scroll instead of stretching the page. */
+  grid-template-rows: minmax(0, 1fr);
   padding: 12px;
+}
+
+.pane-resizer {
+  position: relative;
+  touch-action: none;
+  cursor: col-resize;
+}
+
+.pane-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 4px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.pane-resizer:hover::before,
+.pane-resizer:focus-visible::before,
+.pane-resizer.resizing::before {
+  background: var(--line);
+}
+
+.pane-resizer.resizing::before {
+  background: var(--accent);
+}
+
+.pane-resizer-row {
+  cursor: row-resize;
+  flex: 0 0 auto;
+  height: 8px;
+  margin: -5px 0;
+}
+
+.pane-resizer-row::before {
+  width: 44px;
+  height: 4px;
 }
 
 /* ---------- Sidebar ---------- */
@@ -539,9 +587,11 @@ p {
 
 .preview-frame-wrap {
   position: relative;
-  flex: 0 0 auto;
+  /* Takes whatever vertical space the console below doesn't claim; the
+     game letterboxes itself inside (see the preview shell page). */
+  flex: 1 1 auto;
+  min-height: 140px;
   width: 100%;
-  aspect-ratio: 16 / 9;
   background: var(--bg-sunken);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -582,8 +632,9 @@ p {
 }
 
 .console-panel {
-  flex: 1;
-  min-height: 0;
+  flex: 0 1 auto;
+  height: var(--jgz-console-height, 200px);
+  min-height: 72px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--line);

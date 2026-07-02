@@ -46,11 +46,23 @@ export type BrowserWheelLike = {
   buttons?: number;
 };
 
+type TargetBounds = {
+  left: number;
+  top: number;
+  width?: number;
+  height?: number;
+};
+
 type BoundsTarget = {
-  getBoundingClientRect?: () => {
-    left: number;
-    top: number;
-  };
+  /**
+   * Logical drawing-buffer size (`canvas.width`/`canvas.height`). When the
+   * canvas is displayed at a different CSS size (e.g. the sandbox preview
+   * scales it to fit its pane), positions are mapped back into game
+   * coordinates so `pos` always matches what the game draws with.
+   */
+  width?: number;
+  height?: number;
+  getBoundingClientRect?: () => TargetBounds;
 };
 
 export type MappedKeyboardEvent = {
@@ -201,12 +213,13 @@ export function mapBrowserMouseEvent(
   target?: BoundsTarget,
   previousPos?: Point | null,
 ): MappedMouseEvent {
-  const pos = pointFromMouseEvent(event, target);
+  const scale = displayToLogicalScale(target);
+  const pos = pointFromMouseEvent(event, target, scale);
   return {
     pos,
     button: mapBrowserMouseButton(event.button),
     buttons: buttonsFromBrowserButtons(event.buttons ?? 0),
-    rel: relativeMotion(event, pos, previousPos),
+    rel: relativeMotion(event, pos, previousPos, scale),
   };
 }
 
@@ -238,7 +251,7 @@ export function mapBrowserWheelEvent(
   if (!(event.deltaY < 0) && !(event.deltaY > 0)) return null;
   const button = event.deltaY < 0 ? mouse.WHEEL_UP : mouse.WHEEL_DOWN;
   return {
-    pos: pointFromMouseEvent(event, target),
+    pos: pointFromMouseEvent(event, target, displayToLogicalScale(target)),
     button,
     buttons: buttonsFromBrowserButtons(event.buttons ?? 0),
     rel: [0, 0],
@@ -436,26 +449,53 @@ function modifiersFromKeyboardEvent(event: BrowserKeyboardLike): number {
   return mod;
 }
 
+/**
+ * Per-axis CSS-pixel -> game-coordinate factors. 1 when the displayed size
+ * matches the logical size, or when either size is unknown (targets that
+ * report no size keep the historical unscaled behavior).
+ */
+function displayToLogicalScale(target?: BoundsTarget): Point {
+  const rect = target?.getBoundingClientRect?.();
+  return [
+    axisScale(target?.width, rect?.width),
+    axisScale(target?.height, rect?.height),
+  ];
+}
+
+function axisScale(logical: number | undefined, displayed: number | undefined) {
+  if (typeof logical !== "number" || !Number.isFinite(logical) || logical <= 0)
+    return 1;
+  if (
+    typeof displayed !== "number" ||
+    !Number.isFinite(displayed) ||
+    displayed <= 0
+  )
+    return 1;
+  return logical / displayed;
+}
+
 function pointFromMouseEvent(
   event: BrowserMouseLike,
-  target?: BoundsTarget,
+  target: BoundsTarget | undefined,
+  scale: Point,
 ): Point {
   const rect = target?.getBoundingClientRect?.();
   const left = rect?.left ?? 0;
   const top = rect?.top ?? 0;
-  return [event.clientX - left, event.clientY - top];
+  return [(event.clientX - left) * scale[0], (event.clientY - top) * scale[1]];
 }
 
 function relativeMotion(
   event: BrowserMouseLike,
   pos: Point,
   previousPos: Point | null | undefined,
+  scale: Point,
 ): Point {
   if (
     typeof event.movementX === "number" &&
     typeof event.movementY === "number"
   ) {
-    return [event.movementX, event.movementY];
+    return [event.movementX * scale[0], event.movementY * scale[1]];
   }
   if (previousPos) return [pos[0] - previousPos[0], pos[1] - previousPos[1]];
   return [0, 0];

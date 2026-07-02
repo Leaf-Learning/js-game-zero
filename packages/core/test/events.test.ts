@@ -140,6 +140,54 @@ describe("browser event mapping", () => {
     ).toEqual([7, -3]);
   });
 
+  test("maps positions into game coordinates when the canvas is CSS-scaled", () => {
+    // An 800x600 game displayed at 400x300 (half size): clicking the
+    // displayed center must report the game's center, and movement deltas
+    // must scale the same way.
+    const target = {
+      width: 800,
+      height: 600,
+      getBoundingClientRect: () => ({
+        left: 10,
+        top: 20,
+        width: 400,
+        height: 300,
+      }),
+    };
+    expect(
+      mapBrowserMouseEvent(
+        { clientX: 210, clientY: 170, button: 0, buttons: 1 },
+        target,
+      ),
+    ).toMatchObject({ pos: [400, 300] });
+    expect(
+      mapBrowserMouseEvent(
+        { clientX: 210, clientY: 170, movementX: 5, movementY: -2, buttons: 0 },
+        target,
+      ).rel,
+    ).toEqual([10, -4]);
+    expect(
+      mapBrowserWheelEvent({ clientX: 210, clientY: 170, deltaY: 100 }, target)
+        ?.pos,
+    ).toEqual([400, 300]);
+    // A zero-sized display rect (hidden canvas) must not divide by zero.
+    expect(
+      mapBrowserMouseEvent(
+        { clientX: 15, clientY: 25 },
+        {
+          width: 800,
+          height: 600,
+          getBoundingClientRect: () => ({
+            left: 10,
+            top: 20,
+            width: 0,
+            height: 0,
+          }),
+        },
+      ).pos,
+    ).toEqual([5, 5]);
+  });
+
   test("DOM back/forward buttons (3/4) are not reported as wheel input", () => {
     // Real wheel input arrives through the separate `wheel` DOM event, not
     // through button indices 3/4 on mousedown/mouseup -- those are the

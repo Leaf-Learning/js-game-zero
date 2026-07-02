@@ -4,6 +4,7 @@ import { createConsolePanel } from "./console-panel";
 import { toast } from "./dialogs";
 import { h, qs } from "./dom";
 import { createEditor } from "./editor";
+import { initPanelResizers } from "./layout";
 import {
   chooseNewProjectFlow,
   openExampleGallery,
@@ -123,6 +124,8 @@ const editor = createEditor(editorMount, {
   },
 });
 saveButton.addEventListener("click", () => void flushSave());
+
+initPanelResizers(root);
 
 const consolePanel = createConsolePanel(previewRoot);
 

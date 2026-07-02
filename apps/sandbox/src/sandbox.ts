@@ -898,11 +898,20 @@ function previewShellPage(project: string): string {
         margin: 0;
         height: 100%;
         background: #150f1c;
+        overflow: hidden;
       }
+      body {
+        display: grid;
+        place-items: center;
+      }
+      /*
+       * The canvas is letterboxed to the game's aspect ratio by
+       * client/preview-entry.ts, which sets an explicit CSS size on it.
+       * Keeping the element box identical to the drawn content is what
+       * lets the runtime map mouse positions back to game coordinates.
+       */
       canvas {
         display: block;
-        width: 100%;
-        height: 100%;
         background: #150f1c;
       }
     </style>

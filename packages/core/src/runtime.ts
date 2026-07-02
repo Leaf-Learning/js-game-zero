@@ -79,7 +79,12 @@ export type RuntimeScheduler = {
 };
 
 export type RuntimeCanvas = HTMLCanvasElement & {
-  getBoundingClientRect?: () => { left: number; top: number };
+  getBoundingClientRect?: () => {
+    left: number;
+    top: number;
+    width?: number;
+    height?: number;
+  };
 };
 
 export type RunOptions = Partial<GameModule> & {

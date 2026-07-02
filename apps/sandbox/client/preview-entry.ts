@@ -82,6 +82,33 @@ window.addEventListener("unhandledrejection", (event) => {
   postRuntimeErrorOnce(messageOf(event.reason));
 });
 
+/**
+ * Letterboxes the canvas inside the iframe: largest size that fits the
+ * viewport while keeping the game's aspect ratio. Done by sizing the
+ * element itself (rather than object-fit) so the element box always equals
+ * the drawn content, which the runtime's mouse mapping relies on to
+ * translate clicks back into game coordinates.
+ */
+function fitCanvasToViewport(): void {
+  const logicalWidth = canvas.width || 1;
+  const logicalHeight = canvas.height || 1;
+  const scale = Math.min(
+    document.documentElement.clientWidth / logicalWidth,
+    document.documentElement.clientHeight / logicalHeight,
+  );
+  canvas.style.width = `${logicalWidth * scale}px`;
+  canvas.style.height = `${logicalHeight * scale}px`;
+}
+
+window.addEventListener("resize", fitCanvasToViewport);
+// The game's WIDTH/HEIGHT are applied to the canvas while `run()` boots
+// (and user code may change them later); refit whenever they do.
+new MutationObserver(fitCanvasToViewport).observe(canvas, {
+  attributes: true,
+  attributeFilter: ["width", "height"],
+});
+fitCanvasToViewport();
+
 canvas.addEventListener("focus", () =>
   post({ type: "focus-changed", focused: true }),
 );

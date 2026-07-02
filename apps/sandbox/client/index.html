@@ -18,7 +18,7 @@
           Examples
         </button>
       </header>
-      <div class="app-shell">
+      <div class="app-shell" data-jgz-app-shell>
         <aside class="sidebar" aria-label="Projects and files" data-jgz-sidebar>
           <div class="sidebar-section">
             <div class="sidebar-heading">
@@ -93,7 +93,15 @@
             </div>
           </div>
         </aside>
-        <main class="workspace" aria-label="Editor">
+        <div
+          class="pane-resizer"
+          data-jgz-resize="sidebar"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize projects sidebar"
+          tabindex="0"
+        ></div>
+        <main class="workspace" aria-label="Editor" data-jgz-workspace>
           <div class="empty-state" data-jgz-empty-state></div>
           <section class="editor-pane" data-jgz-editor-pane hidden>
             <div class="editor-toolbar">
@@ -108,6 +116,14 @@
             <div class="editor-mount" data-jgz-editor-mount></div>
           </section>
         </main>
+        <div
+          class="pane-resizer"
+          data-jgz-resize="preview"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize preview panel"
+          tabindex="0"
+        ></div>
         <aside
           class="preview-pane"
           aria-label="Preview and console"
@@ -142,13 +158,21 @@
               </button>
             </div>
           </div>
-          <div class="preview-frame-wrap">
+          <div class="preview-frame-wrap" data-jgz-preview-frame-wrap>
             <div class="preview-frame-host" data-jgz-preview-frame-host></div>
             <div class="focus-overlay" data-jgz-focus-overlay hidden>
               <p>Click the game to use your keyboard</p>
             </div>
           </div>
-          <div class="console-panel">
+          <div
+            class="pane-resizer pane-resizer-row"
+            data-jgz-resize="console"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize console panel"
+            tabindex="0"
+          ></div>
+          <div class="console-panel" data-jgz-console-panel>
             <div class="console-tabs" role="tablist">
               <button
                 type="button"

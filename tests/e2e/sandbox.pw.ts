@@ -368,3 +368,119 @@ test("viewport 1024x700 shows Play with no clipped controls", async ({
   );
   expect(scrollWidth).toBeLessThanOrEqual(1024);
 });
+
+async function dragHandle(
+  page: Page,
+  handle: Locator,
+  dx: number,
+  dy: number,
+): Promise<void> {
+  const box = await handle.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 5 });
+  await page.mouse.up();
+}
+
+test("panel dividers resize the layout, scale the game, and persist", async ({
+  page,
+}) => {
+  const name = uniqueName("resize");
+  await page.goto("/");
+  await createBlankProject(page, name);
+  await page.locator("[data-jgz-play]").click();
+  const canvas = previewCanvas(page);
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .toBe(true);
+
+  // The displayed canvas must keep the game's own aspect ratio (no more
+  // stretching into a fixed 16:9 box).
+  const logical = await canvas.evaluate((node) => {
+    const target = node as HTMLCanvasElement;
+    return { width: target.width, height: target.height };
+  });
+  const displayedBefore = await canvas.boundingBox();
+  expect(displayedBefore).not.toBeNull();
+  if (!displayedBefore) return;
+  expect(displayedBefore.width / displayedBefore.height).toBeCloseTo(
+    logical.width / logical.height,
+    1,
+  );
+
+  // Dragging the preview divider left widens the pane and grows the game.
+  const pane = page.locator("[data-jgz-preview-pane]");
+  const paneBefore = (await pane.boundingBox())?.width ?? 0;
+  await dragHandle(page, page.locator('[data-jgz-resize="preview"]'), -120, 0);
+  const paneAfter = (await pane.boundingBox())?.width ?? 0;
+  expect(paneAfter).toBeCloseTo(paneBefore + 120, 0);
+  const displayedAfter = await canvas.boundingBox();
+  expect(displayedAfter).not.toBeNull();
+  if (!displayedAfter) return;
+  expect(displayedAfter.width).toBeGreaterThan(displayedBefore.width);
+  expect(displayedAfter.width / displayedAfter.height).toBeCloseTo(
+    logical.width / logical.height,
+    1,
+  );
+
+  // Dragging the console divider up grows the console at the frame's expense.
+  const consolePanel = page.locator("[data-jgz-console-panel]");
+  const consoleBefore = (await consolePanel.boundingBox())?.height ?? 0;
+  await dragHandle(page, page.locator('[data-jgz-resize="console"]'), 0, -60);
+  const consoleAfter = (await consolePanel.boundingBox())?.height ?? 0;
+  expect(consoleAfter).toBeCloseTo(consoleBefore + 60, 0);
+
+  // Sizes survive a reload.
+  await page.reload();
+  expect((await pane.boundingBox())?.width ?? 0).toBeCloseTo(paneAfter, 0);
+  expect((await consolePanel.boundingBox())?.height ?? 0).toBeCloseTo(
+    consoleAfter,
+    0,
+  );
+});
+
+test("mouse positions map to game coordinates on the scaled preview", async ({
+  page,
+}) => {
+  const name = uniqueName("mousemap");
+  await page.goto("/");
+  await createBlankProject(page, name);
+  await setEditorContent(
+    page,
+    [
+      "WIDTH = 800;",
+      "HEIGHT = 480;",
+      'function draw() { screen.fill("purple"); }',
+      "function on_mouse_down(pos) {",
+      '  console.log("POS " + Math.round(pos[0]) + "," + Math.round(pos[1]));',
+      "}",
+    ].join("\n"),
+  );
+  await page.locator("[data-jgz-play]").click();
+  const canvas = previewCanvas(page);
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .toBe(true);
+
+  // The first click lands on the focus overlay; it only claims focus.
+  const overlay = page.locator("[data-jgz-focus-overlay]");
+  if (await overlay.isVisible()) await overlay.click();
+
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  // The canvas is displayed smaller than its 800x480 logical size, so an
+  // unscaled mapping would report the raw CSS offset instead of the game
+  // coordinate. Click the displayed center: the game must see ~(400, 240).
+  expect(box.width).toBeLessThan(700);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator(".console-line").first()).toHaveText(
+    /^POS (399|400|401),(239|240|241)$/,
+  );
+});
