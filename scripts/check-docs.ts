@@ -29,36 +29,7 @@ const userFacingDocs = [
   "docs/reference/runtime.md",
 ];
 
-const internalDocs = [
-  "docs/internal/engineering-design.md",
-  "docs/internal/implementation-plan.md",
-  "docs/internal/feature-parity.md",
-];
-
-const phaseDocs = [
-  "docs/internal/phases/phase-01-repo-tooling-docs.md",
-  "docs/internal/phases/phase-02-core-semantics.md",
-  "docs/internal/phases/phase-03-rendering-assets-actor.md",
-  "docs/internal/phases/phase-04-audio-music-tone-storage.md",
-  "docs/internal/phases/phase-05-runtime-examples-parity.md",
-  "docs/internal/phases/phase-06-web-sandbox.md",
-  "docs/internal/phases/phase-07-docs-ci-github.md",
-];
-
-const requiredDocs = [
-  ...topLevelDocs,
-  ...userFacingDocs,
-  ...internalDocs,
-  ...phaseDocs,
-];
-
-const requiredPhaseSections = [
-  "## Implementation Steps",
-  "## Unit Verification",
-  "## E2E Verification",
-  "## Exit Criteria",
-  "## Verification Criteria",
-];
+const requiredDocs = [...topLevelDocs, ...userFacingDocs];
 
 const requiredCiSteps = [
   "oven-sh/setup-bun@v2",
@@ -91,8 +62,6 @@ const packageManifests = [
 
 async function main(): Promise<void> {
   await checkRequiredDocs();
-  await checkPhaseDocs();
-  await checkImplementationPlanLinks();
   await checkReadmeCommands();
   await checkTutorialAndCookbook();
   await checkExamplesDoc();
@@ -113,57 +82,20 @@ async function checkRequiredDocs(): Promise<void> {
     fail(`Missing docs:\n${missing.map((path) => `- ${path}`).join("\n")}`);
   }
 
-  for (const path of [...userFacingDocs, ...internalDocs, ...phaseDocs]) {
+  for (const path of userFacingDocs) {
     const text = await Bun.file(path).text();
     if (/\b(TBD|TODO|placeholder)\b/i.test(text)) {
       fail(`${path} contains unfinished marker language.`);
     }
   }
 
-  // "Verification Criteria" is internal-spec language: phase docs must keep
-  // it (checked separately below), but it must not leak into the pages a
-  // learner actually reads.
+  // "Verification Criteria" is internal-spec language and must not leak
+  // into the pages a learner actually reads.
   for (const path of userFacingDocs) {
     const text = await Bun.file(path).text();
     if (text.includes("Verification Criteria")) {
       fail(
         `${path} is user-facing and must not include a "Verification Criteria" section.`,
-      );
-    }
-  }
-}
-
-async function checkPhaseDocs(): Promise<void> {
-  for (const path of phaseDocs) {
-    const text = await Bun.file(path).text();
-    const status = /^> Status: (.+)$/m.exec(text)?.[1]?.trim();
-    if (!status) {
-      fail(`${path} must include a status banner.`);
-    }
-    if (status !== "Complete") {
-      fail(`${path} must have Complete status, not ${status}.`);
-    }
-    for (const section of requiredPhaseSections) {
-      if (!text.includes(section)) fail(`${path} must include ${section}.`);
-    }
-    for (const requiredPhrase of ["unit", "e2e", "Playwright"]) {
-      if (!text.toLowerCase().includes(requiredPhrase.toLowerCase())) {
-        fail(`${path} must include ${requiredPhrase} verification detail.`);
-      }
-    }
-  }
-}
-
-async function checkImplementationPlanLinks(): Promise<void> {
-  const implementationPlan = await Bun.file(
-    "docs/internal/implementation-plan.md",
-  ).text();
-  const links = markdownLinks(implementationPlan);
-  for (const path of phaseDocs) {
-    const relativeLink = path.replace("docs/internal/", "");
-    if (!links.includes(relativeLink)) {
-      fail(
-        `docs/internal/implementation-plan.md must include a Markdown link to ${relativeLink}.`,
       );
     }
   }
@@ -258,12 +190,7 @@ async function checkExamplesDoc(): Promise<void> {
 }
 
 async function checkNoForbiddenLanguage(): Promise<void> {
-  const scannedPaths = [
-    "README.md",
-    ...userFacingDocs,
-    ...internalDocs,
-    ...phaseDocs,
-  ];
+  const scannedPaths = ["README.md", ...userFacingDocs];
   for (const path of scannedPaths) {
     const text = await Bun.file(path).text();
     if (/clean.room/i.test(text)) {
@@ -350,12 +277,6 @@ function shellCommands(source: string): string[] {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.startsWith("#"));
-}
-
-function markdownLinks(markdown: string): string[] {
-  return [...markdown.matchAll(/\[[^\]]+\]\(([^)#?]+)(?:[#?][^)]*)?\)/g)].map(
-    (match) => match[1] ?? "",
-  );
 }
 
 function compileJavaScriptSnippet(source: string, label: string): void {

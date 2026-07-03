@@ -64,6 +64,3 @@ sandbox for learners to write and play games without any build tooling.
   a task-oriented cookbook, a per-symbol API reference under
   `docs/reference/`, a sandbox UI guide, an examples gallery page, and a
   Pygame Zero migration guide for teachers.
-- Engineering-internal docs (design, implementation plan, phase specs, and
-  the test-coverage matrix) moved to `docs/internal/`, out of the
-  user-facing docs list.

@@ -28,8 +28,7 @@ bunx playwright install chromium
 - `apps/sandbox` — the local editor/preview server (`apps/sandbox/src`) and
   its browser UI (`apps/sandbox/client`).
 - `examples` — playable example games, listed in `examples/manifest.ts`.
-- `docs` — user-facing docs (`docs/*.md`, `docs/reference/`) and
-  engineering-internal docs (`docs/internal/`).
+- `docs` — user-facing docs (`docs/*.md`, `docs/reference/`).
 - `tests/e2e` — Playwright browser tests.
 - `scripts` — build and docs-consistency tooling.
 
@@ -57,9 +56,8 @@ as `*.pw.ts` files and drive a real Chromium instance against a locally
 started sandbox server — see `playwright.config.ts`.
 
 If you add or change a public API in `packages/core`, add or update a unit
-test alongside it, and update the relevant page under `docs/reference/`
-(and `docs/internal/feature-parity.md`'s coverage row, if the change is
-substantial) in the same change.
+test alongside it, and update the relevant page under `docs/reference/` in
+the same change.
 
 ## Formatting and linting
 
@@ -86,16 +84,17 @@ three should pass locally before opening a PR.
 `bun run docs:check` (`scripts/check-docs.ts`) is a strict, scripted gate
 over the documentation, not just a link checker:
 
-- Every required doc file exists and, for internal phase docs, carries a
-  `Complete` status banner and the expected sections.
+- Every required doc file exists.
 - Every JavaScript code block in `docs/tutorial.md` and `docs/cookbook.md`
   actually compiles.
 - README's shell command blocks reference real `package.json` scripts.
 - The CI workflow includes the expected steps, in order.
 - User-facing docs don't reintroduce internal "Verification Criteria"
   language, and nothing claims this project is a "clean-room"
-  implementation (see [`docs/internal/engineering-design.md`](docs/internal/engineering-design.md)
-  for why that word is specifically avoided).
+  implementation — this project is LGPL-3.0-only and behavior-compatible
+  with Pygame Zero by design, inspired by and derived in part from it, not
+  an independent from-scratch reimplementation, so "clean-room" would
+  misstate its license lineage.
 - Every package that should declare `LGPL-3.0-only` does.
 
 If you add a new doc file that should be part of the required set, add it
