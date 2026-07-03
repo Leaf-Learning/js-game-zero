@@ -72,7 +72,7 @@ function surface(width: number, height: number): SurfaceLike {
 
 function loaderWithSprites() {
   const loader = createImageLoader({
-    projectId: "phase_three",
+    projectId: "test_project",
     loadAsset: async (_url, name) => {
       if (name === "ship.svg") return surface(30, 12);
       return surface(20, 10);

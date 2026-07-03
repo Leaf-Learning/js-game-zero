@@ -94,7 +94,7 @@ test("wheel input, overlapping sounds, and clock error resilience hold up in a r
     const sound = createBrowserSoundAsset({
       kind: "sound",
       name: "tap.wav",
-      url: "/assets/phase_three/sounds/tap.wav",
+      url: "/assets/rendering-fixture/sounds/tap.wav",
     });
     window.__jgzSoundHandle = {
       stopAndCount: () => {

@@ -166,9 +166,7 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-test("phase 7 shipped examples launch from the live manifest", async ({
-  page,
-}) => {
+test("shipped examples launch from the live manifest", async ({ page }) => {
   // Routes come from examples/manifest.ts itself (the source of truth),
   // not from documentation prose, so this test always exercises whatever
   // examples actually ship rather than a list that can silently drift.
@@ -207,14 +205,14 @@ test("phase 7 shipped examples launch from the live manifest", async ({
   }
 });
 
-test("phase 7 every shipped example is documented", async () => {
+test("every shipped example is documented", async () => {
   const examplesDoc = await readFile("docs/examples.md", "utf8");
   for (const example of exampleManifest) {
     expect(examplesDoc).toContain(`\`/examples/${example.slug}\``);
   }
 });
 
-test("phase 7 browser runtime clears to opaque black", async ({ page }) => {
+test("browser runtime clears to opaque black", async ({ page }) => {
   await page.goto("/examples");
   const pixel = await page.evaluate(async () => {
     const runtimeUrl = "/runtime/core.js";
@@ -239,7 +237,7 @@ test("phase 7 browser runtime clears to opaque black", async ({ page }) => {
   expect(pixel).toEqual([0, 0, 0, 255]);
 });
 
-test("phase 7 the tutorial's finished game runs from a clean sandbox project", async ({
+test("the tutorial's finished game runs from a clean sandbox project", async ({
   page,
 }, testInfo) => {
   const { errors, pageErrors } = collectPageErrors(page);

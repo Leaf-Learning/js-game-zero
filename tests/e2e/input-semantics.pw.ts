@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { keys, mouse } from "@js-game-zero/core";
 
-test("phase 2 fixture maps real browser input, clock, and animation state", async ({
+test("core semantics fixture maps real browser input, clock, and animation state", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -11,8 +11,8 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await page.goto("/phase-two");
-  await expect(page).toHaveTitle("js-game-zero Phase 2 Semantics");
+  await page.goto("/fixtures/core-semantics");
+  await expect(page).toHaveTitle("js-game-zero Core Semantics Fixture");
   await expect(
     page.getByRole("heading", { name: "js-game-zero core semantics fixture" }),
   ).toBeVisible();
@@ -27,10 +27,10 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
         .__jgzInputSemantics?.ready,
   );
 
-  const canvas = page.locator("[data-jgz-phase-two-canvas]");
+  const canvas = page.locator("[data-jgz-core-semantics-canvas]");
   const box = await canvas.boundingBox();
   expect(box).not.toBeNull();
-  if (!box) throw new Error("Phase 2 canvas was not laid out.");
+  if (!box) throw new Error("Core semantics canvas was not laid out.");
 
   await canvas.click({ position: { x: 20, y: 20 } });
   await page.keyboard.down("ArrowLeft");
@@ -72,7 +72,7 @@ test("phase 2 fixture maps real browser input, clock, and animation state", asyn
       ).__jgzInputSemantics,
   );
   expect(state).toBeTruthy();
-  if (!state) throw new Error("Missing phase 2 fixture state.");
+  if (!state) throw new Error("Missing core semantics fixture state.");
 
   const leftDown = state.events.find(
     (event) => event.type === "keyDown" && event.key === keys.LEFT,

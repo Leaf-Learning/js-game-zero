@@ -13,12 +13,12 @@ function collectPageErrors(page: import("@playwright/test").Page): {
   return { errors, pageErrors };
 }
 
-test("phase 4 sound fixture plays, loops, and stops after a browser gesture", async ({
+test("audio fixture sound plays, loops, and stops after a browser gesture", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-four/sound");
-  await expect(page).toHaveTitle("js-game-zero Phase 4 Sound");
+  await page.goto("/fixtures/audio/sound");
+  await expect(page).toHaveTitle("js-game-zero Audio Fixture: Sound");
   await page.waitForFunction(
     () =>
       (
@@ -77,12 +77,12 @@ test("phase 4 sound fixture plays, loops, and stops after a browser gesture", as
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 4 tone fixture unlocks browser audio and schedules a tone", async ({
+test("audio fixture tone unlocks browser audio and schedules a tone", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-four/tone");
-  await expect(page).toHaveTitle("js-game-zero Phase 4 Tone");
+  await page.goto("/fixtures/audio/tone");
+  await expect(page).toHaveTitle("js-game-zero Audio Fixture: Tone");
   await page.waitForFunction(
     () =>
       (
@@ -127,12 +127,12 @@ test("phase 4 tone fixture unlocks browser audio and schedules a tone", async ({
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 4 music fixture triggers on_music_end for a generated data URL track", async ({
+test("audio fixture music triggers on_music_end for a generated data URL track", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-four/music");
-  await expect(page).toHaveTitle("js-game-zero Phase 4 Music");
+  await page.goto("/fixtures/audio/music");
+  await expect(page).toHaveTitle("js-game-zero Audio Fixture: Music");
   await page.waitForFunction(
     () =>
       (
@@ -177,11 +177,11 @@ test("phase 4 music fixture triggers on_music_end for a generated data URL track
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 4 storage fixture persists a high score across reloads", async ({
+test("audio fixture storage persists a high score across reloads", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-four/storage");
+  await page.goto("/fixtures/audio/storage");
   await page.waitForFunction(
     () =>
       (
@@ -191,7 +191,7 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
       ).__jgzAudioStorage?.ready,
   );
   await page.evaluate(() => {
-    localStorage.removeItem("js-game-zero:phase_four_e2e:save/high_score");
+    localStorage.removeItem("js-game-zero:audio_fixture_e2e:save/high_score");
   });
   await page.reload();
   await page.waitForFunction(
@@ -248,7 +248,7 @@ test("phase 4 storage fixture persists a high score across reloads", async ({
   expect(persisted).toBeTruthy();
   if (!persisted) throw new Error("Missing storage state.");
   expect(persisted.loadedScore).toBe(4242);
-  expect(persisted.path).toBe("js-game-zero:phase_four_e2e:save/high_score");
+  expect(persisted.path).toBe("js-game-zero:audio_fixture_e2e:save/high_score");
   expect(persisted.errors).toEqual([]);
   expect(errors).toEqual([]);
   expect(pageErrors).toEqual([]);

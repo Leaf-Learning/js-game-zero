@@ -18,8 +18,8 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * Both scenarios drive `/runtime/core.js` (the already-served core
  * bundle) directly from an injected script, reusing the existing
- * `/assets/phase_five/*` fixture assets and the `/examples` page as a
- * neutral origin that does not itself run a game.
+ * `/assets/asset-sync-fixture/*` fixture assets and the `/examples` page
+ * as a neutral origin that does not itself run a game.
  */
 
 function collectPageErrors(page: Page): {
@@ -103,7 +103,7 @@ function draw() {
 
     const handle = run(source, {
       canvas,
-      projectId: "phase_five",
+      projectId: "asset-sync-fixture",
       assetBaseUrl: "/assets",
     });
 

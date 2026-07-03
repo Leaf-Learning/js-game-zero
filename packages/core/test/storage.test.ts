@@ -135,7 +135,7 @@ describe("storage adapters", () => {
     const localStorage = new MemoryLocalStorage();
     const first = createStorage({
       adapter: createLocalStorageAdapter({
-        projectId: "phase_four",
+        projectId: "test_project",
         path: "save/high_score",
         localStorage,
       }),
@@ -154,7 +154,7 @@ describe("storage adapters", () => {
     await second.save();
 
     expect(
-      localStorage.values.get("js-game-zero:phase_four:save/high_score"),
+      localStorage.values.get("js-game-zero:test_project:save/high_score"),
     ).toBe('{"score":500}');
     expect(
       localStorage.values.get("js-game-zero:other_project:save/high_score"),
@@ -171,11 +171,11 @@ describe("storage adapters", () => {
       /projectId must be lowercase, start with a letter/,
     );
     // Uppercase letters are not allowed.
-    expect(() => createLocalStorageAdapter({ projectId: "Phase4" })).toThrow(
+    expect(() => createLocalStorageAdapter({ projectId: "Sample4" })).toThrow(
       /projectId must be lowercase, start with a letter/,
     );
     // Must start with a letter, not a digit.
-    expect(() => createLocalStorageAdapter({ projectId: "4phase" })).toThrow(
+    expect(() => createLocalStorageAdapter({ projectId: "4sample" })).toThrow(
       /projectId must be lowercase, start with a letter/,
     );
   });

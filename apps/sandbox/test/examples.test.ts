@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { collectRuntimeDiagnostics } from "@js-game-zero/core";
 import { exampleManifest } from "../../../examples/manifest";
-import { phaseOneHandler } from "../src/server";
+import { testFixtureServerHandler } from "../src/server";
 
-test("phase 5 example manifest exposes complete smoke metadata", async () => {
+test("example manifest exposes complete smoke metadata", async () => {
   const slugs = new Set<string>();
   for (const example of exampleManifest) {
     expect(example.slug).toMatch(/^[a-z][a-z0-9-]*$/);
@@ -58,18 +58,20 @@ test("global-mode example sources are free of runtime diagnostics", async () => 
   }
 });
 
-test("phase 5 example routes serve an index, pages, and learner source", async () => {
-  const index = await phaseOneHandler(new Request("http://localhost/examples"));
+test("example routes serve an index, pages, and learner source", async () => {
+  const index = await testFixtureServerHandler(
+    new Request("http://localhost/examples"),
+  );
   expect(index.status).toBe(200);
   expect(await index.text()).toContain("data-jgz-example-link");
 
-  const page = await phaseOneHandler(
+  const page = await testFixtureServerHandler(
     new Request("http://localhost/examples/drawing-basics"),
   );
   expect(page.status).toBe(200);
   expect(await page.text()).toContain("__jgzExampleStatus");
 
-  const source = await phaseOneHandler(
+  const source = await testFixtureServerHandler(
     new Request("http://localhost/examples/drawing-basics/main.js"),
   );
   expect(source.status).toBe(200);

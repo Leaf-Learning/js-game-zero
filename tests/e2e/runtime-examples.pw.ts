@@ -109,7 +109,7 @@ async function pixelAt(
   );
 }
 
-test("phase 5 examples index links every shipped example", async ({ page }) => {
+test("examples index links every shipped example", async ({ page }) => {
   const { errors, pageErrors } = collectPageErrors(page);
   await page.goto("/examples");
   await expect(page).toHaveTitle("js-game-zero Examples");
@@ -125,9 +125,7 @@ test("phase 5 examples index links every shipped example", async ({ page }) => {
 });
 
 for (const example of exampleManifest) {
-  test(`phase 5 example ${example.slug} is browser-playable`, async ({
-    page,
-  }) => {
+  test(`example ${example.slug} is browser-playable`, async ({ page }) => {
     const { errors, pageErrors } = collectPageErrors(page);
     await page.goto(`/examples/${example.slug}`);
     await expect(page).toHaveTitle(example.title);

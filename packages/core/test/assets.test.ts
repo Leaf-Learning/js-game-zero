@@ -32,8 +32,8 @@ describe("asset name validation and URL roots", () => {
       "sprites/player_idle.png",
     );
     expect(
-      assetUrl("/assets/", "phase_three", "images", "sprites/player_idle.png"),
-    ).toBe("/assets/phase_three/images/sprites/player_idle.png");
+      assetUrl("/assets/", "test_project", "images", "sprites/player_idle.png"),
+    ).toBe("/assets/test_project/images/sprites/player_idle.png");
   });
 
   test("rejects traversal, absolute paths, mixed case, and digit starts", () => {
@@ -58,7 +58,7 @@ describe("image loader cache and surfaces", () => {
   test("loads extensionless names, caches hits, unloads, and reports dimensions", async () => {
     const calls: string[] = [];
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       assetBaseUrl: "/game-assets",
       async loadAsset(url, name) {
         calls.push(`${name}@${url}`);
@@ -74,13 +74,13 @@ describe("image loader cache and surfaces", () => {
     expect(first).toBe(second);
     expect(explicit).toBe(first);
     expect(calls).toEqual([
-      "sprites/player.png@/game-assets/phase_three/images/sprites/player.png",
-      "sprites/player.gif@/game-assets/phase_three/images/sprites/player.gif",
-      "sprites/player.jpg@/game-assets/phase_three/images/sprites/player.jpg",
-      "sprites/player.jpeg@/game-assets/phase_three/images/sprites/player.jpeg",
-      "sprites/player.bmp@/game-assets/phase_three/images/sprites/player.bmp",
-      "sprites/player.webp@/game-assets/phase_three/images/sprites/player.webp",
-      "sprites/player.svg@/game-assets/phase_three/images/sprites/player.svg",
+      "sprites/player.png@/game-assets/test_project/images/sprites/player.png",
+      "sprites/player.gif@/game-assets/test_project/images/sprites/player.gif",
+      "sprites/player.jpg@/game-assets/test_project/images/sprites/player.jpg",
+      "sprites/player.jpeg@/game-assets/test_project/images/sprites/player.jpeg",
+      "sprites/player.bmp@/game-assets/test_project/images/sprites/player.bmp",
+      "sprites/player.webp@/game-assets/test_project/images/sprites/player.webp",
+      "sprites/player.svg@/game-assets/test_project/images/sprites/player.svg",
     ]);
     expect(first.get_width()).toBe(20);
     expect(first.get_height()).toBe(10);
@@ -103,7 +103,7 @@ describe("image loader cache and surfaces", () => {
 
   test("throws a clear missing asset error", async () => {
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async () => {
         throw new Error("not found");
       },
@@ -114,7 +114,7 @@ describe("image loader cache and surfaces", () => {
   });
 
   test("returns cached image assets through PGZero-style property access", () => {
-    const loader = createImageLoader({ projectId: "phase_three" });
+    const loader = createImageLoader({ projectId: "test_project" });
     const player = surface(20, 10);
 
     loader.define("player.svg", player);
@@ -134,7 +134,7 @@ describe("image loader cache and surfaces", () => {
 
   test("returns loaded image assets through property access after preload", async () => {
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       async loadAsset(_url, name) {
         if (name === "player.svg") return surface(32, 24);
         throw new Error("missing");
@@ -152,7 +152,7 @@ describe("image loader cache and surfaces", () => {
   test("pendingCount and waitForIdle track in-flight loads for the runtime preload gate", async () => {
     let releaseFirst: (() => void) | undefined;
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async (_url, name) => {
         if (name === "first.svg") {
           await new Promise<void>((resolve) => {
@@ -180,7 +180,7 @@ describe("image loader cache and surfaces", () => {
 
   test("pendingCount clears after a load rejects, and waitForIdle still settles", async () => {
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async () => {
         throw new Error("boom");
       },
@@ -197,7 +197,7 @@ describe("image loader cache and surfaces", () => {
   test("waitForIdle re-checks so a load started while waiting is also awaited", async () => {
     const loadedNames: string[] = [];
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async (_url, name) => {
         loadedNames.push(name);
         if (name === "chain_one.svg") {
@@ -218,9 +218,9 @@ describe("image loader cache and surfaces", () => {
 });
 
 describe("sound, music, and font loaders", () => {
-  test("cache and unload inert Phase 03 assets", async () => {
+  test("cache and unload inert test assets", async () => {
     const soundLoader = createSoundLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async (url, name): Promise<SoundAsset> => ({
         kind: "sound",
         name,
@@ -233,7 +233,7 @@ describe("sound, music, and font loaders", () => {
       }),
     });
     const musicLoader = createMusicLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async (url, name): Promise<MusicAsset> => ({
         kind: "music",
         name,
@@ -241,12 +241,12 @@ describe("sound, music, and font loaders", () => {
       }),
     });
     const fontLoader = createFontLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async (url, name): Promise<FontAsset> => ({
         kind: "font",
         name,
         url,
-        family: "phase",
+        family: "sample",
       }),
     });
 
@@ -279,7 +279,7 @@ describe("sound, music, and font loaders", () => {
       set_volume() {},
       get_volume: () => 1,
     };
-    const soundLoader = createSoundLoader({ projectId: "phase_three" });
+    const soundLoader = createSoundLoader({ projectId: "test_project" });
 
     soundLoader.define("tap.wav", sound);
     const assets = soundLoader as unknown as Record<string, SoundAsset>;
@@ -295,7 +295,7 @@ describe("sound, music, and font loaders", () => {
   test("lazy sound property access loads before playing", async () => {
     const loops: number[] = [];
     const soundLoader = createSoundLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       async loadAsset(url, name): Promise<SoundAsset> {
         return {
           kind: "sound",
@@ -356,7 +356,7 @@ describe("sound, music, and font loaders", () => {
 
     try {
       const loader = createFontLoader({
-        projectId: "phase_three",
+        projectId: "test_project",
         assetBaseUrl: "/assets",
       });
       const asset = await loader.load("ui.woff");

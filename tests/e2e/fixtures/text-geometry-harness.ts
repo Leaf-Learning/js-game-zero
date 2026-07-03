@@ -210,7 +210,7 @@ async function run(): Promise<void> {
 
   // --- 4. custom loaded font renders via fontname -----------------------
   {
-    const fontUrl = "/assets/phase_three/fonts/ui.woff";
+    const fontUrl = "/assets/rendering-fixture/fonts/ui.woff";
     const response = await fetch(fontUrl);
     const bytes = await response.arrayBuffer();
     const family = "jgz-text-geometry-ui";

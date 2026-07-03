@@ -1,5 +1,5 @@
 // e2e fixture-page harness: NOT part of any shipped package. This drives
-// the legacy `/phase-one` .. `/phase-four/*` fixture pages that
+// the legacy `/fixtures/*` fixture pages that
 // apps/sandbox/src/server.ts serves only when started with
 // `--test-fixtures` / `JGZ_TEST_FIXTURES=1` (see playwright.config.ts's
 // webServer command). It exists purely so tests/e2e specs can observe real
@@ -142,7 +142,7 @@ declare global {
 }
 
 const target = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-one-canvas]",
+  "[data-jgz-smoke-canvas]",
 );
 
 if (target) {
@@ -160,12 +160,12 @@ if (target) {
   }
 }
 
-const phaseTwoCanvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-two-canvas]",
+const coreSemanticsCanvas = document.querySelector<HTMLCanvasElement>(
+  "[data-jgz-core-semantics-canvas]",
 );
 
-if (phaseTwoCanvas) {
-  phaseTwoCanvas.tabIndex = 0;
+if (coreSemanticsCanvas) {
+  coreSemanticsCanvas.tabIndex = 0;
   const fixtureClock = new Clock();
   const fixtureKeyboard = new KeyboardState();
   const animationTarget = { x: 0 };
@@ -239,7 +239,7 @@ if (phaseTwoCanvas) {
     fixtureKeyboard,
   );
 
-  dispatcher.attach(phaseTwoCanvas, window);
+  dispatcher.attach(coreSemanticsCanvas, window);
   fixtureClock.schedule(() => {
     state.clockFired = true;
   }, 0.05);
@@ -269,7 +269,7 @@ if (phaseTwoCanvas) {
 }
 
 const drawingCanvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-three-drawing]",
+  "[data-jgz-rendering-drawing]",
 );
 
 if (drawingCanvas) {
@@ -303,7 +303,7 @@ if (drawingCanvas) {
 }
 
 const textCanvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-three-text]",
+  "[data-jgz-rendering-text]",
 );
 
 if (textCanvas) {
@@ -323,11 +323,11 @@ if (textCanvas) {
   };
   const headingLayout = layoutText(
     screen.context,
-    "Phase Three wraps",
+    "Rendering fixture wraps",
     [120, 34],
     headingOptions,
   );
-  screen.draw.text("Phase Three wraps", [120, 34], headingOptions);
+  screen.draw.text("Rendering fixture wraps", [120, 34], headingOptions);
   const textboxFit = fitTextboxFontSize(
     screen.context,
     "wrapped canvas text fits here",
@@ -403,7 +403,7 @@ if (textCanvas) {
 }
 
 const loaderCanvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-three-loader]",
+  "[data-jgz-rendering-loader]",
 );
 
 if (loaderCanvas) {
@@ -448,7 +448,7 @@ if (loaderCanvas) {
 }
 
 const actorCanvas = document.querySelector<HTMLCanvasElement>(
-  "[data-jgz-phase-three-actor]",
+  "[data-jgz-rendering-actor]",
 );
 
 if (actorCanvas) {
@@ -524,7 +524,7 @@ if (actorCanvas) {
 }
 
 const soundButton = document.querySelector<HTMLButtonElement>(
-  "[data-jgz-phase-four-sound]",
+  "[data-jgz-audio-sound]",
 );
 
 if (soundButton) {
@@ -572,7 +572,7 @@ if (soundButton) {
 }
 
 const toneButton = document.querySelector<HTMLButtonElement>(
-  "[data-jgz-phase-four-tone]",
+  "[data-jgz-audio-tone]",
 );
 
 if (toneButton) {
@@ -604,7 +604,7 @@ if (toneButton) {
 }
 
 const musicButton = document.querySelector<HTMLButtonElement>(
-  "[data-jgz-phase-four-music]",
+  "[data-jgz-audio-music]",
 );
 
 if (musicButton) {
@@ -619,7 +619,7 @@ if (musicButton) {
   window.__jgzAudioMusic = state;
   const dataUrl = silentWavDataUrl(0.08);
   const loader = createMusicLoader({
-    projectId: "phase_four",
+    projectId: "audio-fixture",
     loadAsset: async (_url, name): Promise<MusicAsset> => {
       if (name !== "short.wav") throw new Error("missing music fixture");
       return {
@@ -654,7 +654,7 @@ if (musicButton) {
 }
 
 const storageButton = document.querySelector<HTMLButtonElement>(
-  "[data-jgz-phase-four-storage]",
+  "[data-jgz-audio-storage]",
 );
 
 if (storageButton) {
@@ -668,7 +668,7 @@ if (storageButton) {
   window.__jgzAudioStorage = state;
   const store = createStorage({
     adapter: createLocalStorageAdapter({
-      projectId: "phase_four_e2e",
+      projectId: "audio_fixture_e2e",
       path: "save/high_score",
     }),
   });
@@ -701,7 +701,7 @@ if (storageButton) {
 
 function createRenderingFixtureLoaders() {
   return createAssetLoaders({
-    projectId: "phase_three",
+    projectId: "rendering-fixture",
     assetBaseUrl: "/assets",
   });
 }

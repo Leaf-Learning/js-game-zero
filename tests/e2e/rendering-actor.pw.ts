@@ -30,12 +30,12 @@ function expectNotColor(
   ).toBeGreaterThan(20);
 }
 
-test("phase 3 drawing example renders canvas primitives and gradient pixels", async ({
+test("rendering fixture drawing renders canvas primitives and gradient pixels", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-three/drawing");
-  await expect(page).toHaveTitle("js-game-zero Phase 3 Drawing");
+  await page.goto("/fixtures/rendering/drawing");
+  await expect(page).toHaveTitle("js-game-zero Rendering Fixture: Drawing");
   await expect(
     page.getByRole("heading", { name: "js-game-zero rendering fixture" }),
   ).toBeVisible();
@@ -87,12 +87,12 @@ test("phase 3 drawing example renders canvas primitives and gradient pixels", as
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 3 text example renders text and textbox regions", async ({
+test("rendering fixture text renders text and textbox regions", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-three/text");
-  await expect(page).toHaveTitle("js-game-zero Phase 3 Text");
+  await page.goto("/fixtures/rendering/text");
+  await expect(page).toHaveTitle("js-game-zero Rendering Fixture: Text");
   await page.waitForFunction(
     () =>
       (
@@ -148,12 +148,12 @@ test("phase 3 text example renders text and textbox regions", async ({
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 3 loader example resolves cached assets and blits the sprite", async ({
+test("rendering fixture loader resolves cached assets and blits the sprite", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-three/loader");
-  await expect(page).toHaveTitle("js-game-zero Phase 3 Loader");
+  await page.goto("/fixtures/rendering/loader");
+  await expect(page).toHaveTitle("js-game-zero Rendering Fixture: Loader");
   await page.waitForFunction(
     () =>
       (
@@ -195,12 +195,12 @@ test("phase 3 loader example resolves cached assets and blits the sprite", async
   expect(pageErrors).toEqual([]);
 });
 
-test("phase 3 actor example renders, moves, rotates, and reports collision state", async ({
+test("rendering fixture actor renders, moves, rotates, and reports collision state", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);
-  await page.goto("/phase-three/actor");
-  await expect(page).toHaveTitle("js-game-zero Phase 3 Actor");
+  await page.goto("/fixtures/rendering/actor");
+  await expect(page).toHaveTitle("js-game-zero Rendering Fixture: Actor");
   await page.waitForFunction(
     () =>
       (

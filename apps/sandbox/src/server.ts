@@ -12,12 +12,12 @@ import {
   type SandboxHandlerOptions,
 } from "./sandbox";
 
-const phaseOnePage = `<!doctype html>
+const smokeFixturePage = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>js-game-zero Phase 1 Smoke</title>
+    <title>js-game-zero Smoke Fixture</title>
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; background: #0d1117; color: white; }
       main { min-height: 100vh; display: grid; place-items: center; gap: 16px; align-content: center; }
@@ -27,18 +27,18 @@ const phaseOnePage = `<!doctype html>
   <body>
     <main>
       <h1>js-game-zero sandbox scaffold</h1>
-      <canvas data-jgz-phase-one-canvas width="320" height="180"></canvas>
+      <canvas data-jgz-smoke-canvas width="320" height="180"></canvas>
     </main>
     <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 
-const phaseTwoPage = `<!doctype html>
+const coreSemanticsFixturePage = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>js-game-zero Phase 2 Semantics</title>
+    <title>js-game-zero Core Semantics Fixture</title>
     <style>
       body { margin: 0; font-family: system-ui, sans-serif; background: #101417; color: white; }
       main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
@@ -49,13 +49,13 @@ const phaseTwoPage = `<!doctype html>
   <body>
     <main>
       <h1>js-game-zero core semantics fixture</h1>
-      <canvas data-jgz-phase-two-canvas width="320" height="180"></canvas>
+      <canvas data-jgz-core-semantics-canvas width="320" height="180"></canvas>
     </main>
     <script type="module" src="/test-fixtures/runtime.js"></script>
   </body>
 </html>`;
 
-function phaseThreePage(
+function renderingFixturePage(
   title: string,
   heading: string,
   canvasAttribute: string,
@@ -82,7 +82,7 @@ function phaseThreePage(
 </html>`;
 }
 
-function phaseFourPage(
+function audioFixturePage(
   title: string,
   heading: string,
   buttonAttribute: string,
@@ -357,7 +357,7 @@ async function testFixtureRuntimeBundle(): Promise<Response> {
  * runtime bundles they load. Always active, regardless of --test-fixtures. */
 async function productRouteResponse(url: URL): Promise<Response | null> {
   if (url.pathname === "/api/health") {
-    return Response.json({ ok: true, phase: 1 });
+    return Response.json({ ok: true });
   }
   if (url.pathname === "/runtime/core.js") return coreRuntimeBundle();
   if (url.pathname === "/runtime/browser.js") return runtimeBundle();
@@ -375,9 +375,9 @@ async function productRouteResponse(url: URL): Promise<Response | null> {
   return null;
 }
 
-/** Legacy e2e fixture pages (`/phase-one` .. `/phase-four/*`) and their
- * fixture-only asset routes: these exist solely so tests/e2e specs can
- * observe real browser behavior through window.__jgz* globals (see
+/** Legacy e2e fixture pages (`/fixtures/*`) and their fixture-only asset
+ * routes: these exist solely so tests/e2e specs can observe real browser
+ * behavior through window.__jgz* globals (see
  * tests/e2e/fixtures/browser-harness.ts). Not part of the shipped product —
  * only reachable when the server is started with --test-fixtures /
  * JGZ_TEST_FIXTURES=1. */
@@ -385,102 +385,102 @@ async function testFixtureRouteResponse(url: URL): Promise<Response | null> {
   if (url.pathname === "/test-fixtures/runtime.js") {
     return testFixtureRuntimeBundle();
   }
-  if (url.pathname === "/phase-one") {
-    return new Response(phaseOnePage, {
+  if (url.pathname === "/fixtures/smoke") {
+    return new Response(smokeFixturePage, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
-  if (url.pathname === "/phase-two") {
-    return new Response(phaseTwoPage, {
+  if (url.pathname === "/fixtures/core-semantics") {
+    return new Response(coreSemanticsFixturePage, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
-  if (url.pathname.startsWith("/assets/phase_three/")) {
+  if (url.pathname.startsWith("/assets/rendering-fixture/")) {
     return exampleAssetResponse(
       url.pathname,
-      "/assets/phase_three/",
-      "../../../tests/e2e/fixtures/assets/phase-three/assets",
+      "/assets/rendering-fixture/",
+      "../../../tests/e2e/fixtures/assets/rendering-fixture/assets",
     );
   }
-  if (url.pathname.startsWith("/assets/phase_five/")) {
+  if (url.pathname.startsWith("/assets/asset-sync-fixture/")) {
     return exampleAssetResponse(
       url.pathname,
-      "/assets/phase_five/",
-      "../../../tests/e2e/fixtures/assets/phase-five/assets",
+      "/assets/asset-sync-fixture/",
+      "../../../tests/e2e/fixtures/assets/asset-sync-fixture/assets",
     );
   }
-  if (url.pathname === "/phase-three/drawing") {
+  if (url.pathname === "/fixtures/rendering/drawing") {
     return html(
-      phaseThreePage(
-        "js-game-zero Phase 3 Drawing",
+      renderingFixturePage(
+        "js-game-zero Rendering Fixture: Drawing",
         "js-game-zero rendering fixture",
-        "data-jgz-phase-three-drawing",
+        "data-jgz-rendering-drawing",
       ),
     );
   }
-  if (url.pathname === "/phase-three/text") {
+  if (url.pathname === "/fixtures/rendering/text") {
     return html(
-      phaseThreePage(
-        "js-game-zero Phase 3 Text",
+      renderingFixturePage(
+        "js-game-zero Rendering Fixture: Text",
         "js-game-zero text fixture",
-        "data-jgz-phase-three-text",
+        "data-jgz-rendering-text",
       ),
     );
   }
-  if (url.pathname === "/phase-three/loader") {
+  if (url.pathname === "/fixtures/rendering/loader") {
     return html(
-      phaseThreePage(
-        "js-game-zero Phase 3 Loader",
+      renderingFixturePage(
+        "js-game-zero Rendering Fixture: Loader",
         "js-game-zero loader fixture",
-        "data-jgz-phase-three-loader",
+        "data-jgz-rendering-loader",
       ),
     );
   }
-  if (url.pathname === "/phase-three/actor") {
+  if (url.pathname === "/fixtures/rendering/actor") {
     return html(
-      phaseThreePage(
-        "js-game-zero Phase 3 Actor",
+      renderingFixturePage(
+        "js-game-zero Rendering Fixture: Actor",
         "js-game-zero actor fixture",
-        "data-jgz-phase-three-actor",
+        "data-jgz-rendering-actor",
       ),
     );
   }
-  if (url.pathname === "/phase-four/tone") {
+  if (url.pathname === "/fixtures/audio/tone") {
     return html(
-      phaseFourPage(
-        "js-game-zero Phase 4 Tone",
+      audioFixturePage(
+        "js-game-zero Audio Fixture: Tone",
         "js-game-zero tone fixture",
-        "data-jgz-phase-four-tone",
+        "data-jgz-audio-tone",
         "Play Tone",
       ),
     );
   }
-  if (url.pathname === "/phase-four/sound") {
+  if (url.pathname === "/fixtures/audio/sound") {
     return html(
-      phaseFourPage(
-        "js-game-zero Phase 4 Sound",
+      audioFixturePage(
+        "js-game-zero Audio Fixture: Sound",
         "js-game-zero sound fixture",
-        "data-jgz-phase-four-sound",
+        "data-jgz-audio-sound",
         "Play Sound",
       ),
     );
   }
-  if (url.pathname === "/phase-four/music") {
+  if (url.pathname === "/fixtures/audio/music") {
     return html(
-      phaseFourPage(
-        "js-game-zero Phase 4 Music",
+      audioFixturePage(
+        "js-game-zero Audio Fixture: Music",
         "js-game-zero music fixture",
-        "data-jgz-phase-four-music",
+        "data-jgz-audio-music",
         "Play Music",
       ),
     );
   }
-  if (url.pathname === "/phase-four/storage") {
+  if (url.pathname === "/fixtures/audio/storage") {
     return html(
-      phaseFourPage(
-        "js-game-zero Phase 4 Storage",
+      audioFixturePage(
+        "js-game-zero Audio Fixture: Storage",
         "js-game-zero storage fixture",
-        "data-jgz-phase-four-storage",
+        "data-jgz-audio-storage",
         "Save Score",
       ),
     );
@@ -488,7 +488,7 @@ async function testFixtureRouteResponse(url: URL): Promise<Response | null> {
   return null;
 }
 
-async function legacyPhaseHandler(
+async function testFixtureHandler(
   request: Request,
   testFixtures: boolean,
 ): Promise<Response> {
@@ -503,9 +503,9 @@ async function legacyPhaseHandler(
 }
 
 export type SandboxServerHandlerOptions = SandboxHandlerOptions & {
-  /** Enables the legacy `/phase-one` .. `/phase-four/*` e2e fixture routes
-   * (see testFixtureRouteResponse). Off by default so the product server
-   * never serves test-only pages; playwright.config.ts's webServer command
+  /** Enables the legacy `/fixtures/*` e2e fixture routes (see
+   * testFixtureRouteResponse). Off by default so the product server never
+   * serves test-only pages; playwright.config.ts's webServer command
    * passes `--test-fixtures` to turn them on for the e2e suite. */
   readonly testFixtures?: boolean;
 };
@@ -520,11 +520,11 @@ export function createSandboxServerHandler(
   ): Promise<Response> {
     const sandboxResponse = await sandboxHandler(request);
     if (sandboxResponse) return sandboxResponse;
-    return legacyPhaseHandler(request, testFixtures);
+    return testFixtureHandler(request, testFixtures);
   };
 }
 
-export const phaseOneHandler = createSandboxServerHandler({
+export const testFixtureServerHandler = createSandboxServerHandler({
   testFixtures: true,
 });
 
@@ -599,7 +599,7 @@ const EXAMPLE_ASSET_ROUTE = /^\/assets\/([a-z][a-z0-9-]*)\//;
 
 /**
  * Serves each example's own `assets/` directory at `/assets/<slug>/...`,
- * generalizing what used to be a single hardcoded `/assets/phase_five/`
+ * generalizing what used to be a single hardcoded `/assets/asset-sync-fixture/`
  * route shared (incorrectly) by every example. Only kicks in for a
  * pathname whose first segment names a real example in the manifest, so
  * it never shadows the sandbox's own `/assets/<projectId>/...` route for
@@ -637,7 +637,7 @@ function contentType(pathname: string): string {
   return "application/octet-stream";
 }
 
-export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
+export function startSandboxServer(args = Bun.argv.slice(2)): void {
   const { values } = parseArgs({
     args,
     options: {
@@ -672,4 +672,4 @@ export function startPhaseOneServer(args = Bun.argv.slice(2)): void {
   console.log(`js-game-zero sandbox listening on http://${host}:${port}`);
 }
 
-if (import.meta.main) startPhaseOneServer();
+if (import.meta.main) startSandboxServer();

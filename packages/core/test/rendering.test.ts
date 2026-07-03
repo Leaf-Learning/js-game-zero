@@ -301,7 +301,7 @@ describe("Screen canvas drawing", () => {
 
   test("blits surfaces and cached image names", async () => {
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async () => surface(4, 5),
     });
     loader.define("hero.svg", surface(10, 11));

@@ -224,7 +224,7 @@ describe("music player", () => {
     const ended: string[] = [];
     const scheduler = new ManualScheduler();
     const loader = createMusicLoader({
-      projectId: "phase_four",
+      projectId: "test_project",
       loadAsset: async (url, name): Promise<MusicAsset> => ({
         kind: "music",
         name,
@@ -323,7 +323,7 @@ describe("music player", () => {
   test("play rejection clears current music and queued side effects", async () => {
     const elements: MockAudioElement[] = [];
     const loader = createMusicLoader({
-      projectId: "phase_four",
+      projectId: "test_project",
       loadAsset: async (url, name): Promise<MusicAsset> => ({
         kind: "music",
         name,

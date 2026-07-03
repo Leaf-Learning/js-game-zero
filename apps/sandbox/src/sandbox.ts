@@ -52,16 +52,16 @@ export const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const CLIENT_DIR = join(REPO_ROOT, "apps/sandbox/client");
 
 const assetDirectories = new Set(["images", "sounds", "music", "fonts"]);
-// "phase_three"/"phase_five" are legacy fixture ids served by the two
-// hardcoded routes in server.ts; every example slug that ships its own
-// assets/ directory is served at /assets/<slug>/... (see
+// "rendering-fixture"/"asset-sync-fixture" are legacy fixture ids served by
+// the two hardcoded routes in server.ts; every example slug that ships its
+// own assets/ directory is served at /assets/<slug>/... (see
 // exampleOwnAssetResponse in server.ts). Both must be excluded from the
 // /assets/<projectId>/... route below so requests for them fall through
 // to the server's example/fixture asset routes instead of being treated
 // as (and 404ing against) a same-named sandbox user project.
 const reservedAssetProjectIds = new Set([
-  "phase_three",
-  "phase_five",
+  "rendering-fixture",
+  "asset-sync-fixture",
   ...exampleManifest
     .filter((example) => example.assets.length > 0)
     .map((example) => example.slug),
@@ -198,7 +198,7 @@ export function createSandboxHandler(
       }
 
       if (url.pathname === "/api/health") {
-        return json({ ok: true, phase: 6 });
+        return json({ ok: true });
       }
 
       if (url.pathname === "/api/examples") {

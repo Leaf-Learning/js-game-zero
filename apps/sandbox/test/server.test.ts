@@ -9,7 +9,10 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSandboxServerHandler, phaseOneHandler } from "../src/server";
+import {
+  createSandboxServerHandler,
+  testFixtureServerHandler,
+} from "../src/server";
 import { normalizeSandboxRelativePath } from "../src/sandbox";
 
 let projectsRoot = "";
@@ -37,11 +40,11 @@ async function createProject(name = "demo_game"): Promise<void> {
   expect(response.status).toBe(201);
 }
 
-describe("phase 6 sandbox routes", () => {
+describe("sandbox routes", () => {
   test("health, project create/list/open, file read/write, and legacy routes work", async () => {
     const health = await request("/api/health");
     expect(health.status).toBe(200);
-    expect(await health.json()).toEqual({ ok: true, phase: 6 });
+    expect(await health.json()).toEqual({ ok: true });
 
     const initial = await request("/api/projects");
     expect(initial.status).toBe(200);
@@ -83,11 +86,11 @@ describe("phase 6 sandbox routes", () => {
       content: "hello sandbox",
     });
 
-    const legacy = await phaseOneHandler(
-      new Request("http://localhost/phase-one"),
+    const legacy = await testFixtureServerHandler(
+      new Request("http://localhost/fixtures/smoke"),
     );
     expect(legacy.status).toBe(200);
-    expect(await legacy.text()).toContain("data-jgz-phase-one-canvas");
+    expect(await legacy.text()).toContain("data-jgz-smoke-canvas");
   });
 
   test("asset upload is binary-safe and asset reads are confined", async () => {
@@ -398,11 +401,13 @@ describe("phase 6 sandbox routes", () => {
     // while real product routes keep working.
     const fixturesOff = createSandboxServerHandler({ projectsRoot });
     const gatedPage = await fixturesOff(
-      new Request("http://localhost/phase-three/drawing"),
+      new Request("http://localhost/fixtures/rendering/drawing"),
     );
     expect(gatedPage.status).toBe(404);
     const gatedAsset = await fixturesOff(
-      new Request("http://localhost/assets/phase_three/images/player.svg"),
+      new Request(
+        "http://localhost/assets/rendering-fixture/images/player.svg",
+      ),
     );
     expect(gatedAsset.status).toBe(404);
     const gatedRuntime = await fixturesOff(
@@ -425,11 +430,13 @@ describe("phase 6 sandbox routes", () => {
       testFixtures: true,
     });
     const openPage = await fixturesOn(
-      new Request("http://localhost/phase-three/drawing"),
+      new Request("http://localhost/fixtures/rendering/drawing"),
     );
     expect(openPage.status).toBe(200);
     const openAsset = await fixturesOn(
-      new Request("http://localhost/assets/phase_three/images/player.svg"),
+      new Request(
+        "http://localhost/assets/rendering-fixture/images/player.svg",
+      ),
     );
     expect(openAsset.status).toBe(200);
     const openRuntime = await fixturesOn(

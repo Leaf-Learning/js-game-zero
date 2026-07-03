@@ -175,7 +175,7 @@ describe("Rect duck-typing on a `.rect` property or method", () => {
 
   test("accepts a real Actor instance without geometry knowing about Actor", () => {
     const loader = createImageLoader({
-      projectId: "phase_three",
+      projectId: "test_project",
       loadAsset: async () =>
         new ImageSurface({ width: 20, height: 10 } as DrawableImage, 20, 10),
     });

@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("phase 1 sandbox smoke page renders a nonblank canvas", async ({
-  page,
-}) => {
+test("sandbox smoke page renders a nonblank canvas", async ({ page }) => {
   const errors: string[] = [];
   const pageErrors: string[] = [];
   page.on("console", (message) => {
@@ -10,12 +8,12 @@ test("phase 1 sandbox smoke page renders a nonblank canvas", async ({
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await page.goto("/phase-one");
-  await expect(page).toHaveTitle("js-game-zero Phase 1 Smoke");
+  await page.goto("/fixtures/smoke");
+  await expect(page).toHaveTitle("js-game-zero Smoke Fixture");
   await expect(
     page.getByRole("heading", { name: "js-game-zero sandbox scaffold" }),
   ).toBeVisible();
-  const canvas = page.locator("[data-jgz-phase-one-canvas]");
+  const canvas = page.locator("[data-jgz-smoke-canvas]");
   await expect(canvas).toHaveAttribute("data-jgz-nonblank", "true");
 
   const nonzeroPixels = await canvas.evaluate((node) => {
