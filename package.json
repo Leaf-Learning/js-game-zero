@@ -18,7 +18,6 @@
     "lint": "bun run typecheck && bun run format:check",
     "test": "bun test packages apps scripts",
     "test:e2e": "playwright test",
-    "test:unit": "bun test packages apps scripts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
