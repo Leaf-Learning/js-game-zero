@@ -26,12 +26,15 @@ describe("Clock scheduling", () => {
     expect(count).toBe(5);
   });
 
-  test("schedule_unique replaces all existing callbacks and aliases are available", () => {
+  test("scheduleUnique and scheduleInterval aliases delegate to their snake_case canonicals", () => {
     const clock = new Clock();
     let count = 0;
     const callback = () => {
       count += 1;
     };
+    // scheduleUnique de-dups exactly like schedule_unique: two already-pending
+    // schedule() calls plus a scheduleUnique() leave only the latest timer, so
+    // the callback fires once (at 0.3s), not three times.
     clock.schedule(callback, 0.1);
     clock.schedule(callback, 0.2);
     clock.scheduleUnique(callback, 0.3);
@@ -39,10 +42,21 @@ describe("Clock scheduling", () => {
     expect(count).toBe(0);
     clock.tick(0.01);
     expect(count).toBe(1);
-    clock.scheduleInterval(callback, 0.1);
-    clock.unschedule(callback);
-    clock.tick(1);
-    expect(count).toBe(1);
+
+    // scheduleInterval repeats on a fixed cadence like schedule_interval, and
+    // the resulting timer is cancelable through unschedule(). A fresh clock
+    // keeps the interval timing independent of the ticks above.
+    const intervalClock = new Clock();
+    let intervalCount = 0;
+    const interval = () => {
+      intervalCount += 1;
+    };
+    intervalClock.scheduleInterval(interval, 0.1);
+    intervalClock.tick(0.35);
+    expect(intervalCount).toBe(3);
+    intervalClock.unschedule(interval);
+    intervalClock.tick(1);
+    expect(intervalCount).toBe(3);
   });
 
   test("unschedule removes all matching one-shot, interval, and per-tick callbacks", () => {

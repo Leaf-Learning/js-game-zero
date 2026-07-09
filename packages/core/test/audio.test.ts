@@ -361,12 +361,20 @@ describe("music player", () => {
     if (!element) throw new Error("Missing mock audio element.");
 
     expect(player.get_pos()).toBe(0);
+    // getPos() is a camelCase alias of get_pos(): both read the same position.
+    expect(player.getPos()).toBe(0);
     element.currentTime = 12.5;
     expect(player.get_pos()).toBeCloseTo(12_500, 5);
+    expect(player.getPos()).toBeCloseTo(12_500, 5);
 
     player.set_pos(3);
     expect(element.currentTime).toBe(3);
-    expect(player.setPos).toBeInstanceOf(Function);
+    // setPos() is a camelCase alias of set_pos(): it seeks the underlying
+    // element and the new position is observable through get_pos()/getPos().
+    player.setPos(7);
+    expect(element.currentTime).toBe(7);
+    expect(player.getPos()).toBeCloseTo(7000, 5);
+    expect(() => player.setPos(-1)).toThrow(RangeError);
 
     player.rewind();
     expect(element.currentTime).toBe(0);
@@ -388,6 +396,77 @@ describe("music player", () => {
     expect(player.is_playing()).toBe(true);
     expect(player.is_playing("theme.ogg")).toBe(true);
     expect(player.is_playing("some-other-track.ogg")).toBe(true);
+    // isPlaying() is a camelCase alias of is_playing(): it mirrors the same
+    // play/pause state and also ignores the optional track name argument.
+    expect(player.isPlaying()).toBe(true);
     expect(player.isPlaying("theme.ogg")).toBe(true);
+    player.pause();
+    expect(player.is_playing()).toBe(false);
+    expect(player.isPlaying()).toBe(false);
+    player.stop();
+    expect(player.isPlaying()).toBe(false);
+  });
+
+  test("playOnce is a camelCase alias of play_once: plays a single non-looping track", async () => {
+    const { player, elements } = musicFixture();
+
+    await player.play("theme.ogg"); // looping background track
+    expect(elements[0]?.loop).toBe(true);
+
+    await player.playOnce("stinger.ogg");
+    // Like play_once, the alias stops the previous track and starts the new
+    // one as a one-shot (loop === false), not on a loop.
+    expect(elements[0]?.pauseCalls).toBe(1);
+    expect(player.debug_state()).toMatchObject({
+      current: "stinger.ogg",
+      isPlaying: true,
+    });
+    expect(elements[1]?.loop).toBe(false);
+  });
+
+  test("setOnMusicEnd is a camelCase alias of set_on_music_end: registers and clears the end callback", async () => {
+    const { player, elements } = musicFixture();
+    const ended: string[] = [];
+    // Registering through the alias must install the same end callback that
+    // set_on_music_end would, replacing the one the fixture set.
+    player.setOnMusicEnd(() => ended.push("end"));
+
+    await player.play_once("solo.ogg");
+    expect(ended).toEqual([]);
+    elements[0]?.emitEnded();
+    await flushAsyncWork();
+    expect(ended).toEqual(["end"]);
+
+    // Clearing it through the alias stops further notifications.
+    player.setOnMusicEnd(undefined);
+    await player.play_once("solo.ogg");
+    elements[1]?.emitEnded();
+    await flushAsyncWork();
+    expect(ended).toEqual(["end"]);
+  });
+});
+
+describe("audio unlock state", () => {
+  test("isUnlocked is a camelCase alias of is_unlocked and reflects mark_unlocked", () => {
+    const unlock = new AudioUnlockState();
+    expect(unlock.is_unlocked()).toBe(false);
+    expect(unlock.isUnlocked()).toBe(false);
+
+    unlock.mark_unlocked();
+    expect(unlock.is_unlocked()).toBe(true);
+    // The alias reports the same state as the canonical after unlocking.
+    expect(unlock.isUnlocked()).toBe(true);
+    expect(unlock.isUnlocked()).toBe(unlock.is_unlocked());
+  });
+
+  test("a successful sound playback flips the shared unlock state's isUnlocked to true", async () => {
+    const { sound, unlockState } = soundFixture();
+    expect(unlockState.isUnlocked()).toBe(false);
+
+    sound.play();
+    await flushAsyncWork();
+
+    expect(unlockState.is_unlocked()).toBe(true);
+    expect(unlockState.isUnlocked()).toBe(true);
   });
 });

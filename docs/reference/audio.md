@@ -65,8 +65,13 @@ music.play("theme.ogg"); // loops forever
 | `music.set_pos(seconds)`                          | Seeks the current track to a position, in seconds.                                                                                       |
 | `music.is_playing()`                              | `true` if a track is currently playing and not paused.                                                                                   |
 
-`on_music_end()` (or `music.set_on_music_end(callback)`) fires once the
-queue is exhausted and nothing is left to play.
+Several `music` methods also offer a camelCase alias for JS ergonomics —
+`music.playOnce`, `music.getPos`, `music.setPos`, and `music.isPlaying`
+behave identically to `play_once`, `get_pos`, `set_pos`, and `is_playing`.
+
+`on_music_end()` (or `music.set_on_music_end(callback)`, camelCase alias
+`music.setOnMusicEnd(callback)`) fires once the queue is exhausted and
+nothing is left to play.
 
 ## Generated tones: `tone`
 
@@ -108,3 +113,10 @@ function on_key_down(key) {
   if (key === keys.SPACE) jumpTone.play();
 }
 ```
+
+### `tone.is_unlocked()`
+
+Returns whether the browser has granted audio playback yet — it flips to
+`true` the first time a sound or tone actually plays after a user gesture.
+This unlock state is shared across `sounds` and `tone`, so a single tap
+un-gates both. `tone.isUnlocked()` is a camelCase alias of `is_unlocked`.

@@ -261,8 +261,14 @@ describe("sound, music, and font loaders", () => {
     );
     expect(soundLoader.unload("tap.wav")).toBe(true);
     expect(musicLoader.unload("theme.ogg")).toBe(true);
+
+    // unloadAll() is a camelCase alias of unload_all(): it must clear a
+    // populated cache to empty, exactly like the snake_case canonical does.
+    expect(fontLoader.cache_keys()).toEqual(["ui.woff"]);
+    expect(fontLoader.has("ui.woff")).toBe(true);
     fontLoader.unloadAll();
     expect(fontLoader.cache_keys()).toEqual([]);
+    expect(fontLoader.has("ui.woff")).toBe(false);
   });
 
   test("returns cached sound assets through PGZero-style property access", () => {

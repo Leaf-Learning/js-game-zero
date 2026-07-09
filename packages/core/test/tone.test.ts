@@ -160,6 +160,26 @@ describe("tone Web Audio scheduling", () => {
     expect(playback.volume).toBe(1);
     expect(context.resumeCalls).toBe(0);
   });
+
+  test("tone.is_unlocked reflects the unlock state and isUnlocked is its camelCase alias", async () => {
+    const context = new MockAudioContext();
+    const unlockState = new AudioUnlockState();
+    const generator = createToneGenerator({
+      audioContext: context,
+      unlockState,
+    });
+
+    expect(generator.is_unlocked()).toBe(false);
+    expect(generator.isUnlocked()).toBe(false);
+
+    await generator.play("A4", 0.2);
+
+    // Playing a tone resumes/unlocks the context, so the canonical and the
+    // alias must both now report the unlocked state, in agreement.
+    expect(generator.is_unlocked()).toBe(true);
+    expect(generator.isUnlocked()).toBe(true);
+    expect(generator.isUnlocked()).toBe(unlockState.is_unlocked());
+  });
 });
 
 describe("tone falls back to a helpful error with no Web Audio available", () => {

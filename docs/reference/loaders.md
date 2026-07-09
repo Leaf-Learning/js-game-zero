@@ -89,7 +89,8 @@ Every asset kind is backed by a loader with the same shape —
 - `define(name, asset)` — registers an asset object directly without going
   through the network, useful for tests or preloading fixtures.
 - `unload(name): boolean` — evicts one cached asset.
-- `unload_all()` — clears the whole cache.
+- `unload_all()` — clears the whole cache. `unloadAll()` is a camelCase
+  alias of `unload_all`.
 - `cache_keys(): string[]` — every currently-cached asset name, sorted.
 
 Why a frame never shows a half-loaded sprite: the runtime tracks every load

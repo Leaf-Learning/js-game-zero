@@ -18,7 +18,8 @@ clock.schedule(spawnEnemy, 2); // spawn one enemy, 2 seconds from now
 ### `clock.schedule_interval(callback, interval)`
 
 Calls `callback` repeatedly, every `interval` seconds, until unscheduled.
-`interval` must be greater than `0`.
+`interval` must be greater than `0`. `clock.scheduleInterval(...)` is a
+camelCase alias of `schedule_interval`.
 
 ```js
 clock.schedule_interval(spawnEnemy, 3); // a new enemy every 3 seconds
@@ -29,6 +30,7 @@ clock.schedule_interval(spawnEnemy, 3); // a new enemy every 3 seconds
 Like `schedule`, but first cancels any existing scheduled call for the same
 `callback` function — useful when an event might restart a timer that's
 already pending and you only want the latest one to count.
+`clock.scheduleUnique(...)` is a camelCase alias of `schedule_unique`.
 
 ### `clock.unschedule(callback)`
 
