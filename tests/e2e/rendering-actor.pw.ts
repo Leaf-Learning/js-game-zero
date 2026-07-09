@@ -1,17 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-function collectPageErrors(page: import("@playwright/test").Page): {
-  errors: string[];
-  pageErrors: string[];
-} {
-  const errors: string[] = [];
-  const pageErrors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  return { errors, pageErrors };
-}
+import { collectPageErrors } from "./fixtures/harness-helpers";
 
 function expectOpaque(pixel: number[]): void {
   expect(pixel.at(3)).toBe(255);

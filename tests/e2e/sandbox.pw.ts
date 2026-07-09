@@ -2,6 +2,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { e2eProjectsRoot as projectsRoot } from "./fixtures/e2e-projects-root";
+import {
+  canvasIsNonblank,
+  collectPageErrors,
+} from "./fixtures/harness-helpers";
 
 // A well-known 1x1 transparent PNG, used to verify binary assets survive
 // upload byte-for-byte.
@@ -12,32 +16,6 @@ let sequence = 0;
 function uniqueName(prefix: string): string {
   sequence += 1;
   return `${prefix}_${Date.now().toString(36)}_${sequence}`.toLowerCase();
-}
-
-function collectPageErrors(page: Page): {
-  errors: string[];
-  pageErrors: string[];
-} {
-  const errors: string[] = [];
-  const pageErrors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  return { errors, pageErrors };
-}
-
-async function visibleCanvasIsNonblank(canvas: Locator): Promise<boolean> {
-  return canvas.evaluate((node) => {
-    const target = node as HTMLCanvasElement;
-    const context = target.getContext("2d", { willReadFrequently: true });
-    if (!context) return false;
-    const data = context.getImageData(0, 0, target.width, target.height).data;
-    for (let index = 3; index < data.length; index += 4) {
-      if (data[index] !== 0) return true;
-    }
-    return false;
-  });
 }
 
 function previewCanvas(page: Page): Locator {
@@ -89,6 +67,24 @@ async function setEditorContent(page: Page, source: string): Promise<void> {
   await page.locator("[data-jgz-editor-mount] .cm-content").fill(source);
 }
 
+/**
+ * Extracts the final, complete "win, lose, and play again" game from
+ * docs/tutorial.md -- the culmination of the tutorial's step-by-step build --
+ * so the tutorial test below proves the exact code a learner ends up with
+ * actually runs cleanly in the real sandbox, not just that it compiles.
+ */
+async function finalTutorialGameSource(): Promise<string> {
+  const tutorial = await readFile("docs/tutorial.md", "utf8");
+  const match =
+    /## 10\. Win, lose, and play again[\s\S]*?```js\n([\s\S]*?)```/.exec(
+      tutorial,
+    );
+  if (!match?.[1]) {
+    throw new Error("Missing the tutorial's final game snippet.");
+  }
+  return match[1].trim();
+}
+
 test.beforeAll(async () => {
   await rm(projectsRoot, { recursive: true, force: true });
 });
@@ -110,7 +106,7 @@ test("create project, starter code runs on Play", async ({ page }) => {
   const canvas = previewCanvas(page);
   await expect(canvas).toBeVisible();
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
   await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
     "data-count",
@@ -140,7 +136,7 @@ test("human-speed clicks on another project while a game is running still switch
   await page.locator("[data-jgz-play]").click();
   await expect(previewCanvas(page)).toBeVisible();
   await expect
-    .poll(() => visibleCanvasIsNonblank(previewCanvas(page)), {
+    .poll(() => canvasIsNonblank(previewCanvas(page)), {
       timeout: 8_000,
     })
     .toBe(true);
@@ -229,7 +225,7 @@ test("Stop halts the running game", async ({ page }) => {
   await page.locator("[data-jgz-play]").click();
   const canvas = previewCanvas(page);
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
   await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
 
@@ -294,7 +290,7 @@ test("cloning an example produces a running game", async ({ page }) => {
   await page.locator("[data-jgz-play]").click();
   const canvas = previewCanvas(page);
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
   await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
     "data-count",
@@ -336,7 +332,7 @@ test("cloning an asset-heavy game copies its assets and runs", async ({
   await page.locator("[data-jgz-play]").click();
   const canvas = previewCanvas(page);
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
   await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
     "data-count",
@@ -422,7 +418,7 @@ test("panel dividers resize the layout, scale the game, and persist", async ({
   const canvas = previewCanvas(page);
   await expect(canvas).toBeVisible();
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
 
   // The displayed canvas must keep the game's own aspect ratio (no more
@@ -491,7 +487,7 @@ test("mouse positions map to game coordinates on the scaled preview", async ({
   const canvas = previewCanvas(page);
   await expect(canvas).toBeVisible();
   await expect
-    .poll(() => visibleCanvasIsNonblank(canvas), { timeout: 8_000 })
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
 
   // The first click lands on the focus overlay; it only claims focus.
@@ -509,4 +505,57 @@ test("mouse positions map to game coordinates on the scaled preview", async ({
   await expect(page.locator(".console-line").first()).toHaveText(
     /^POS (399|400|401),(239|240|241)$/,
   );
+});
+
+test("the tutorial's finished game runs from a clean sandbox project", async ({
+  page,
+}, testInfo) => {
+  const { errors, pageErrors } = collectPageErrors(page);
+  const name = uniqueName("tutorial");
+  const source = await finalTutorialGameSource();
+
+  await page.goto("/");
+  await createBlankProject(page, name);
+
+  await setEditorContent(page, source);
+  await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved", {
+    timeout: 4_000,
+  });
+
+  const assetPath = testInfo.outputPath("player.svg");
+  await writeFile(
+    assetPath,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#22c55e"/></svg>`,
+    "utf8",
+  );
+  await page.locator("[data-jgz-asset-file]").setInputFiles(assetPath);
+  await expect(
+    page.locator('[data-jgz-asset="images/player.svg"]'),
+  ).toBeVisible();
+
+  await page.locator("[data-jgz-play]").click();
+  await expect(page.locator("body")).toHaveAttribute("data-jgz-dirty", "false");
+  await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
+    "data-count",
+    "0",
+  );
+  const canvas = previewCanvas(page);
+  await expect(canvas).toBeVisible();
+  await expect
+    .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
+    .toBe(true);
+
+  // The finished game, its uploaded asset, and its source all survive a
+  // reload of the shared sandbox.
+  await page.reload();
+  await expect(page.locator(`[data-jgz-project="${name}"]`)).toBeVisible();
+  await expect(
+    page.locator('[data-jgz-asset="images/player.svg"]'),
+  ).toBeVisible();
+  const editor = page.locator("[data-jgz-editor-mount] .cm-content");
+  await expect(editor).toContainText("Comet Catcher");
+  await expect(editor).toContainText("WIN_SCORE");
+
+  expect(errors).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });

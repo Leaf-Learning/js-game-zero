@@ -1,4 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import {
+  canvasIsNonblank,
+  collectPageErrors,
+  waitForExampleStatus,
+  type ExampleStatus,
+} from "./fixtures/harness-helpers";
 
 /**
  * End-to-end tests for the complete example games (flappy-bird, breakout,
@@ -8,39 +14,107 @@ import { expect, test, type Page } from "@playwright/test";
  * server-generated harness page exposes for e2e tooling.
  */
 
-type ExampleStatus = {
-  slug: string;
-  ready: boolean;
-  nonblank: boolean;
-  errors: string[];
-  diagnostics: unknown[];
-};
+// --- Sprite colour windows ----------------------------------------------------
+// Every game's sprites are located purely from canvas pixels. These named,
+// commented thresholds centralise the "magic numbers" that used to be inlined
+// in each detector and autopilot; they are passed into page.evaluate() as an
+// argument so the browser-side pixel scans share one source of truth. The
+// values are UNCHANGED from the original inline checks -- this is a
+// readability/maintainability refactor, not a behaviour change.
 
-function collectPageErrors(page: Page): {
-  errors: string[];
-  pageErrors: string[];
-} {
-  const errors: string[] = [];
-  const pageErrors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  return { errors, pageErrors };
-}
+/** flappy: the plane is the only strongly-yellow cluster (red & green high,
+ * blue low, with a wide red-over-blue margin) in its column band. `minCluster`
+ * rejects a handful of stray matching pixels as noise. */
+const FLAPPY_PLANE_YELLOW = {
+  rMin: 180,
+  gMin: 140,
+  bMax: 160,
+  rMinusBMin: 80,
+  minCluster: 10,
+} as const;
+
+/** flappy: rocks are the dark pixels below the score text. A column counts as
+ * containing a rock once it has at least `minDarkColumnPixels` pixels darker
+ * than `avgMax` (mean channel value). */
+const FLAPPY_ROCK_DARK = {
+  avgMax: 185,
+  minDarkColumnPixels: 60,
+} as const;
+
+/** breakout: the paddle and ball are the bright pixels near the bottom. The
+ * paddle is the widest bright run (>= `minPaddleWidth`), so it is never
+ * confused with the far narrower ball. */
+const BREAKOUT_BRIGHT = {
+  avgMin: 90,
+  minPaddleWidth: 40,
+} as const;
+
+/** breakout: bricks are the only saturated pixels in the top of the playfield
+ * (max-min channel spread exceeds `saturationMin`). */
+const BREAKOUT_BRICK = {
+  saturationMin: 60,
+} as const;
+
+/** space-shooter: the ship is the strongly-blue sprite in the bottom quarter
+ * (blue high, and clearly bluer than it is red). */
+const SPACE_SHIP_BLUE = {
+  bMin: 150,
+  bMinusRMin: 40,
+} as const;
+
+/** space-shooter: the laser is an exact accent blue (54,187,245), detected in
+ * the empty band between the ship's start row and the enemy formation. */
+const SPACE_LASER_BLUE = {
+  r: 54,
+  rTol: 20,
+  g: 187,
+  gTol: 20,
+  b: 245,
+  bTol: 15,
+} as const;
+
+/** snake: the head is the bright green (body segments use a darker shade). */
+const SNAKE_HEAD_GREEN = {
+  rMin: 60,
+  rMax: 110,
+  gMin: 200,
+  bMin: 90,
+  bMax: 170,
+} as const;
+
+/** snake: the fruit is the only saturated orange sprite on the board. */
+const SNAKE_FRUIT_ORANGE = {
+  rMin: 200,
+  gMin: 90,
+  gMax: 170,
+  bMax: 80,
+} as const;
+
+/** platformer: the player's helmet glass is a light blue-grey that nothing
+ * else in the scene shares (tiles, gems, the flag, and water are all fully
+ * saturated colours). */
+const PLATFORMER_HELMET_GLASS = {
+  rMin: 180,
+  rMax: 200,
+  gMin: 212,
+  gMax: 232,
+  bMin: 231,
+  bMax: 251,
+} as const;
+
+// --- Minimum observed motion to call an input "worked" ------------------------
+/** flappy: a single Space flap sets a fixed upward velocity (~57px of climb);
+ * require a clear rise above the pre-flap baseline. */
+const FLAP_MIN_CLIMB_PX = 30;
+const BREAKOUT_PADDLE_MIN_SHIFT_PX = 40;
+const SPACE_SHIP_MIN_SHIFT_PX = 30;
+const SNAKE_MIN_TURN_PX = 20;
+const PLATFORMER_MIN_JUMP_PX = 20;
+const PLATFORMER_MIN_ADVANCE_PX = 100;
 
 async function openExample(page: Page, slug: string): Promise<void> {
   await page.goto(`/examples/${slug}`);
-  await page.waitForFunction(
-    (expectedSlug) => {
-      const status = (
-        window as typeof window & { __jgzExampleStatus?: ExampleStatus }
-      ).__jgzExampleStatus;
-      return status?.slug === expectedSlug && status.ready;
-    },
-    slug,
-    { timeout: 10_000 },
-  );
+  await waitForExampleStatus(page, slug, { timeout: 10_000 });
 }
 
 async function exampleStatus(page: Page): Promise<ExampleStatus> {
@@ -51,17 +125,8 @@ async function exampleStatus(page: Page): Promise<ExampleStatus> {
   );
 }
 
-async function canvasIsNonblank(page: Page): Promise<boolean> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
-    const target = canvas as HTMLCanvasElement;
-    const context = target.getContext("2d", { willReadFrequently: true });
-    if (!context) return false;
-    const data = context.getImageData(0, 0, target.width, target.height).data;
-    for (let index = 3; index < data.length; index += 4) {
-      if (data[index] !== 0) return true;
-    }
-    return false;
-  });
+function exampleCanvas(page: Page) {
+  return page.locator("[data-jgz-example-canvas]");
 }
 
 async function readStorageNumber(page: Page, key: string): Promise<number> {
@@ -77,6 +142,31 @@ async function readStorageNumber(page: Page, key: string): Promise<number> {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+/** Reads the value a game auto-saved to localStorage (the whole storage object
+ * is one JSON blob at `js-game-zero:<projectId>:storage`). Used to wait on the
+ * debounced auto-save actually flushing, rather than sleeping for it. */
+async function persistedStorageNumber(
+  page: Page,
+  projectId: string,
+  key: string,
+): Promise<number> {
+  const value = await page.evaluate(
+    ({ projectId, key }) => {
+      const raw = window.localStorage.getItem(
+        `js-game-zero:${projectId}:storage`,
+      );
+      if (!raw) return null;
+      try {
+        return (JSON.parse(raw) as Record<string, unknown>)[key] ?? null;
+      } catch {
+        return null;
+      }
+    },
+    { projectId, key },
+  );
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 /**
  * The plane sprite is the only strongly yellow cluster on the left side
  * of the flappy-bird playfield (sky/clouds are pale blue and white, rocks
@@ -85,7 +175,7 @@ async function readStorageNumber(page: Page, key: string): Promise<number> {
  * plane's column band, or -1 when none are found.
  */
 async function flappyPlaneY(page: Page): Promise<number> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, plane) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return -1;
@@ -97,14 +187,19 @@ async function flappyPlaneY(page: Page): Promise<number> {
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (r > 180 && g > 140 && b < 160 && r - b > 80) {
+      if (
+        r > plane.rMin &&
+        g > plane.gMin &&
+        b < plane.bMax &&
+        r - b > plane.rMinusBMin
+      ) {
         ys.push(Math.floor(index / 4 / width));
       }
     }
-    if (ys.length < 10) return -1;
+    if (ys.length < plane.minCluster) return -1;
     ys.sort((a, b) => a - b);
     return ys[Math.floor(ys.length / 2)] ?? -1;
-  });
+  }, FLAPPY_PLANE_YELLOW);
 }
 
 test.describe("flappy-bird", () => {
@@ -112,21 +207,39 @@ test.describe("flappy-bird", () => {
     const { errors, pageErrors } = collectPageErrors(page);
     await openExample(page, "flappy-bird");
     await expect(page).toHaveTitle("Flappy Bird");
-    expect(await canvasIsNonblank(page)).toBe(true);
+    expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
-    // Let gravity act briefly, then measure, flap several times, and
-    // measure again: real keyboard input must move the plane upward.
-    await page.waitForTimeout(400);
+    // Let gravity pull the plane below its spawn point: this proves the sim is
+    // live and leaves headroom for a flap to visibly climb. Wait on the
+    // observed descent rather than sleeping a fixed time.
+    const spawnY = await flappyPlaneY(page);
+    expect(spawnY).toBeGreaterThan(0);
+    await expect
+      .poll(() => flappyPlaneY(page), {
+        timeout: 4_000,
+        message: "the plane should sink under gravity",
+      })
+      .toBeGreaterThan(spawnY);
     const before = await flappyPlaneY(page);
     expect(before).toBeGreaterThan(0);
 
-    for (let flap = 0; flap < 3; flap += 1) {
-      await page.keyboard.press("Space");
-      await page.waitForTimeout(120);
-    }
-    const after = await flappyPlaneY(page);
-    expect(after).toBeGreaterThan(0);
-    expect(after).toBeLessThan(before - 30);
+    // Flap on a steady cadence (each Space press re-applies the fixed upward
+    // velocity) and wait until the plane clears the pre-flap baseline, instead
+    // of sleeping between presses.
+    await expect
+      .poll(
+        async () => {
+          await page.keyboard.press("Space");
+          const y = await flappyPlaneY(page);
+          return y > 0 && y < before - FLAP_MIN_CLIMB_PX;
+        },
+        {
+          intervals: [120],
+          timeout: 5_000,
+          message: "flapping should push the plane up",
+        },
+      )
+      .toBe(true);
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);
@@ -152,104 +265,112 @@ test.describe("flappy-bird", () => {
     // plane's height and the next gap from the canvas, flap (synthetic
     // canvas mousedown/mouseup, the same channel a player's click uses)
     // whenever the plane sinks below the gap's centre.
-    await page.evaluate(() => {
-      const canvas = document.querySelector(
-        "[data-jgz-example-canvas]",
-      ) as HTMLCanvasElement;
-      const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    await page.evaluate(
+      (thresholds) => {
+        const canvas = document.querySelector(
+          "[data-jgz-example-canvas]",
+        ) as HTMLCanvasElement;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
 
-      function planeY(): number {
-        const left = 100;
-        const width = 80;
-        const data = context.getImageData(left, 0, width, canvas.height).data;
-        const ys: number[] = [];
-        for (let index = 0; index < data.length; index += 4) {
-          const r = data[index] ?? 0;
-          const g = data[index + 1] ?? 0;
-          const b = data[index + 2] ?? 0;
-          if (r > 180 && g > 140 && b < 160 && r - b > 80) {
-            ys.push(Math.floor(index / 4 / width));
-          }
-        }
-        if (ys.length < 10) return -1;
-        ys.sort((a, b) => a - b);
-        return ys[Math.floor(ys.length / 2)] ?? -1;
-      }
-
-      // Rocks are the only dark pixels below the score text (y > 120).
-      // Their true opening is the SHORTEST bright vertical run across the
-      // columns they cover: that is the run passing through both tips.
-      function measuredGap(): number | null {
-        const top = 120;
-        const band = canvas.height - top;
-        const data = context.getImageData(0, top, canvas.width, band).data;
-        const dark = (x: number, y: number): boolean => {
-          const index = (y * canvas.width + x) * 4;
-          const r = data[index] ?? 0;
-          const g = data[index + 1] ?? 0;
-          const b = data[index + 2] ?? 0;
-          return (r + g + b) / 3 < 185;
-        };
-        let best: { length: number; center: number } | null = null;
-        for (let x = 210; x <= 640; x += 20) {
-          let darkCount = 0;
-          for (let y = 0; y < band; y += 1) if (dark(x, y)) darkCount += 1;
-          if (darkCount < 60) continue; // no rock in this column yet
-          // Widest bright vertical run in this column = the gap.
-          let bestStart = 0;
-          let bestLength = 0;
-          let runStart = -1;
-          for (let y = 0; y <= band; y += 1) {
-            const bright = y < band && !dark(x, y);
-            if (bright && runStart === -1) runStart = y;
-            if (!bright && runStart !== -1) {
-              if (y - runStart > bestLength) {
-                bestLength = y - runStart;
-                bestStart = runStart;
-              }
-              runStart = -1;
+        function planeY(): number {
+          const left = 100;
+          const width = 80;
+          const data = context.getImageData(left, 0, width, canvas.height).data;
+          const ys: number[] = [];
+          for (let index = 0; index < data.length; index += 4) {
+            const r = data[index] ?? 0;
+            const g = data[index + 1] ?? 0;
+            const b = data[index + 2] ?? 0;
+            if (
+              r > thresholds.plane.rMin &&
+              g > thresholds.plane.gMin &&
+              b < thresholds.plane.bMax &&
+              r - b > thresholds.plane.rMinusBMin
+            ) {
+              ys.push(Math.floor(index / 4 / width));
             }
           }
-          if (bestLength === 0) continue;
-          if (!best || bestLength < best.length) {
-            best = {
-              length: bestLength,
-              center: top + bestStart + bestLength / 2,
-            };
-          }
+          if (ys.length < thresholds.plane.minCluster) return -1;
+          ys.sort((a, b) => a - b);
+          return ys[Math.floor(ys.length / 2)] ?? -1;
         }
-        return best ? best.center : null;
-      }
 
-      function flap(): void {
-        const rect = canvas.getBoundingClientRect();
-        const init = {
-          bubbles: true,
-          clientX: rect.left + 200,
-          clientY: rect.top + 200,
-          button: 0,
-        };
-        canvas.dispatchEvent(new MouseEvent("mousedown", init));
-        canvas.dispatchEvent(new MouseEvent("mouseup", init));
-      }
+        // Rocks are the only dark pixels below the score text (y > 120).
+        // Their true opening is the SHORTEST bright vertical run across the
+        // columns they cover: that is the run passing through both tips.
+        function measuredGap(): number | null {
+          const top = 120;
+          const band = canvas.height - top;
+          const data = context.getImageData(0, top, canvas.width, band).data;
+          const dark = (x: number, y: number): boolean => {
+            const index = (y * canvas.width + x) * 4;
+            const r = data[index] ?? 0;
+            const g = data[index + 1] ?? 0;
+            const b = data[index + 2] ?? 0;
+            return (r + g + b) / 3 < thresholds.rock.avgMax;
+          };
+          let best: { length: number; center: number } | null = null;
+          for (let x = 210; x <= 640; x += 20) {
+            let darkCount = 0;
+            for (let y = 0; y < band; y += 1) if (dark(x, y)) darkCount += 1;
+            if (darkCount < thresholds.rock.minDarkColumnPixels) continue; // no rock in this column yet
+            // Widest bright vertical run in this column = the gap.
+            let bestStart = 0;
+            let bestLength = 0;
+            let runStart = -1;
+            for (let y = 0; y <= band; y += 1) {
+              const bright = y < band && !dark(x, y);
+              if (bright && runStart === -1) runStart = y;
+              if (!bright && runStart !== -1) {
+                if (y - runStart > bestLength) {
+                  bestLength = y - runStart;
+                  bestStart = runStart;
+                }
+                runStart = -1;
+              }
+            }
+            if (bestLength === 0) continue;
+            if (!best || bestLength < best.length) {
+              best = {
+                length: bestLength,
+                center: top + bestStart + bestLength / 2,
+              };
+            }
+          }
+          return best ? best.center : null;
+        }
 
-      // When the rock slides past the last scanned column (it is about to
-      // cross the plane), keep steering toward its last known gap rather
-      // than drifting back to a default height mid-pass.
-      let lastGap = canvas.height / 2;
-      const interval = window.setInterval(() => {
-        const y = planeY();
-        if (y === -1) return;
-        const gap = measuredGap();
-        if (gap !== null) lastGap = gap;
-        // A flap climbs ~57px; triggering 22px below the gap centre keeps
-        // the climb/fall bounce centred inside the opening.
-        if (y > lastGap + 22) flap();
-      }, 40);
-      (
-        window as typeof window & { __jgzAutopilotStop?: () => void }
-      ).__jgzAutopilotStop = () => window.clearInterval(interval);
-    });
+        function flap(): void {
+          const rect = canvas.getBoundingClientRect();
+          const init = {
+            bubbles: true,
+            clientX: rect.left + 200,
+            clientY: rect.top + 200,
+            button: 0,
+          };
+          canvas.dispatchEvent(new MouseEvent("mousedown", init));
+          canvas.dispatchEvent(new MouseEvent("mouseup", init));
+        }
+
+        // When the rock slides past the last scanned column (it is about to
+        // cross the plane), keep steering toward its last known gap rather
+        // than drifting back to a default height mid-pass.
+        let lastGap = canvas.height / 2;
+        const interval = window.setInterval(() => {
+          const y = planeY();
+          if (y === -1) return;
+          const gap = measuredGap();
+          if (gap !== null) lastGap = gap;
+          // A flap climbs ~57px; triggering 22px below the gap centre keeps
+          // the climb/fall bounce centred inside the opening.
+          if (y > lastGap + 22) flap();
+        }, 40);
+        (
+          window as typeof window & { __jgzAutopilotStop?: () => void }
+        ).__jgzAutopilotStop = () => window.clearInterval(interval);
+      },
+      { plane: FLAPPY_PLANE_YELLOW, rock: FLAPPY_ROCK_DARK },
+    );
 
     await expect
       .poll(() => readStorageNumber(page, "highscore"), {
@@ -264,9 +385,15 @@ test.describe("flappy-bird", () => {
     );
     const scored = await readStorageNumber(page, "highscore");
 
-    // Auto-save is debounced; give it a moment, then reload and confirm
-    // the best score came back without the game ever calling save().
-    await page.waitForTimeout(500);
+    // Wait until the debounced auto-save has flushed the best score to
+    // localStorage, then reload and confirm it came back without the game
+    // ever calling save().
+    await expect
+      .poll(() => persistedStorageNumber(page, "flappy-bird", "highscore"), {
+        timeout: 5_000,
+        message: "the best score should be auto-saved to localStorage",
+      })
+      .toBeGreaterThanOrEqual(scored);
     await page.reload();
     await openExample(page, "flappy-bird");
     expect(await readStorageNumber(page, "highscore")).toBeGreaterThanOrEqual(
@@ -281,7 +408,7 @@ test.describe("flappy-bird", () => {
 /** The paddle is the widest bright horizontal run near the bottom of the
  * breakout playfield; returns its centre x, or -1 when not found. */
 async function breakoutPaddleX(page: Page): Promise<number> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, bright) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return -1;
@@ -294,9 +421,9 @@ async function breakoutPaddleX(page: Page): Promise<number> {
       const r = data[x * 4] ?? 0;
       const g = data[x * 4 + 1] ?? 0;
       const b = data[x * 4 + 2] ?? 0;
-      const bright = x < target.width && (r + g + b) / 3 > 90;
-      if (bright && runStart === -1) runStart = x;
-      if (!bright && runStart !== -1) {
+      const isBright = x < target.width && (r + g + b) / 3 > bright.avgMin;
+      if (isBright && runStart === -1) runStart = x;
+      if (!isBright && runStart !== -1) {
         if (x - runStart > bestLength) {
           bestLength = x - runStart;
           bestStart = runStart;
@@ -304,15 +431,15 @@ async function breakoutPaddleX(page: Page): Promise<number> {
         runStart = -1;
       }
     }
-    if (bestLength < 40) return -1; // the ball is far narrower than the paddle
+    if (bestLength < bright.minPaddleWidth) return -1; // the ball is far narrower than the paddle
     return bestStart + bestLength / 2;
-  });
+  }, BREAKOUT_BRIGHT);
 }
 
 /** Bricks are the only saturated pixels in the top part of the playfield;
  * counting them tracks how much of the wall is still standing. */
 async function breakoutBrickPixels(page: Page): Promise<number> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, brick) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return 0;
@@ -322,10 +449,12 @@ async function breakoutBrickPixels(page: Page): Promise<number> {
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (Math.max(r, g, b) - Math.min(r, g, b) > 60) count += 1;
+      if (Math.max(r, g, b) - Math.min(r, g, b) > brick.saturationMin) {
+        count += 1;
+      }
     }
     return count;
-  });
+  }, BREAKOUT_BRICK);
 }
 
 test.describe("breakout", () => {
@@ -337,15 +466,28 @@ test.describe("breakout", () => {
     const { errors, pageErrors } = collectPageErrors(page);
     await openExample(page, "breakout");
     await expect(page).toHaveTitle("Breakout");
-    expect(await canvasIsNonblank(page)).toBe(true);
+    expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
     const before = await breakoutPaddleX(page);
     expect(before).toBeGreaterThan(0);
 
-    await page.locator("[data-jgz-example-canvas]").click();
+    // Hold the key and wait until the paddle has visibly slid left, then
+    // release -- no fixed sleep.
+    await exampleCanvas(page).click();
     await page.keyboard.down("ArrowLeft");
-    await page.waitForTimeout(400);
-    await page.keyboard.up("ArrowLeft");
+    try {
+      await expect
+        .poll(
+          async () => {
+            const x = await breakoutPaddleX(page);
+            return x > 0 && x < before - BREAKOUT_PADDLE_MIN_SHIFT_PX;
+          },
+          { timeout: 4_000, message: "ArrowLeft should slide the paddle left" },
+        )
+        .toBe(true);
+    } finally {
+      await page.keyboard.up("ArrowLeft");
+    }
 
     const after = await breakoutPaddleX(page);
     expect(after).toBeGreaterThan(0);
@@ -368,7 +510,7 @@ test.describe("breakout", () => {
     // Real mouse input: move the pointer over the canvas and check the
     // paddle recentres under it (the harness canvas renders 1:1, so page
     // coordinates map directly onto game coordinates).
-    const canvas = page.locator("[data-jgz-example-canvas]");
+    const canvas = exampleCanvas(page);
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
     if (!box) return;
@@ -387,7 +529,7 @@ test.describe("breakout", () => {
     // Pixel-driven autopilot: keep the paddle under the ball via synthetic
     // canvas mousemove events (the same channel a player's mouse uses) and
     // let the rally knock bricks out.
-    await page.evaluate(() => {
+    await page.evaluate((bright) => {
       const target = document.querySelector(
         "[data-jgz-example-canvas]",
       ) as HTMLCanvasElement;
@@ -404,7 +546,7 @@ test.describe("breakout", () => {
           const r = data[index] ?? 0;
           const g = data[index + 1] ?? 0;
           const b = data[index + 2] ?? 0;
-          if ((r + g + b) / 3 > 90) {
+          if ((r + g + b) / 3 > bright.avgMin) {
             sum += (index / 4) % target.width;
             count += 1;
           }
@@ -437,7 +579,7 @@ test.describe("breakout", () => {
       (
         window as typeof window & { __jgzAutopilotStop?: () => void }
       ).__jgzAutopilotStop = () => window.clearInterval(interval);
-    });
+    }, BREAKOUT_BRIGHT);
 
     await expect
       .poll(() => breakoutBrickPixels(page), {
@@ -462,7 +604,7 @@ test.describe("breakout", () => {
 /** The ship is the only strongly blue sprite in the bottom quarter of the
  * space-shooter playfield; returns its centroid x, or -1 when not found. */
 async function spaceShooterShipX(page: Page): Promise<number> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, ship) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return -1;
@@ -474,20 +616,20 @@ async function spaceShooterShipX(page: Page): Promise<number> {
     for (let index = 0; index < data.length; index += 4) {
       const r = data[index] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (b > 150 && b - r > 40) {
+      if (b > ship.bMin && b - r > ship.bMinusRMin) {
         sum += (index / 4) % target.width;
         count += 1;
       }
     }
     return count > 0 ? sum / count : -1;
-  });
+  }, SPACE_SHIP_BLUE);
 }
 
 /** The laser and the ship share the same blue, so a laser is detected by
  * looking for that colour in the empty band between the ship's starting
  * row and the enemy formation, where nothing else is ever drawn. */
 async function spaceShooterLaserInFlight(page: Page): Promise<boolean> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, laser) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return false;
@@ -499,15 +641,15 @@ async function spaceShooterLaserInFlight(page: Page): Promise<boolean> {
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
       if (
-        Math.abs(r - 54) < 20 &&
-        Math.abs(g - 187) < 20 &&
-        Math.abs(b - 245) < 15
+        Math.abs(r - laser.r) < laser.rTol &&
+        Math.abs(g - laser.g) < laser.gTol &&
+        Math.abs(b - laser.b) < laser.bTol
       ) {
         return true;
       }
     }
     return false;
-  });
+  }, SPACE_LASER_BLUE);
 }
 
 test.describe("space-shooter", () => {
@@ -521,30 +663,45 @@ test.describe("space-shooter", () => {
     const { errors, pageErrors } = collectPageErrors(page);
     await openExample(page, "space-shooter");
     await expect(page).toHaveTitle("Space Shooter");
-    expect(await canvasIsNonblank(page)).toBe(true);
+    expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
     const before = await spaceShooterShipX(page);
     expect(before).toBeGreaterThan(0);
 
+    // Hold ArrowLeft and wait until the ship has moved left, then release.
     await page.keyboard.down("ArrowLeft");
-    await page.waitForTimeout(500);
-    await page.keyboard.up("ArrowLeft");
+    try {
+      await expect
+        .poll(
+          async () => {
+            const x = await spaceShooterShipX(page);
+            return x > 0 && x < before - SPACE_SHIP_MIN_SHIFT_PX;
+          },
+          { timeout: 4_000, message: "ArrowLeft should move the ship left" },
+        )
+        .toBe(true);
+    } finally {
+      await page.keyboard.up("ArrowLeft");
+    }
     const afterLeft = await spaceShooterShipX(page);
     expect(afterLeft).toBeGreaterThan(0);
     expect(afterLeft).toBeLessThan(before - 30);
 
     expect(await spaceShooterLaserInFlight(page)).toBe(false);
-    // Firing is polled from `keyboard.space` each frame, so hold the key
-    // down for a beat rather than using a single press() - a down+up pair
-    // fired back-to-back can otherwise resolve between animation frames
-    // and never be observed by the game loop.
+    // Firing is polled from `keyboard.space` each frame, so hold the key down
+    // and wait until a laser has climbed into the band the detector scans,
+    // rather than sleeping a fixed time.
     await page.keyboard.down("Space");
-    await page.waitForTimeout(80);
-    await page.keyboard.up("Space");
-    // Give the laser a moment to clear the ship's nose and enter the
-    // empty band the detector scans.
-    await page.waitForTimeout(150);
-    expect(await spaceShooterLaserInFlight(page)).toBe(true);
+    try {
+      await expect
+        .poll(() => spaceShooterLaserInFlight(page), {
+          timeout: 4_000,
+          message: "holding Space should fire a laser into the band",
+        })
+        .toBe(true);
+    } finally {
+      await page.keyboard.up("Space");
+    }
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);
@@ -560,7 +717,7 @@ test.describe("space-shooter", () => {
 async function snakeHeadPos(
   page: Page,
 ): Promise<{ x: number; y: number } | null> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, head) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return null;
@@ -572,7 +729,13 @@ async function snakeHeadPos(
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (r > 60 && r < 110 && g > 200 && b > 90 && b < 170) {
+      if (
+        r > head.rMin &&
+        r < head.rMax &&
+        g > head.gMin &&
+        b > head.bMin &&
+        b < head.bMax
+      ) {
         const pixel = index / 4;
         sumX += pixel % target.width;
         sumY += Math.floor(pixel / target.width);
@@ -580,7 +743,7 @@ async function snakeHeadPos(
       }
     }
     return count > 0 ? { x: sumX / count, y: sumY / count } : null;
-  });
+  }, SNAKE_HEAD_GREEN);
 }
 
 /** The fruit is the only saturated orange sprite on the board; returns its
@@ -589,7 +752,7 @@ async function snakeHeadPos(
 async function snakeFruitPos(
   page: Page,
 ): Promise<{ x: number; y: number; count: number } | null> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, fruit) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return null;
@@ -601,7 +764,12 @@ async function snakeFruitPos(
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (r > 200 && g > 90 && g < 170 && b < 80) {
+      if (
+        r > fruit.rMin &&
+        g > fruit.gMin &&
+        g < fruit.gMax &&
+        b < fruit.bMax
+      ) {
         const pixel = index / 4;
         sumX += pixel % target.width;
         sumY += Math.floor(pixel / target.width);
@@ -609,7 +777,7 @@ async function snakeFruitPos(
       }
     }
     return count > 0 ? { x: sumX / count, y: sumY / count, count } : null;
-  });
+  }, SNAKE_FRUIT_ORANGE);
 }
 
 test.describe("snake", () => {
@@ -619,18 +787,23 @@ test.describe("snake", () => {
     const { errors, pageErrors } = collectPageErrors(page);
     await openExample(page, "snake");
     await expect(page).toHaveTitle("Snake");
-    expect(await canvasIsNonblank(page)).toBe(true);
+    expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
-    // The snake starts heading right; turning it downward and letting a
-    // couple of scheduled moves play out should move the head down rather
-    // than further right.
+    // The snake starts heading right; turning it downward and letting the
+    // scheduled moves play out should carry the head downward. Wait on the
+    // observed head position rather than sleeping.
     const before = await snakeHeadPos(page);
     expect(before).not.toBeNull();
     await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(500);
-    const after = await snakeHeadPos(page);
-    expect(after).not.toBeNull();
-    expect(after!.y).toBeGreaterThan(before!.y + 20);
+    await expect
+      .poll(
+        async () => {
+          const head = await snakeHeadPos(page);
+          return head ? head.y : Number.NEGATIVE_INFINITY;
+        },
+        { timeout: 4_000, message: "turning down should move the head down" },
+      )
+      .toBeGreaterThan(before!.y + SNAKE_MIN_TURN_PX);
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);
@@ -658,123 +831,141 @@ test.describe("snake", () => {
     // listener attaches to) turns the snake whenever the fruit is mostly
     // to one side of the head.
     await page.keyboard.press("ArrowDown");
-    await page.evaluate(() => {
-      function headPos(): { x: number; y: number } | null {
-        const canvas = document.querySelector(
-          "[data-jgz-example-canvas]",
-        ) as HTMLCanvasElement;
-        const context = canvas.getContext("2d", { willReadFrequently: true })!;
-        const data = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        ).data;
-        let sumX = 0;
-        let sumY = 0;
-        let count = 0;
-        for (let index = 0; index < data.length; index += 4) {
-          const r = data[index] ?? 0;
-          const g = data[index + 1] ?? 0;
-          const b = data[index + 2] ?? 0;
-          if (r > 60 && r < 110 && g > 200 && b > 90 && b < 170) {
-            const pixel = index / 4;
-            sumX += pixel % canvas.width;
-            sumY += Math.floor(pixel / canvas.width);
-            count += 1;
+    await page.evaluate(
+      (thresholds) => {
+        function headPos(): { x: number; y: number } | null {
+          const canvas = document.querySelector(
+            "[data-jgz-example-canvas]",
+          ) as HTMLCanvasElement;
+          const context = canvas.getContext("2d", {
+            willReadFrequently: true,
+          })!;
+          const data = context.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          ).data;
+          let sumX = 0;
+          let sumY = 0;
+          let count = 0;
+          for (let index = 0; index < data.length; index += 4) {
+            const r = data[index] ?? 0;
+            const g = data[index + 1] ?? 0;
+            const b = data[index + 2] ?? 0;
+            if (
+              r > thresholds.head.rMin &&
+              r < thresholds.head.rMax &&
+              g > thresholds.head.gMin &&
+              b > thresholds.head.bMin &&
+              b < thresholds.head.bMax
+            ) {
+              const pixel = index / 4;
+              sumX += pixel % canvas.width;
+              sumY += Math.floor(pixel / canvas.width);
+              count += 1;
+            }
           }
+          return count > 0 ? { x: sumX / count, y: sumY / count } : null;
         }
-        return count > 0 ? { x: sumX / count, y: sumY / count } : null;
-      }
-      function fruitPos(): { x: number; y: number } | null {
-        const canvas = document.querySelector(
-          "[data-jgz-example-canvas]",
-        ) as HTMLCanvasElement;
-        const context = canvas.getContext("2d", { willReadFrequently: true })!;
-        const data = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        ).data;
-        let sumX = 0;
-        let sumY = 0;
-        let count = 0;
-        for (let index = 0; index < data.length; index += 4) {
-          const r = data[index] ?? 0;
-          const g = data[index + 1] ?? 0;
-          const b = data[index + 2] ?? 0;
-          if (r > 200 && g > 90 && g < 170 && b < 80) {
-            const pixel = index / 4;
-            sumX += pixel % canvas.width;
-            sumY += Math.floor(pixel / canvas.width);
-            count += 1;
+        function fruitPos(): { x: number; y: number } | null {
+          const canvas = document.querySelector(
+            "[data-jgz-example-canvas]",
+          ) as HTMLCanvasElement;
+          const context = canvas.getContext("2d", {
+            willReadFrequently: true,
+          })!;
+          const data = context.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          ).data;
+          let sumX = 0;
+          let sumY = 0;
+          let count = 0;
+          for (let index = 0; index < data.length; index += 4) {
+            const r = data[index] ?? 0;
+            const g = data[index + 1] ?? 0;
+            const b = data[index + 2] ?? 0;
+            if (
+              r > thresholds.fruit.rMin &&
+              g > thresholds.fruit.gMin &&
+              g < thresholds.fruit.gMax &&
+              b < thresholds.fruit.bMax
+            ) {
+              const pixel = index / 4;
+              sumX += pixel % canvas.width;
+              sumY += Math.floor(pixel / canvas.width);
+              count += 1;
+            }
           }
+          return count > 0 ? { x: sumX / count, y: sumY / count } : null;
         }
-        return count > 0 ? { x: sumX / count, y: sumY / count } : null;
-      }
-      function press(code: string): void {
-        window.dispatchEvent(
-          new KeyboardEvent("keydown", { code, bubbles: true }),
-        );
-        window.dispatchEvent(
-          new KeyboardEvent("keyup", { code, bubbles: true }),
-        );
-      }
-      const WIDTH = 640;
-      const HEIGHT = 480;
-      const MARGIN = 64; // two grid cells - start turning before the wall
-      let lastKey = "ArrowDown";
-      let lastHead: { x: number; y: number } | null = null;
-      let stuckSince = Date.now();
-      const interval = window.setInterval(() => {
-        const head = headPos();
-        if (!head) return;
-        // This greedy autopilot has no path-planning, so an unlucky apple
-        // placement can occasionally run it into a wall or its own tail.
-        // If the head stops moving for a while, treat that as a death,
-        // restart, and keep going rather than stalling out the test.
-        if (
-          !lastHead ||
-          Math.abs(head.x - lastHead.x) > 2 ||
-          Math.abs(head.y - lastHead.y) > 2
-        ) {
-          lastHead = head;
-          stuckSince = Date.now();
-        } else if (Date.now() - stuckSince > 700) {
-          press("Space"); // restarts from the "dead" state
-          lastKey = "ArrowRight"; // matches the game's fresh heading
-          stuckSince = Date.now();
-          return;
+        function press(code: string): void {
+          window.dispatchEvent(
+            new KeyboardEvent("keydown", { code, bubbles: true }),
+          );
+          window.dispatchEvent(
+            new KeyboardEvent("keyup", { code, bubbles: true }),
+          );
         }
+        const WIDTH = 640;
+        const HEIGHT = 480;
+        const MARGIN = 64; // two grid cells - start turning before the wall
+        let lastKey = "ArrowDown";
+        let lastHead: { x: number; y: number } | null = null;
+        let stuckSince = Date.now();
+        const interval = window.setInterval(() => {
+          const head = headPos();
+          if (!head) return;
+          // This greedy autopilot has no path-planning, so an unlucky apple
+          // placement can occasionally run it into a wall or its own tail.
+          // If the head stops moving for a while, treat that as a death,
+          // restart, and keep going rather than stalling out the test.
+          if (
+            !lastHead ||
+            Math.abs(head.x - lastHead.x) > 2 ||
+            Math.abs(head.y - lastHead.y) > 2
+          ) {
+            lastHead = head;
+            stuckSince = Date.now();
+          } else if (Date.now() - stuckSince > 700) {
+            press("Space"); // restarts from the "dead" state
+            lastKey = "ArrowRight"; // matches the game's fresh heading
+            stuckSince = Date.now();
+            return;
+          }
 
-        const fruit = fruitPos();
-        if (!fruit) return;
-        let key = lastKey;
-        // Wall avoidance takes priority over beelining for the fruit.
-        if (lastKey === "ArrowRight" && head.x > WIDTH - MARGIN) {
-          key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
-        } else if (lastKey === "ArrowLeft" && head.x < MARGIN) {
-          key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
-        } else if (lastKey === "ArrowDown" && head.y > HEIGHT - MARGIN) {
-          key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
-        } else if (lastKey === "ArrowUp" && head.y < MARGIN) {
-          key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
-        } else {
-          const dx = fruit.x - head.x;
-          const dy = fruit.y - head.y;
-          if (Math.abs(dx) > 20) key = dx > 0 ? "ArrowRight" : "ArrowLeft";
-          else if (Math.abs(dy) > 20) key = dy > 0 ? "ArrowDown" : "ArrowUp";
-        }
-        if (key !== lastKey) {
-          press(key);
-          lastKey = key;
-        }
-      }, 120);
-      (
-        window as typeof window & { __jgzAutopilotStop?: () => void }
-      ).__jgzAutopilotStop = () => window.clearInterval(interval);
-    });
+          const fruit = fruitPos();
+          if (!fruit) return;
+          let key = lastKey;
+          // Wall avoidance takes priority over beelining for the fruit.
+          if (lastKey === "ArrowRight" && head.x > WIDTH - MARGIN) {
+            key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
+          } else if (lastKey === "ArrowLeft" && head.x < MARGIN) {
+            key = fruit.y > head.y ? "ArrowDown" : "ArrowUp";
+          } else if (lastKey === "ArrowDown" && head.y > HEIGHT - MARGIN) {
+            key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
+          } else if (lastKey === "ArrowUp" && head.y < MARGIN) {
+            key = fruit.x > head.x ? "ArrowRight" : "ArrowLeft";
+          } else {
+            const dx = fruit.x - head.x;
+            const dy = fruit.y - head.y;
+            if (Math.abs(dx) > 20) key = dx > 0 ? "ArrowRight" : "ArrowLeft";
+            else if (Math.abs(dy) > 20) key = dy > 0 ? "ArrowDown" : "ArrowUp";
+          }
+          if (key !== lastKey) {
+            press(key);
+            lastKey = key;
+          }
+        }, 120);
+        (
+          window as typeof window & { __jgzAutopilotStop?: () => void }
+        ).__jgzAutopilotStop = () => window.clearInterval(interval);
+      },
+      { head: SNAKE_HEAD_GREEN, fruit: SNAKE_FRUIT_ORANGE },
+    );
 
     await expect
       .poll(() => readStorageNumber(page, "highscore"), {
@@ -789,9 +980,15 @@ test.describe("snake", () => {
     );
     const scored = await readStorageNumber(page, "highscore");
 
-    // Auto-save is debounced; give it a moment, then reload and confirm
-    // the best score came back without the game ever calling save().
-    await page.waitForTimeout(500);
+    // Wait until the debounced auto-save has flushed the best score to
+    // localStorage, then reload and confirm it came back without the game
+    // ever calling save().
+    await expect
+      .poll(() => persistedStorageNumber(page, "snake", "highscore"), {
+        timeout: 5_000,
+        message: "the best score should be auto-saved to localStorage",
+      })
+      .toBeGreaterThanOrEqual(scored);
     await page.reload();
     await openExample(page, "snake");
     expect(await readStorageNumber(page, "highscore")).toBeGreaterThanOrEqual(
@@ -809,7 +1006,7 @@ test.describe("snake", () => {
 async function platformerPlayerPos(
   page: Page,
 ): Promise<{ x: number; y: number } | null> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
+  return exampleCanvas(page).evaluate((canvas, glass) => {
     const target = canvas as HTMLCanvasElement;
     const context = target.getContext("2d", { willReadFrequently: true });
     if (!context) return null;
@@ -821,7 +1018,14 @@ async function platformerPlayerPos(
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
-      if (r > 180 && r < 200 && g > 212 && g < 232 && b > 231 && b < 251) {
+      if (
+        r > glass.rMin &&
+        r < glass.rMax &&
+        g > glass.gMin &&
+        g < glass.gMax &&
+        b > glass.bMin &&
+        b < glass.bMax
+      ) {
         const pixel = index / 4;
         sumX += pixel % target.width;
         sumY += Math.floor(pixel / target.width);
@@ -829,7 +1033,7 @@ async function platformerPlayerPos(
       }
     }
     return count > 0 ? { x: sumX / count, y: sumY / count } : null;
-  });
+  }, PLATFORMER_HELMET_GLASS);
 }
 
 test.describe("platformer", () => {
@@ -837,18 +1041,28 @@ test.describe("platformer", () => {
     const { errors, pageErrors } = collectPageErrors(page);
     await openExample(page, "platformer");
     await expect(page).toHaveTitle("Platformer");
-    expect(await canvasIsNonblank(page)).toBe(true);
+    expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
     const before = await platformerPlayerPos(page);
     expect(before).not.toBeNull();
 
+    // Jump, then wait until the player has visibly risen (caught during the
+    // ascent by a tight poll interval) instead of sampling after a fixed
+    // delay.
     await page.keyboard.press("Space");
-    // Sampled before the jump's apex (roughly 400ms out, given this
-    // game's gravity/jump constants), so the player is still rising.
-    await page.waitForTimeout(200);
-    const after = await platformerPlayerPos(page);
-    expect(after).not.toBeNull();
-    expect(after!.y).toBeLessThan(before!.y - 20);
+    await expect
+      .poll(
+        async () => {
+          const pos = await platformerPlayerPos(page);
+          return pos ? pos.y : Number.POSITIVE_INFINITY;
+        },
+        {
+          intervals: [80],
+          timeout: 4_000,
+          message: "a jump should lift the player",
+        },
+      )
+      .toBeLessThan(before!.y - PLATFORMER_MIN_JUMP_PX);
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);
@@ -867,21 +1081,30 @@ test.describe("platformer", () => {
     const before = await platformerPlayerPos(page);
     expect(before).not.toBeNull();
 
+    // Hold right and hop on a steady cadence (a Space press only jumps when
+    // grounded -- coyote time gates it -- so spamming it mid-air is a no-op),
+    // waiting until the player has advanced past the first gap onto the
+    // platforms beyond it.
     await page.keyboard.down("ArrowRight");
-    for (let hop = 0; hop < 3; hop += 1) {
-      await page.waitForTimeout(320);
-      await page.keyboard.down("Space");
-      await page.waitForTimeout(60);
-      await page.keyboard.up("Space");
+    try {
+      await expect
+        .poll(
+          async () => {
+            await page.keyboard.press("Space");
+            const pos = await platformerPlayerPos(page);
+            return pos ? pos.x : Number.NEGATIVE_INFINITY;
+          },
+          {
+            intervals: [250],
+            timeout: 12_000,
+            message:
+              "running and hopping should carry the player across the gap",
+          },
+        )
+        .toBeGreaterThan(before!.x + PLATFORMER_MIN_ADVANCE_PX);
+    } finally {
+      await page.keyboard.up("ArrowRight");
     }
-    await page.waitForTimeout(500);
-    await page.keyboard.up("ArrowRight");
-
-    const after = await platformerPlayerPos(page);
-    expect(after).not.toBeNull();
-    // Crossing the first gap and stepping up onto the following platforms
-    // covers well over one tile's width (54px).
-    expect(after!.x).toBeGreaterThan(before!.x + 100);
 
     const status = await exampleStatus(page);
     expect(status.errors).toEqual([]);

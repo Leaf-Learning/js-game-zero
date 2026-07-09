@@ -14,27 +14,6 @@ import {
   type SandboxHandlerOptions,
 } from "./sandbox";
 
-const smokeFixturePage = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>js-game-zero Smoke Fixture</title>
-    <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #0d1117; color: white; }
-      main { min-height: 100vh; display: grid; place-items: center; gap: 16px; align-content: center; }
-      canvas { border: 1px solid #8b949e; image-rendering: pixelated; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>js-game-zero sandbox scaffold</h1>
-      <canvas data-jgz-smoke-canvas width="320" height="180"></canvas>
-    </main>
-    <script type="module" src="/test-fixtures/runtime.js"></script>
-  </body>
-</html>`;
-
 const coreSemanticsFixturePage = `<!doctype html>
 <html lang="en">
   <head>
@@ -368,11 +347,6 @@ async function productRouteResponse(url: URL): Promise<Response | null> {
 async function testFixtureRouteResponse(url: URL): Promise<Response | null> {
   if (url.pathname === "/test-fixtures/runtime.js") {
     return testFixtureRuntimeBundle();
-  }
-  if (url.pathname === "/fixtures/smoke") {
-    return new Response(smokeFixturePage, {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
   }
   if (url.pathname === "/fixtures/core-semantics") {
     return new Response(coreSemanticsFixturePage, {

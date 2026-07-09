@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { exampleManifest } from "../../examples/manifest";
+import {
+  canvasIsNonblank,
+  collectPageErrors,
+  waitForExampleStatus,
+  type ExampleStatus,
+} from "./fixtures/harness-helpers";
 
 /**
  * The examples themselves are plain teaching code with no test hooks.
@@ -9,67 +15,8 @@ import { exampleManifest } from "../../examples/manifest";
  * from reading canvas pixels directly.
  */
 
-type ExampleStatus = {
-  slug: string;
-  mode: string;
-  ready: boolean;
-  nonblank: boolean;
-  frames: number;
-  interactions: {
-    keyboard: boolean;
-    mouse: boolean;
-  };
-  storage?: Record<string, unknown>;
-  errors: string[];
-  diagnostics: unknown[];
-};
-
-function collectPageErrors(page: Page): {
-  errors: string[];
-  pageErrors: string[];
-} {
-  const errors: string[] = [];
-  const pageErrors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
-  });
-  page.on("pageerror", (error) => pageErrors.push(error.message));
-  return { errors, pageErrors };
-}
-
-async function waitForStatus(page: Page, slug: string): Promise<ExampleStatus> {
-  await page.waitForFunction(
-    (expectedSlug) => {
-      const status = (
-        window as typeof window & { __jgzExampleStatus?: ExampleStatus }
-      ).__jgzExampleStatus;
-      return status?.slug === expectedSlug && status.ready;
-    },
-    slug,
-    { timeout: 8_000 },
-  );
-  return page.evaluate(
-    () =>
-      (window as typeof window & { __jgzExampleStatus?: ExampleStatus })
-        .__jgzExampleStatus as ExampleStatus,
-  );
-}
-
 function numeric(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-async function visibleExampleCanvasIsNonblank(page: Page): Promise<boolean> {
-  return page.locator("[data-jgz-example-canvas]").evaluate((canvas) => {
-    const target = canvas as HTMLCanvasElement;
-    const context = target.getContext("2d", { willReadFrequently: true });
-    if (!context) return false;
-    const data = context.getImageData(0, 0, target.width, target.height).data;
-    for (let index = 3; index < data.length; index += 4) {
-      if (data[index] !== 0) return true;
-    }
-    return false;
-  });
 }
 
 /** Coarse whole-canvas fingerprint, used to detect that input visibly
@@ -130,10 +77,12 @@ for (const example of exampleManifest) {
     await page.goto(`/examples/${example.slug}`);
     await expect(page).toHaveTitle(example.title);
 
-    const initial = await waitForStatus(page, example.slug);
+    const initial = await waitForExampleStatus(page, example.slug);
     expect(initial.mode).toBe(example.mode);
     expect(initial.nonblank).toBe(true);
-    expect(await visibleExampleCanvasIsNonblank(page)).toBe(true);
+    expect(
+      await canvasIsNonblank(page.locator("[data-jgz-example-canvas]")),
+    ).toBe(true);
     expect(initial.frames).toBeGreaterThan(0);
     expect(initial.errors).toEqual([]);
     expect(initial.diagnostics).toEqual([]);
@@ -154,11 +103,11 @@ for (const example of exampleManifest) {
         { timeout: 5_000 },
       );
       const before = numeric(
-        (await waitForStatus(page, example.slug)).storage?.score,
+        (await waitForExampleStatus(page, example.slug)).storage?.score,
       );
       expect(before).toBeGreaterThan(0);
       await page.reload();
-      const reloaded = await waitForStatus(page, example.slug);
+      const reloaded = await waitForExampleStatus(page, example.slug);
       expect(numeric(reloaded.storage?.score)).toBeGreaterThan(before);
     }
 
@@ -190,7 +139,7 @@ for (const example of exampleManifest) {
       } finally {
         await page.keyboard.up("ArrowRight");
       }
-      const moved = await waitForStatus(page, example.slug);
+      const moved = await waitForExampleStatus(page, example.slug);
       expect(moved.interactions.keyboard).toBe(true);
     }
 
@@ -210,7 +159,7 @@ for (const example of exampleManifest) {
       }
     }
 
-    const finalStatus = await waitForStatus(page, example.slug);
+    const finalStatus = await waitForExampleStatus(page, example.slug);
     expect(finalStatus.errors).toEqual([]);
     expect(finalStatus.diagnostics).toEqual([]);
     expect(errors).toEqual([]);
