@@ -9,10 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  createSandboxServerHandler,
-  testFixtureServerHandler,
-} from "../src/server";
+import { createSandboxServerHandler } from "../src/server";
 import { normalizeSandboxRelativePath } from "../src/sandbox";
 
 let projectsRoot = "";
@@ -41,15 +38,19 @@ async function createProject(name = "demo_game"): Promise<void> {
 }
 
 describe("sandbox routes", () => {
-  test("health, project create/list/open, file read/write, and legacy routes work", async () => {
+  test("the health endpoint responds with ok", async () => {
     const health = await request("/api/health");
     expect(health.status).toBe(200);
     expect(await health.json()).toEqual({ ok: true });
+  });
 
+  test("the project list starts empty", async () => {
     const initial = await request("/api/projects");
     expect(initial.status).toBe(200);
     expect(await initial.json()).toEqual({ projects: [] });
+  });
 
+  test("creating a project lists it with its starter main.js", async () => {
     await createProject();
 
     const list = await request("/api/projects");
@@ -64,6 +65,10 @@ describe("sandbox routes", () => {
       project: "demo_game",
       path: "main.js",
     });
+  });
+
+  test("files can be written and read back from nested directories", async () => {
+    await createProject();
 
     const write = await request("/api/projects/demo_game/files/src/notes.md", {
       method: "PUT",
@@ -85,12 +90,6 @@ describe("sandbox routes", () => {
       path: "src/notes.md",
       content: "hello sandbox",
     });
-
-    const legacy = await testFixtureServerHandler(
-      new Request("http://localhost/fixtures/smoke"),
-    );
-    expect(legacy.status).toBe(200);
-    expect(await legacy.text()).toContain("data-jgz-smoke-canvas");
   });
 
   test("asset upload is binary-safe and asset reads are confined", async () => {
@@ -378,16 +377,6 @@ describe("sandbox routes", () => {
       "text/javascript",
     );
 
-    // @js-game-zero/browser-runtime is an honest thin re-export of core: the
-    // bundle it builds to has no fixture-harness code, just the package's
-    // script-tag entry attaching everything to `window.JGZ`.
-    const runtime = await request("/runtime/browser.js");
-    expect(runtime.status).toBe(200);
-    expect(runtime.headers.get("content-type")).toContain("text/javascript");
-    const runtimeSource = await runtime.text();
-    expect(runtimeSource).toContain("window.JGZ");
-    expect(runtimeSource).not.toContain("__jgz");
-
     const preview = await request("/play/demo_game");
     expect(preview.status).toBe(200);
     const previewHtml = await preview.text();
@@ -395,7 +384,7 @@ describe("sandbox routes", () => {
     expect(previewHtml).toContain('src="/client/preview.js"');
   });
 
-  test("legacy e2e fixture routes are gated behind testFixtures", async () => {
+  test("e2e fixture routes are gated behind testFixtures", async () => {
     // Default handler (as used by the real product server without
     // --test-fixtures / JGZ_TEST_FIXTURES=1): fixture pages/assets 404,
     // while real product routes keep working.
@@ -424,7 +413,7 @@ describe("sandbox routes", () => {
     expect(examples.status).toBe(200);
 
     // With testFixtures enabled (as playwright.config.ts's webServer command
-    // does via --test-fixtures), the legacy fixture pages/assets respond.
+    // does via --test-fixtures), the fixture pages/assets respond.
     const fixturesOn = createSandboxServerHandler({
       projectsRoot,
       testFixtures: true,

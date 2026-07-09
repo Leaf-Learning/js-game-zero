@@ -4,19 +4,10 @@ export function qs<T extends Element>(root: ParentNode, selector: string): T {
   return found;
 }
 
-export function qsOptional<T extends Element>(
-  root: ParentNode,
-  selector: string,
-): T | null {
-  return root.querySelector<T>(selector);
-}
-
 type ElementProps = {
   readonly className?: string;
   readonly text?: string;
-  readonly html?: string;
   readonly attrs?: Record<string, string | number | boolean | undefined>;
-  readonly dataset?: Record<string, string>;
   readonly onClick?: (event: MouseEvent) => void;
 };
 
@@ -28,16 +19,10 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   const node = document.createElement(tag);
   if (props.className) node.className = props.className;
   if (props.text !== undefined) node.textContent = props.text;
-  if (props.html !== undefined) node.innerHTML = props.html;
   if (props.attrs) {
     for (const [key, value] of Object.entries(props.attrs)) {
       if (value === undefined || value === false) continue;
       node.setAttribute(key, value === true ? "" : String(value));
-    }
-  }
-  if (props.dataset) {
-    for (const [key, value] of Object.entries(props.dataset)) {
-      node.dataset[key] = value;
     }
   }
   if (props.onClick) {
@@ -71,60 +56,20 @@ export function delegate<K extends keyof HTMLElementEventMap>(
   });
 }
 
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => {
-    switch (character) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#39;";
-    }
-  });
-}
-
-export function debounce<Args extends unknown[]>(
-  fn: (...args: Args) => void,
-  delayMs: number,
-): { (...args: Args): void; flush(): void; cancel(): void } {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let pending: Args | null = null;
-
-  const debounced = (...args: Args): void => {
-    pending = args;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      const toRun = pending;
-      pending = null;
-      if (toRun) fn(...toRun);
-    }, delayMs);
-  };
-
-  debounced.flush = (): void => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    const toRun = pending;
-    pending = null;
-    if (toRun) fn(...toRun);
-  };
-
-  debounced.cancel = (): void => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    pending = null;
-  };
-
-  return debounced;
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/**
+ * Shared project-name rule used by both the onboarding flow and the
+ * sidebar rename/create dialogs, so the pattern and copy stay in one place.
+ * The server enforces its own independent guard in src/sandbox.ts.
+ */
+export function validateProjectName(
+  value: string,
+  existing: readonly string[],
+): string | null {
+  if (value.length === 0) return "Give your project a name first.";
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(value)) {
+    return "Project names start with a lowercase letter and can only use lowercase letters, numbers, - and _.";
+  }
+  if (existing.includes(value))
+    return "You already have a project with that name.";
+  return null;
 }

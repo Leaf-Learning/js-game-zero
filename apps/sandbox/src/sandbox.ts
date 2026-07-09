@@ -52,7 +52,7 @@ export const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const CLIENT_DIR = join(REPO_ROOT, "apps/sandbox/client");
 
 const assetDirectories = new Set(["images", "sounds", "music", "fonts"]);
-// "rendering-fixture"/"asset-sync-fixture" are legacy fixture ids served by
+// "rendering-fixture"/"asset-sync-fixture" are e2e test-fixture ids served by
 // the two hardcoded routes in server.ts; every example slug that ships its
 // own assets/ directory is served at /assets/<slug>/... (see
 // exampleOwnAssetResponse in server.ts). Both must be excluded from the
@@ -923,7 +923,7 @@ function previewShellPage(project: string): string {
 </html>`;
 }
 
-function html(source: string): Response {
+export function html(source: string): Response {
   return new Response(source, {
     headers: { "content-type": "text/html; charset=utf-8" },
   });
@@ -955,7 +955,7 @@ function errorResponse(error: unknown): Response {
   );
 }
 
-function contentType(path: string): string {
+export function contentType(path: string): string {
   const extension = extname(path).toLowerCase();
   if (extension === ".js") return "text/javascript; charset=utf-8";
   if (extension === ".ts") return "text/typescript; charset=utf-8";

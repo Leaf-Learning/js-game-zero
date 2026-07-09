@@ -53,16 +53,6 @@ export type PreviewMessage =
   | {
       readonly source: "jgz-sandbox-preview";
       readonly project: string;
-      readonly type: "status";
-      readonly status: {
-        readonly ready: boolean;
-        readonly nonblank: boolean;
-        readonly frames: number;
-      };
-    }
-  | {
-      readonly source: "jgz-sandbox-preview";
-      readonly project: string;
       readonly type: "diagnostic";
       readonly diagnostic: Diagnostic;
     }

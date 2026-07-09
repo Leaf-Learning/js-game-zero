@@ -1,6 +1,6 @@
 import { assetSourceUrl } from "./api";
 import { confirmDialog, promptDialog } from "./dialogs";
-import { delegate, h, qs } from "./dom";
+import { delegate, h, qs, validateProjectName } from "./dom";
 import {
   assetKindOf,
   isAssetPath,
@@ -44,23 +44,6 @@ function validateFileName(
     return "That folder is for uploaded assets — use the Assets section below instead.";
   }
   if (existing.includes(value)) return "A file with that name already exists.";
-  return null;
-}
-
-function projectNamePattern(): RegExp {
-  return /^[a-z][a-z0-9_-]{0,63}$/;
-}
-
-function validateProjectName(
-  value: string,
-  existing: readonly string[],
-): string | null {
-  if (value.length === 0) return "Give your project a name first.";
-  if (!projectNamePattern().test(value)) {
-    return "Project names start with a lowercase letter and can only use lowercase letters, numbers, - and _.";
-  }
-  if (existing.includes(value))
-    return "You already have a project with that name.";
   return null;
 }
 

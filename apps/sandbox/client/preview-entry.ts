@@ -4,6 +4,7 @@ import {
   type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
+import { assetSourceUrl } from "./api";
 
 type ConsoleLevel = "log" | "info" | "warn" | "error";
 
@@ -117,38 +118,6 @@ canvas.addEventListener("blur", () =>
 );
 window.addEventListener("focus", () => canvas.focus());
 
-function canvasIsNonblank(): boolean {
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context || canvas.width === 0 || canvas.height === 0) return false;
-  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-  for (let index = 3; index < data.length; index += 4) {
-    if (data[index] !== 0) return true;
-  }
-  return false;
-}
-
-// Fix for the "clicks never register while a game runs" defect: the old
-// preview posted a status message on every animation frame, forcing the
-// parent to re-render its whole UI ~60x/sec. Status is now sampled and
-// posted on an interval well under the browser's click-registration risk
-// window (<=4Hz), decoupled from the render/game loop entirely.
-let frames = 0;
-let ready = false;
-function sampleStatus(): void {
-  frames += 1;
-  ready = ready || canvasIsNonblank();
-  post({ type: "status", status: { ready, nonblank: ready, frames } });
-}
-const statusInterval = window.setInterval(sampleStatus, 250);
-window.addEventListener("pagehide", () => window.clearInterval(statusInterval));
-
-function assetUrl(path: string): string {
-  return `/assets/${encodeURIComponent(project)}/${path
-    .split("/")
-    .map(encodeURIComponent)
-    .join("/")}`;
-}
-
 function loadImageSurface(path: string): Promise<SurfaceLike> {
   return new Promise((resolve, reject) => {
     const image = new window.Image();
@@ -160,7 +129,7 @@ function loadImageSurface(path: string): Promise<SurfaceLike> {
       () => reject(new Error(`Failed to preload ${path}`)),
       { once: true },
     );
-    image.src = assetUrl(path);
+    image.src = assetSourceUrl(project, path);
   });
 }
 
@@ -232,5 +201,3 @@ try {
 } catch (error) {
   postRuntimeErrorOnce(messageOf(error));
 }
-
-sampleStatus();

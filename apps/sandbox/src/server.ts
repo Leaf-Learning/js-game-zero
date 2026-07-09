@@ -7,7 +7,9 @@ import {
 } from "../../../examples/manifest";
 import {
   cachedBrowserBuild,
+  contentType,
   createSandboxHandler,
+  html,
   REPO_ROOT,
   type SandboxHandlerOptions,
 } from "./sandbox";
@@ -304,20 +306,6 @@ function examplePage(example: ExampleManifestEntry): string {
 </html>`;
 }
 
-async function runtimeBundle(): Promise<Response> {
-  try {
-    const build = await cachedBrowserBuild(
-      "runtime-browser",
-      join(REPO_ROOT, "packages/browser-runtime/src/browser.ts"),
-    );
-    return new Response(build.text, {
-      headers: { "content-type": build.contentType },
-    });
-  } catch {
-    return new Response("Failed to build runtime", { status: 500 });
-  }
-}
-
 async function coreRuntimeBundle(): Promise<Response> {
   try {
     const build = await cachedBrowserBuild(
@@ -356,11 +344,7 @@ async function testFixtureRuntimeBundle(): Promise<Response> {
  * (checked before this by the caller), the runnable examples, and the
  * runtime bundles they load. Always active, regardless of --test-fixtures. */
 async function productRouteResponse(url: URL): Promise<Response | null> {
-  if (url.pathname === "/api/health") {
-    return Response.json({ ok: true });
-  }
   if (url.pathname === "/runtime/core.js") return coreRuntimeBundle();
-  if (url.pathname === "/runtime/browser.js") return runtimeBundle();
   if (url.pathname === "/examples") {
     return html(examplesIndexPage());
   }
@@ -375,7 +359,7 @@ async function productRouteResponse(url: URL): Promise<Response | null> {
   return null;
 }
 
-/** Legacy e2e fixture pages (`/fixtures/*`) and their fixture-only asset
+/** e2e test-fixture pages (`/fixtures/*`) and their fixture-only asset
  * routes: these exist solely so tests/e2e specs can observe real browser
  * behavior through window.__jgz* globals (see
  * tests/e2e/fixtures/browser-harness.ts). Not part of the shipped product —
@@ -503,7 +487,7 @@ async function testFixtureHandler(
 }
 
 export type SandboxServerHandlerOptions = SandboxHandlerOptions & {
-  /** Enables the legacy `/fixtures/*` e2e fixture routes (see
+  /** Enables the `/fixtures/*` e2e test-fixture routes (see
    * testFixtureRouteResponse). Off by default so the product server never
    * serves test-only pages; playwright.config.ts's webServer command
    * passes `--test-fixtures` to turn them on for the e2e suite. */
@@ -522,16 +506,6 @@ export function createSandboxServerHandler(
     if (sandboxResponse) return sandboxResponse;
     return testFixtureHandler(request, testFixtures);
   };
-}
-
-export const testFixtureServerHandler = createSandboxServerHandler({
-  testFixtures: true,
-});
-
-function html(source: string): Response {
-  return new Response(source, {
-    headers: { "content-type": "text/html; charset=utf-8" },
-  });
 }
 
 async function exampleRouteResponse(
@@ -619,22 +593,6 @@ async function exampleOwnAssetResponse(
     `/assets/${slug}/`,
     `../../../examples/${slug}/assets`,
   );
-}
-
-function contentType(pathname: string): string {
-  if (pathname.endsWith(".svg")) return "image/svg+xml";
-  if (pathname.endsWith(".png")) return "image/png";
-  if (pathname.endsWith(".gif")) return "image/gif";
-  if (pathname.endsWith(".jpg") || pathname.endsWith(".jpeg"))
-    return "image/jpeg";
-  if (pathname.endsWith(".webp")) return "image/webp";
-  if (pathname.endsWith(".wav")) return "audio/wav";
-  if (pathname.endsWith(".ogg")) return "audio/ogg";
-  if (pathname.endsWith(".mp3")) return "audio/mpeg";
-  if (pathname.endsWith(".m4a")) return "audio/mp4";
-  if (pathname.endsWith(".woff")) return "font/woff";
-  if (pathname.endsWith(".woff2")) return "font/woff2";
-  return "application/octet-stream";
 }
 
 export function startSandboxServer(args = Bun.argv.slice(2)): void {

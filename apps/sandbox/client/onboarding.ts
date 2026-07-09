@@ -1,5 +1,5 @@
 import { promptDialog } from "./dialogs";
-import { h, qs } from "./dom";
+import { h, qs, validateProjectName } from "./dom";
 import type { ExampleSummary } from "./types";
 
 const INPUT_LABEL: Record<ExampleSummary["expectsInput"], string> = {
@@ -14,19 +14,6 @@ function suggestedName(slug: string, existing: readonly string[]): string {
   let index = 2;
   while (existing.includes(`${base}_${index}`)) index += 1;
   return `${base}_${index}`;
-}
-
-function validateProjectName(
-  value: string,
-  existing: readonly string[],
-): string | null {
-  if (value.length === 0) return "Give your project a name first.";
-  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(value)) {
-    return "Project names start with a lowercase letter and can only use lowercase letters, numbers, - and _.";
-  }
-  if (existing.includes(value))
-    return "You already have a project with that name.";
-  return null;
 }
 
 export type ExampleChoice = { readonly slug: string; readonly name: string };

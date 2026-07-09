@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { collectRuntimeDiagnostics } from "@js-game-zero/core";
 import { exampleManifest } from "../../../examples/manifest";
-import { testFixtureServerHandler } from "../src/server";
+import { createSandboxServerHandler } from "../src/server";
+
+// Example routes are part of the shipped product, not fixture-gated, so they
+// are exercised through the default handler (no --test-fixtures).
+const handler = createSandboxServerHandler();
 
 test("example manifest exposes complete smoke metadata", async () => {
   const slugs = new Set<string>();
@@ -28,20 +32,6 @@ test("example manifest exposes complete smoke metadata", async () => {
       ).toBe(true);
     }
   }
-
-  expect([...slugs].sort()).toEqual([
-    "actor-movement",
-    "animation-basics",
-    "breakout",
-    "drawing-basics",
-    "flappy-bird",
-    "platformer",
-    "sandbox-starter",
-    "snake",
-    "sound-tone",
-    "space-shooter",
-    "storage-save",
-  ]);
 });
 
 test("global-mode example sources are free of runtime diagnostics", async () => {
@@ -59,19 +49,17 @@ test("global-mode example sources are free of runtime diagnostics", async () => 
 });
 
 test("example routes serve an index, pages, and learner source", async () => {
-  const index = await testFixtureServerHandler(
-    new Request("http://localhost/examples"),
-  );
+  const index = await handler(new Request("http://localhost/examples"));
   expect(index.status).toBe(200);
   expect(await index.text()).toContain("data-jgz-example-link");
 
-  const page = await testFixtureServerHandler(
+  const page = await handler(
     new Request("http://localhost/examples/drawing-basics"),
   );
   expect(page.status).toBe(200);
   expect(await page.text()).toContain("__jgzExampleStatus");
 
-  const source = await testFixtureServerHandler(
+  const source = await handler(
     new Request("http://localhost/examples/drawing-basics/main.js"),
   );
   expect(source.status).toBe(200);

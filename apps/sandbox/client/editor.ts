@@ -1,6 +1,6 @@
 import { indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
-import { Compartment, EditorState } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 
@@ -42,9 +42,6 @@ const editorTheme = EditorView.theme(
 export type EditorHandle = {
   setValue(content: string): void;
   getValue(): string;
-  setReadOnly(readOnly: boolean): void;
-  focus(): void;
-  destroy(): void;
 };
 
 export type EditorOptions = {
@@ -57,7 +54,6 @@ export function createEditor(
   options: EditorOptions,
 ): EditorHandle {
   let suppressChange = false;
-  const readOnlyCompartment = new Compartment();
 
   const view = new EditorView({
     parent: container,
@@ -67,7 +63,6 @@ export function createEditor(
         basicSetup,
         javascript(),
         editorTheme,
-        readOnlyCompartment.of(EditorState.readOnly.of(false)),
         keymap.of([
           indentWithTab,
           {
@@ -97,19 +92,6 @@ export function createEditor(
     },
     getValue(): string {
       return view.state.doc.toString();
-    },
-    setReadOnly(readOnly: boolean): void {
-      view.dispatch({
-        effects: readOnlyCompartment.reconfigure(
-          EditorState.readOnly.of(readOnly),
-        ),
-      });
-    },
-    focus(): void {
-      view.focus();
-    },
-    destroy(): void {
-      view.destroy();
     },
   };
 }
