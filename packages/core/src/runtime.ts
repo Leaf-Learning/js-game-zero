@@ -44,6 +44,7 @@ import {
   type StorageAdapter,
 } from "./storage";
 import { tone } from "./tone";
+import { imageExtensions, levenshtein, soundExtensions } from "./util";
 
 export type GameModule = InputHooks & {
   readonly WIDTH?: number;
@@ -165,33 +166,6 @@ const moduleOptionNames = [...configurationNames, ...hookNames] as const;
 const constantNames = new Set<string>(configurationNames);
 const hookNameSet = new Set<string>(hookNames);
 
-const documentedGlobalNames = [
-  ...moduleOptionNames,
-  "run",
-  "exit",
-  "Actor",
-  "Animation",
-  "animate",
-  "Rect",
-  "ZRect",
-  "Screen",
-  "screen",
-  "clock",
-  "Clock",
-  "keyboard",
-  "KeyboardState",
-  "keys",
-  "keymods",
-  "mouse",
-  "images",
-  "sounds",
-  "music",
-  "createBrowserSoundAsset",
-  "tone",
-  "storage",
-  "Storage",
-] as const;
-
 const builtinGlobals: Record<string, unknown> = {
   Array,
   Boolean,
@@ -234,7 +208,6 @@ export function run(
     module = withRuntimeContext(context, () =>
       executeZeroBoilerplateSource(String(moduleOrSource), context, emit),
     );
-    context = finalizeRuntimeContext(context, module, options, emit);
   } else {
     module = moduleOrSource as GameModule;
     context = createRuntimeContext(options, diagnostics, emit, module);
@@ -423,16 +396,6 @@ function createRuntimeContext(
     storageReady,
     autosave,
   };
-}
-
-function finalizeRuntimeContext(
-  context: RuntimeContext,
-  module: GameModule,
-  _options: RunOptions,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): RuntimeContext {
-  applyCanvasConfiguration(context.canvas, module, emit);
-  return context;
 }
 
 function executeZeroBoilerplateSource(
@@ -889,17 +852,13 @@ function diagnoseAssetName(
 ): void {
   const extension = name.split(".").at(-1)?.toLowerCase();
   const kind =
-    extension &&
-    ["png", "gif", "jpg", "jpeg", "bmp", "webp", "svg"].includes(extension)
+    extension && imageExtensions.includes(extension)
       ? "image"
-      : extension && ["wav", "ogg", "mp3", "m4a"].includes(extension)
+      : extension && soundExtensions.includes(extension)
         ? "sound"
         : null;
   if (!kind) return;
-  const extensions =
-    kind === "image"
-      ? ["png", "gif", "jpg", "jpeg", "bmp", "webp", "svg"]
-      : ["wav", "ogg", "mp3", "m4a"];
+  const extensions = kind === "image" ? imageExtensions : soundExtensions;
   try {
     validateAssetName(kind, name, extensions);
   } catch (error) {
@@ -1181,31 +1140,9 @@ function closestName(
   return best?.name;
 }
 
-function levenshtein(a: string, b: string): number {
-  const previous = Array.from(
-    { length: b.length + 1 },
-    (_value, index) => index,
-  );
-  const current = Array.from({ length: b.length + 1 }, () => 0);
-  for (let i = 1; i <= a.length; i += 1) {
-    current[0] = i;
-    for (let j = 1; j <= b.length; j += 1) {
-      current[j] = Math.min(
-        (previous[j] ?? 0) + 1,
-        (current[j - 1] ?? 0) + 1,
-        (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-    }
-    for (let j = 0; j < previous.length; j += 1) previous[j] = current[j] ?? 0;
-  }
-  return previous[b.length] ?? 0;
-}
-
 function stripCommentsAndStrings(source: string): string {
   return source.replaceAll(
     /\/\*[\s\S]*?\*\/|\/\/.*$|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/gm,
     " ",
   );
 }
-
-export const documentedGlobals = Object.freeze([...documentedGlobalNames]);

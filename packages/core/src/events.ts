@@ -1,7 +1,7 @@
 import { type Point } from "./geometry";
 import { KeyboardState, keymods, keys, mouse } from "./input";
 
-export type HookArgs = Record<string, unknown>;
+type HookArgs = Record<string, unknown>;
 export type Hook = (...args: unknown[]) => void;
 
 export type InputHooks = {

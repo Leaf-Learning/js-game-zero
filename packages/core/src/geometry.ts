@@ -1,3 +1,10 @@
+import {
+  isFiniteNumber,
+  isPair,
+  requireFiniteNumber,
+  requirePoint,
+} from "./util";
+
 export type Point = [number, number];
 export type Size = [number, number];
 export type RectTuple = [number, number, number, number];
@@ -575,26 +582,7 @@ function parseOffset(
 }
 
 function parsePair(value: unknown, label: string): Point {
-  if (isPair(value)) return [value[0], value[1]];
-  throw new TypeError(`${label} must be a two-number tuple.`);
-}
-
-function requireFiniteNumber(value: unknown, label: string): number {
-  if (isFiniteNumber(value)) return value;
-  throw new TypeError(`${label} must be a finite number.`);
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function isPair(value: unknown): value is PairLike {
-  return (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    isFiniteNumber(value[0]) &&
-    isFiniteNumber(value[1])
-  );
+  return requirePoint(value, label);
 }
 
 function isRectTuple(

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   KeyboardState,
-  keyName,
   keymods,
   keys,
   keyboard,
@@ -15,7 +14,6 @@ describe("keyboard constants and state", () => {
     expect(keys.K_0).toBe(48);
     expect(keys.LEFT).toBeNumber();
     expect(keys.ENTER).toBe(keys.RETURN);
-    expect(keyName(keys.LEFT)).toBe("LEFT");
     expect(state.a).toBe(false);
     state.press(keys.A);
     state.press(keys.RETURN);
@@ -38,7 +36,6 @@ describe("keyboard constants and state", () => {
     state.clear();
     expect(state.space).toBe(false);
     expect(() => state.press(999_999)).toThrow(TypeError);
-    expect(() => keyName(999_999)).toThrow(TypeError);
   });
 
   test("unknown keyboard attributes throw, matching pgzero's AttributeError, without masking methods", () => {

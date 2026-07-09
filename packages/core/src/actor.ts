@@ -6,6 +6,15 @@ import {
   type Point,
   type RectLike,
 } from "./geometry";
+import {
+  clamp,
+  horizontalAnchorOffset,
+  isPair,
+  rectPositionKeys,
+  requireFiniteNumber,
+  requirePoint,
+  verticalAnchorOffset,
+} from "./util";
 import { getScreen, type Screen } from "./rendering";
 
 export type ActorAnchor = readonly [
@@ -45,18 +54,7 @@ type ActorPositionSource = {
   readonly value: Point;
 };
 
-const positionKeys = [
-  "pos",
-  "topleft",
-  "topright",
-  "bottomleft",
-  "bottomright",
-  "midtop",
-  "midleft",
-  "midright",
-  "midbottom",
-  "center",
-] as const;
+const positionKeys = ["pos", ...rectPositionKeys] as const;
 
 const allowedOptionKeys = new Set<string>([
   ...positionKeys,
@@ -116,7 +114,7 @@ export class Actor {
     pos?: Point | ActorOptions,
     options: ActorOptions = {},
   ) {
-    const hasExplicitPos = isPoint(pos);
+    const hasExplicitPos = isPair(pos);
     const resolvedOptions = hasExplicitPos
       ? options
       : ({ ...(pos as ActorOptions | undefined), ...options } as ActorOptions);
@@ -594,53 +592,6 @@ function normalizeAnchor(value: ActorAnchor): ActorAnchor {
   return [value[0], value[1]];
 }
 
-function horizontalAnchorOffset(
-  value: HorizontalActorAnchor | number,
-  width: number,
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value === "left") return 0;
-  if (value === "center" || value === "middle") return width / 2;
-  if (value === "right") return width;
-  throw new TypeError("invalid horizontal anchor.");
-}
-
-function verticalAnchorOffset(
-  value: VerticalActorAnchor | number,
-  height: number,
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value === "top") return 0;
-  if (value === "center" || value === "middle") return height / 2;
-  if (value === "bottom") return height;
-  throw new TypeError("invalid vertical anchor.");
-}
-
 function actorTargetPoint(target: Actor | Point): Point {
   return target instanceof Actor ? target.pos : requirePoint(target, "target");
-}
-
-function requirePoint(value: unknown, label: string): Point {
-  if (isPoint(value)) return [value[0], value[1]];
-  throw new TypeError(`${label} must be a two-number tuple.`);
-}
-
-function isPoint(value: unknown): value is Point {
-  return (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    typeof value[0] === "number" &&
-    Number.isFinite(value[0]) &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[1])
-  );
-}
-
-function requireFiniteNumber(value: unknown, label: string): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  throw new TypeError(`${label} must be a finite number.`);
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
 }

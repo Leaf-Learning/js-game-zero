@@ -1,5 +1,12 @@
 import { createBrowserSoundAsset } from "./audio";
 import { Rect, type Point, type RectLike } from "./geometry";
+import {
+  imageExtensions,
+  isPair,
+  rectPositionKeys,
+  requirePoint,
+  soundExtensions,
+} from "./util";
 
 export type AssetKind = "image" | "sound" | "music" | "font";
 
@@ -100,20 +107,6 @@ type PositionKey =
   | "midbottom"
   | "center";
 
-const positionKeys = [
-  "topleft",
-  "topright",
-  "bottomleft",
-  "bottomright",
-  "midtop",
-  "midleft",
-  "midright",
-  "midbottom",
-  "center",
-] as const;
-
-const imageExtensions = ["png", "gif", "jpg", "jpeg", "bmp", "webp", "svg"];
-const soundExtensions = ["wav", "ogg", "mp3", "m4a"];
 const fontExtensions = ["ttf", "otf", "woff", "woff2"];
 
 export class MissingAssetError extends Error {
@@ -773,27 +766,13 @@ async function fetchBytes(url: string): Promise<ArrayBuffer> {
 }
 
 function applyRectPosition(rect: Rect, options: SurfaceRectOptions): void {
-  const keys = positionKeys.filter((key) => options[key] !== undefined);
+  const keys = rectPositionKeys.filter((key) => options[key] !== undefined);
   if (keys.length > 1) {
     throw new TypeError("get_rect accepts at most one position keyword.");
   }
   const key = keys[0];
   if (!key) return;
   rect[key] = requirePoint(options[key], key);
-}
-
-function requirePoint(value: unknown, label: string): Point {
-  if (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    typeof value[0] === "number" &&
-    Number.isFinite(value[0]) &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[1])
-  ) {
-    return [value[0], value[1]];
-  }
-  throw new TypeError(`${label} must be a two-number tuple.`);
 }
 
 function requirePositiveDimension(value: unknown, label: string): number {
@@ -804,17 +783,6 @@ function requirePositiveDimension(value: unknown, label: string): number {
 }
 
 export function rectFromBlitTarget(target: Point | RectLike): Rect | Point {
-  if (isPoint(target)) return [target[0], target[1]];
+  if (isPair(target)) return [target[0], target[1]];
   return new Rect(target);
-}
-
-function isPoint(value: unknown): value is Point {
-  return (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    typeof value[0] === "number" &&
-    Number.isFinite(value[0]) &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[1])
-  );
 }

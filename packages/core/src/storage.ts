@@ -1,3 +1,5 @@
+import { isPromiseLike } from "./util";
+
 export type JsonValue =
   | null
   | boolean
@@ -434,14 +436,6 @@ function isMissingFileError(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: unknown }).code === "ENOENT"
-  );
-}
-
-function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { then?: unknown }).then === "function"
   );
 }
 

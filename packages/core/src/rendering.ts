@@ -7,6 +7,14 @@ import {
   type SurfaceLike,
 } from "./assets";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
+import {
+  clamp,
+  horizontalAnchorOffset,
+  rectPositionKeys,
+  requireFiniteNumber,
+  requirePoint,
+  verticalAnchorOffset,
+} from "./util";
 
 export type Color =
   | string
@@ -119,18 +127,7 @@ type TextPositionKey =
   | "midbottom"
   | "center";
 
-const textPositionKeys = [
-  "pos",
-  "topleft",
-  "topright",
-  "bottomleft",
-  "bottomright",
-  "midtop",
-  "midleft",
-  "midright",
-  "midbottom",
-  "center",
-] as const;
+const textPositionKeys = ["pos", ...rectPositionKeys] as const;
 
 let currentScreen: Screen | null = null;
 
@@ -329,7 +326,7 @@ export class Screen {
     options: TextOptions,
   ): void {
     const layout = layoutText(this.context, text, pos, options);
-    renderTextLayout(this.context, String(text), layout, options);
+    renderTextLayout(this.context, layout, options);
   }
 
   private drawTextbox(
@@ -357,7 +354,7 @@ export class Screen {
       lineheight: fit.lineHeight,
       anchor,
     });
-    renderTextLayout(this.context, String(text), layout, options);
+    renderTextLayout(this.context, layout, options);
   }
 }
 
@@ -499,11 +496,9 @@ export function fitTextboxFontSize(
 
 function renderTextLayout(
   context: CanvasRenderingContext2D,
-  text: string,
   layout: TextLayout,
   options: TextOptions,
 ): void {
-  void text;
   const angle = options.angle ?? 0;
   context.save();
   context.globalAlpha *= layout.alpha;
@@ -843,28 +838,6 @@ function anchorOffsetFor(
   throw new TypeError("anchor must be a known string or two-item tuple.");
 }
 
-function horizontalAnchorOffset(
-  value: number | HorizontalAnchor,
-  width: number,
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value === "left") return 0;
-  if (value === "center" || value === "middle") return width / 2;
-  if (value === "right") return width;
-  throw new TypeError("invalid horizontal anchor.");
-}
-
-function verticalAnchorOffset(
-  value: number | VerticalAnchor,
-  height: number,
-): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value === "top") return 0;
-  if (value === "center" || value === "middle") return height / 2;
-  if (value === "bottom") return height;
-  throw new TypeError("invalid vertical anchor.");
-}
-
 function lineBaseX(
   originX: number,
   width: number,
@@ -1007,32 +980,9 @@ function measureWithFont(
   return width;
 }
 
-function requirePoint(value: unknown, label: string): Point {
-  if (
-    Array.isArray(value) &&
-    value.length === 2 &&
-    typeof value[0] === "number" &&
-    Number.isFinite(value[0]) &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[1])
-  ) {
-    return [value[0], value[1]];
-  }
-  throw new TypeError(`${label} must be a two-number tuple.`);
-}
-
 function requirePositiveNumber(value: unknown, label: string): number {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return value;
   }
   throw new TypeError(`${label} must be a positive finite number.`);
-}
-
-function requireFiniteNumber(value: unknown, label: string): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  throw new TypeError(`${label} must be a finite number.`);
-}
-
-function clamp(value: number, minimum: number, maximum: number): number {
-  return Math.min(maximum, Math.max(minimum, value));
 }

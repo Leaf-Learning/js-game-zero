@@ -167,11 +167,6 @@ export const mouse = Object.freeze({
   WHEEL_DOWN: 5,
 });
 
-const keyNamesByValue = new Map<number, string>();
-for (const [name, value] of Object.entries(keys)) {
-  if (!keyNamesByValue.has(value)) keyNamesByValue.set(value, name);
-}
-
 const keyValues = new Set<number>(Object.values(keys));
 const keyCodesByAttribute = new Map<string, number>();
 for (const [name, value] of Object.entries(keys)) {
@@ -256,10 +251,6 @@ export class KeyboardState {
     return this._pressed.has(key);
   }
 
-  get(key: number): boolean {
-    return this.isPressed(key);
-  }
-
   pressed(): number[] {
     return [...this._pressed].sort((a, b) => a - b);
   }
@@ -302,11 +293,6 @@ export function assertKeyConstant(value: unknown): asserts value is number {
   if (!isKeyConstant(value)) {
     throw new TypeError(`Invalid key constant: ${String(value)}`);
   }
-}
-
-export function keyName(value: number): string | undefined {
-  assertKeyConstant(value);
-  return keyNamesByValue.get(value);
 }
 
 export function keyAttributeName(name: string): string {

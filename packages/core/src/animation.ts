@@ -2,6 +2,7 @@
 // module (LGPL-3.0), which in turn credits: "Easing Functions ported from
 // the Clutter Project via kivy.org".
 import { Clock, clock } from "./clock";
+import { levenshtein } from "./util";
 
 export type TweenName = keyof typeof tweens;
 
@@ -347,20 +348,4 @@ function outBounce(n: number): number {
   }
   const p = n - 2.625 / 2.75;
   return 7.5625 * p * p + 0.984375;
-}
-
-function levenshtein(a: string, b: string): number {
-  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-  for (let i = 0; i < a.length; i += 1) {
-    const current = [i + 1];
-    for (let j = 0; j < b.length; j += 1) {
-      current[j + 1] = Math.min(
-        (current[j] ?? 0) + 1,
-        (previous[j + 1] ?? 0) + 1,
-        (previous[j] ?? 0) + (a[i] === b[j] ? 0 : 1),
-      );
-    }
-    previous.splice(0, previous.length, ...current);
-  }
-  return previous[b.length] ?? 0;
 }

@@ -5,6 +5,7 @@ import {
   type MusicAsset,
   type SoundAsset,
 } from "./assets";
+import { isPromiseLike } from "./util";
 
 export type AudioElementLike = {
   src: string;
@@ -34,10 +35,6 @@ export class AudioUnlockState {
 
   mark_unlocked(): void {
     this.unlocked = true;
-  }
-
-  reset(): void {
-    this.unlocked = false;
   }
 }
 
@@ -558,15 +555,6 @@ function createHtmlAudioElement(url: string): AudioElementLike {
 function requireLoopCount(loops: number): number {
   if (Number.isInteger(loops) && loops >= -1) return loops;
   throw new RangeError("loops must be an integer greater than or equal to -1.");
-}
-
-function isPromiseLike(value: unknown): value is PromiseLike<void> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof (value as { then: unknown }).then === "function"
-  );
 }
 
 function errorMessage(error: unknown): string {
