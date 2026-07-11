@@ -9,9 +9,15 @@ import {
   Animation,
   Actor,
   Clock,
-  InputDispatcher,
   KeyboardState,
   Screen,
+  keys,
+  mouse,
+  tone,
+  type MusicAsset,
+} from "@js-game-zero/core";
+import {
+  InputDispatcher,
   createAssetLoaders,
   createBrowserSoundAsset,
   createLocalStorageAdapter,
@@ -19,12 +25,8 @@ import {
   createMusicPlayer,
   createStorage,
   fitTextboxFontSize,
-  keys,
   layoutText,
-  mouse,
-  tone,
-  type MusicAsset,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 declare global {
   interface Window {

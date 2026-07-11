@@ -2,6 +2,40 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Reliability
+
+- Sandbox saves now validate server responses, serialize/coalesce writes,
+  preserve dirty content after failure, and block navigation/play/destructive
+  actions until acknowledged. Project writes are atomic and example clones are
+  staged before publication.
+- Runtime failures now have deterministic phase-tagged lifecycle semantics,
+  awaited disposal, per-run asset/storage/input/audio isolation, and reliable
+  startup/late-asset cleanup. Music loads are generation-cancelable, storage
+  initializes through one sync or async path, and input state clears on focus
+  loss/outside release.
+- Learner previews now run on a separate read-only origin with validated
+  cross-window messages and narrowly scoped asset/source access.
+
+### API and packaging
+
+- Added the typed `defineGame()` API and expanded `GameHandle` with
+  `state`, `failure`, `done`, `dispose()`, and `restart()`.
+- Added compiled ESM/declaration packages plus explicit
+  `@js-game-zero/core/host` and `@js-game-zero/core/node` entry points.
+  Browser-runtime ESM is now a small core facade; only its IIFE bundles core.
+- Curated and locked public export manifests. Browser-safe advanced root
+  imports remain as deprecated compatibility aliases through 0.2.
+
+### Verification
+
+- Added deterministic sandbox client/runtime race and cleanup tests, packed
+  consumer type/import checks, Chromium ESM/IIFE smoke tests, bundle budgets,
+  Node-builtin rejection, and per-subsystem coverage gates.
+- CI now rejects focused and flaky Playwright tests while retaining one retry
+  for trace collection.
+
 ## 0.1.0 — Initial release
 
 The first complete release of `js-game-zero`: a Pygame Zero-inspired,

@@ -5,11 +5,11 @@ import {
   Rect,
   ZRect,
   angleTo,
-  createImageLoader,
   distanceTo,
   type DrawableImage,
   type RectTuple,
 } from "@js-game-zero/core";
+import { createImageLoader } from "@js-game-zero/core/host";
 
 describe("Rect construction and position properties", () => {
   test("accepts supported constructor shapes and rejects invalid shapes", () => {

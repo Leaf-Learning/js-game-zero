@@ -169,6 +169,25 @@ describe("Clock scheduling", () => {
     expect(tickCalls).toBe(0);
   });
 
+  test("clear called inside an active interval cancels that interval before it can be requeued", () => {
+    const clock = new Clock();
+    let intervalCalls = 0;
+    let laterCalls = 0;
+    clock.schedule_interval(() => {
+      intervalCalls += 1;
+      clock.clear();
+    }, 0.1);
+    clock.schedule(() => {
+      laterCalls += 1;
+    }, 0.2);
+
+    clock.tick(1);
+    clock.tick(1);
+
+    expect(intervalCalls).toBe(1);
+    expect(laterCalls).toBe(0);
+  });
+
   test("now() starts at 0 and advances by the sum of tick(dt) calls", () => {
     const clock = new Clock();
     expect(clock.now()).toBe(0);

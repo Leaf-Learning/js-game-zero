@@ -1,10 +1,12 @@
 import { h, qs } from "./dom";
+import { isPreviewMessage } from "../shared/contracts";
 import type { PreviewMessage, PreviewStatusKind } from "./types";
 
 export type PreviewCallbacks = {
   readonly onMessage: (message: PreviewMessage) => void;
   readonly onPlayRequested: () => void;
   readonly onRestartRequested: () => void;
+  readonly previewOrigin?: string;
 };
 
 export type PreviewHandle = {
@@ -22,6 +24,21 @@ const STATUS_LABEL: Record<PreviewStatusKind, string> = {
   error: "Something went wrong",
 };
 
+export function previewMessageFromEvent(
+  event: Pick<MessageEvent<unknown>, "data" | "origin" | "source">,
+  expectedSource: MessageEventSource | null,
+  expectedOrigin: string,
+  activeProject: string | null,
+): PreviewMessage | null {
+  if (event.origin !== expectedOrigin || event.source !== expectedSource) {
+    return null;
+  }
+  if (!isPreviewMessage(event.data) || event.data.project !== activeProject) {
+    return null;
+  }
+  return event.data;
+}
+
 export function createPreview(
   root: HTMLElement,
   callbacks: PreviewCallbacks,
@@ -37,6 +54,10 @@ export function createPreview(
   let activeProject: string | null = null;
   let selectedProject: string | null = null;
   let running = false;
+  const previewOrigin = new URL(
+    callbacks.previewOrigin ?? window.location.origin,
+    window.location.href,
+  ).origin;
 
   function setStatus(kind: PreviewStatusKind): void {
     statusPill.textContent = STATUS_LABEL[kind];
@@ -62,12 +83,17 @@ export function createPreview(
 
   function mountFrame(project: string): void {
     teardownFrame();
+    const source = new URL(
+      `/play/${encodeURIComponent(project)}`,
+      previewOrigin,
+    );
+    source.searchParams.set("v", String(Date.now()));
     const frame = h("iframe", {
       className: "preview-frame",
       attrs: {
         title: "Game preview",
         "data-jgz-preview": "",
-        src: `/play/${encodeURIComponent(project)}?v=${Date.now()}`,
+        src: source.href,
       },
     });
     frameHost.append(frame);
@@ -105,9 +131,13 @@ export function createPreview(
   restartButton.addEventListener("click", () => callbacks.onRestartRequested());
 
   window.addEventListener("message", (event) => {
-    const data = event.data as PreviewMessage | undefined;
-    if (!data || data.source !== "jgz-sandbox-preview") return;
-    if (data.project !== activeProject) return;
+    const data = previewMessageFromEvent(
+      event,
+      iframe?.contentWindow ?? null,
+      previewOrigin,
+      activeProject,
+    );
+    if (!data) return;
     if (data.type === "focus-changed") {
       showOverlay(!data.focused);
       return;

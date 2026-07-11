@@ -1,16 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { chromium } from "@playwright/test";
+import { ImageSurface, Screen, type SurfaceLike } from "@js-game-zero/core";
 import {
-  ImageSurface,
-  Screen,
   createImageLoader,
   getScreen,
   normalizeColor,
   setScreen,
   type CanvasLike,
   type DrawableImage,
-  type SurfaceLike,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 type Operation = { name: string; args: unknown[] };
 
@@ -297,6 +295,18 @@ describe("Screen canvas drawing", () => {
     expect(() => screen.draw.filled_rect([1, 2] as never, "red")).toThrow(
       TypeError,
     );
+  });
+
+  test("restores saved canvas state when a drawing operation throws", () => {
+    const { screen, context } = mockScreen();
+
+    expect(() => screen.draw.line([0, 0], [1, 1], [999, 0, 0])).toThrow(
+      TypeError,
+    );
+    expect(context.operations.map((operation) => operation.name)).toEqual([
+      "save",
+      "restore",
+    ]);
   });
 
   test("blits surfaces and cached image names", async () => {

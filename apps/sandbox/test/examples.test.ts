@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { collectRuntimeDiagnostics } from "@js-game-zero/core";
+import { collectRuntimeDiagnostics } from "@js-game-zero/core/host";
 import { exampleManifest } from "../../../examples/manifest";
 import { createSandboxServerHandler } from "../src/server";
 

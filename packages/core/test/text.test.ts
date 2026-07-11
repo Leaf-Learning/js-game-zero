@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { Screen, fonts, type FontAsset } from "@js-game-zero/core";
 import {
-  Screen,
   fitTextboxFontSize,
-  fonts,
   layoutText,
   type CanvasLike,
-  type FontAsset,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 type Operation = { name: string; args: unknown[] };
 
@@ -150,6 +148,21 @@ describe("draw.text layout", () => {
     expect(centeredWithAnchor.anchorOffset).toEqual([25, 6]);
     expect(topRightWithAnchor.topLeft).toEqual([20, 20]);
     expect(topRightWithAnchor.anchorOffset).toEqual([30, 6]);
+  });
+
+  test("restores the previous canvas font when layout measurement throws", () => {
+    const context = new MockContext();
+    context.font = "13px serif";
+
+    expect(() =>
+      layoutText(
+        context as unknown as CanvasRenderingContext2D,
+        "cannot wrap",
+        [0, 0],
+        { fontsize: 20, width: 0 },
+      ),
+    ).toThrow(TypeError);
+    expect(context.font).toBe("13px serif");
   });
 
   test("draws background, shadow, outline, gradient, and rotation", () => {

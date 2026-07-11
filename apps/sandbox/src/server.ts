@@ -14,84 +14,6 @@ import {
   type SandboxHandlerOptions,
 } from "./sandbox";
 
-const coreSemanticsFixturePage = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>js-game-zero Core Semantics Fixture</title>
-    <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #101417; color: white; }
-      main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
-      canvas { border: 1px solid #8b949e; background: #17212b; outline: 2px solid transparent; }
-      canvas:focus { outline-color: #67d4ff; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>js-game-zero core semantics fixture</h1>
-      <canvas data-jgz-core-semantics-canvas width="320" height="180"></canvas>
-    </main>
-    <script type="module" src="/test-fixtures/runtime.js"></script>
-  </body>
-</html>`;
-
-function renderingFixturePage(
-  title: string,
-  heading: string,
-  canvasAttribute: string,
-): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title}</title>
-    <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #111827; color: white; }
-      main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
-      canvas { border: 1px solid #94a3b8; background: #0f172a; image-rendering: auto; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>${heading}</h1>
-      <canvas ${canvasAttribute} width="240" height="150"></canvas>
-    </main>
-    <script type="module" src="/test-fixtures/runtime.js"></script>
-  </body>
-</html>`;
-}
-
-function audioFixturePage(
-  title: string,
-  heading: string,
-  buttonAttribute: string,
-  buttonLabel: string,
-): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title}</title>
-    <style>
-      body { margin: 0; font-family: system-ui, sans-serif; background: #101417; color: white; }
-      main { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 16px; }
-      button { appearance: none; border: 1px solid #7dd3fc; border-radius: 6px; background: #0f172a; color: white; padding: 10px 14px; font: inherit; }
-      button:focus { outline: 2px solid #facc15; outline-offset: 3px; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>${heading}</h1>
-      <button ${buttonAttribute}>${buttonLabel}</button>
-    </main>
-    <script type="module" src="/test-fixtures/runtime.js"></script>
-  </body>
-</html>`;
-}
-
 function examplesIndexPage(): string {
   const links = exampleManifest
     .map(
@@ -299,26 +221,6 @@ async function coreRuntimeBundle(): Promise<Response> {
   }
 }
 
-/** Bundles the e2e fixture-page harness (tests/e2e/fixtures/browser-harness.ts),
- * NOT any shipped package. Only reachable through testFixtureRouteResponse,
- * i.e. only when the server is started with --test-fixtures /
- * JGZ_TEST_FIXTURES=1 (see playwright.config.ts's webServer command). */
-async function testFixtureRuntimeBundle(): Promise<Response> {
-  try {
-    const build = await cachedBrowserBuild(
-      "test-fixtures-runtime",
-      join(REPO_ROOT, "tests/e2e/fixtures/browser-harness.ts"),
-    );
-    return new Response(build.text, {
-      headers: { "content-type": build.contentType },
-    });
-  } catch {
-    return new Response("Failed to build test-fixture runtime", {
-      status: 500,
-    });
-  }
-}
-
 /** Routes that ship as part of the real product: the sandbox handler
  * (checked before this by the caller), the runnable examples, and the
  * runtime bundles they load. Always active, regardless of --test-fixtures. */
@@ -338,112 +240,20 @@ async function productRouteResponse(url: URL): Promise<Response | null> {
   return null;
 }
 
-/** e2e test-fixture pages (`/fixtures/*`) and their fixture-only asset
- * routes: these exist solely so tests/e2e specs can observe real browser
- * behavior through window.__jgz* globals (see
- * tests/e2e/fixtures/browser-harness.ts). Not part of the shipped product —
- * only reachable when the server is started with --test-fixtures /
- * JGZ_TEST_FIXTURES=1. */
-async function testFixtureRouteResponse(url: URL): Promise<Response | null> {
-  if (url.pathname === "/test-fixtures/runtime.js") {
-    return testFixtureRuntimeBundle();
-  }
-  if (url.pathname === "/fixtures/core-semantics") {
-    return new Response(coreSemanticsFixturePage, {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
-  }
-  if (url.pathname.startsWith("/assets/rendering-fixture/")) {
-    return exampleAssetResponse(
-      url.pathname,
-      "/assets/rendering-fixture/",
-      "../../../tests/e2e/fixtures/assets/rendering-fixture/assets",
-    );
-  }
-  if (url.pathname.startsWith("/assets/asset-sync-fixture/")) {
-    return exampleAssetResponse(
-      url.pathname,
-      "/assets/asset-sync-fixture/",
-      "../../../tests/e2e/fixtures/assets/asset-sync-fixture/assets",
-    );
-  }
-  if (url.pathname === "/fixtures/rendering/drawing") {
-    return html(
-      renderingFixturePage(
-        "js-game-zero Rendering Fixture: Drawing",
-        "js-game-zero rendering fixture",
-        "data-jgz-rendering-drawing",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/rendering/text") {
-    return html(
-      renderingFixturePage(
-        "js-game-zero Rendering Fixture: Text",
-        "js-game-zero text fixture",
-        "data-jgz-rendering-text",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/rendering/loader") {
-    return html(
-      renderingFixturePage(
-        "js-game-zero Rendering Fixture: Loader",
-        "js-game-zero loader fixture",
-        "data-jgz-rendering-loader",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/rendering/actor") {
-    return html(
-      renderingFixturePage(
-        "js-game-zero Rendering Fixture: Actor",
-        "js-game-zero actor fixture",
-        "data-jgz-rendering-actor",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/audio/tone") {
-    return html(
-      audioFixturePage(
-        "js-game-zero Audio Fixture: Tone",
-        "js-game-zero tone fixture",
-        "data-jgz-audio-tone",
-        "Play Tone",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/audio/sound") {
-    return html(
-      audioFixturePage(
-        "js-game-zero Audio Fixture: Sound",
-        "js-game-zero sound fixture",
-        "data-jgz-audio-sound",
-        "Play Sound",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/audio/music") {
-    return html(
-      audioFixturePage(
-        "js-game-zero Audio Fixture: Music",
-        "js-game-zero music fixture",
-        "data-jgz-audio-music",
-        "Play Music",
-      ),
-    );
-  }
-  if (url.pathname === "/fixtures/audio/storage") {
-    return html(
-      audioFixturePage(
-        "js-game-zero Audio Fixture: Storage",
-        "js-game-zero storage fixture",
-        "data-jgz-audio-storage",
-        "Save Score",
-      ),
-    );
-  }
-  return null;
+type TestFixtureRoutesModule =
+  typeof import("../../../tests/e2e/fixtures/sandbox-routes");
+let testFixtureRoutesModule: Promise<TestFixtureRoutesModule> | null = null;
+
+function loadTestFixtureRoutes(): Promise<TestFixtureRoutesModule> {
+  testFixtureRoutesModule ??=
+    import("../../../tests/e2e/fixtures/sandbox-routes");
+  return testFixtureRoutesModule;
+}
+
+/** Test seam proving production requests do not evaluate the e2e route
+ * module. The module itself remains owned under tests/e2e/fixtures. */
+export function testFixtureRoutesLoaded(): boolean {
+  return testFixtureRoutesModule !== null;
 }
 
 async function testFixtureHandler(
@@ -454,6 +264,7 @@ async function testFixtureHandler(
   const productResponse = await productRouteResponse(url);
   if (productResponse) return productResponse;
   if (testFixtures) {
+    const { testFixtureRouteResponse } = await loadTestFixtureRoutes();
     const fixtureResponse = await testFixtureRouteResponse(url);
     if (fixtureResponse) return fixtureResponse;
   }
@@ -461,10 +272,8 @@ async function testFixtureHandler(
 }
 
 export type SandboxServerHandlerOptions = SandboxHandlerOptions & {
-  /** Enables the `/fixtures/*` e2e test-fixture routes (see
-   * testFixtureRouteResponse). Off by default so the product server never
-   * serves test-only pages; playwright.config.ts's webServer command
-   * passes `--test-fixtures` to turn them on for the e2e suite. */
+  /** Enables dynamically loaded `/fixtures/*` e2e routes. Off by default so
+   * the product server never evaluates or serves test-only route code. */
   readonly testFixtures?: boolean;
 };
 
@@ -478,7 +287,32 @@ export function createSandboxServerHandler(
   ): Promise<Response> {
     const sandboxResponse = await sandboxHandler(request);
     if (sandboxResponse) return sandboxResponse;
+    if (sandboxOptions.access === "preview") {
+      return new Response("Not found", { status: 404 });
+    }
     return testFixtureHandler(request, testFixtures);
+  };
+}
+
+export function createSandboxPreviewServerHandler(
+  options: Omit<SandboxHandlerOptions, "access" | "previewOrigin"> & {
+    readonly parentOrigin: string;
+  },
+): (request: Request) => Promise<Response> {
+  const sandboxHandler = createSandboxHandler({
+    ...options,
+    access: "preview",
+  });
+  return async function sandboxPreviewServerHandler(
+    request: Request,
+  ): Promise<Response> {
+    const response = await sandboxHandler(request);
+    if (response) return response;
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/runtime/core.js") {
+      return coreRuntimeBundle();
+    }
+    return new Response("Not found", { status: 404 });
   };
 }
 
@@ -575,6 +409,7 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
     options: {
       host: { type: "string", default: "127.0.0.1" },
       port: { type: "string", default: "4173" },
+      "preview-port": { type: "string" },
       "projects-root": { type: "string" },
       "test-fixtures": { type: "boolean", default: false },
     },
@@ -583,6 +418,20 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
 
   const host = String(values.host ?? "127.0.0.1");
   const port = Number(values.port ?? "4173");
+  const previewPort = Number(values["preview-port"] ?? port + 1);
+  if (
+    !Number.isInteger(port) ||
+    !Number.isInteger(previewPort) ||
+    port < 1 ||
+    previewPort < 1 ||
+    port > 65_535 ||
+    previewPort > 65_535 ||
+    port === previewPort
+  ) {
+    throw new Error(
+      "Editor and preview ports must be distinct integers between 1 and 65535.",
+    );
+  }
   const projectsRoot =
     values["projects-root"] === undefined
       ? undefined
@@ -593,15 +442,31 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
   // command line).
   const testFixtures =
     values["test-fixtures"] === true || process.env.JGZ_TEST_FIXTURES === "1";
+  const publicHost =
+    host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
+  const browserHost = publicHost.includes(":") ? `[${publicHost}]` : publicHost;
+  const editorOrigin = `http://${browserHost}:${port}`;
+  const previewOrigin = `http://${browserHost}:${previewPort}`;
   Bun.serve({
     hostname: host,
     port,
     fetch: createSandboxServerHandler({
       ...(projectsRoot === undefined ? {} : { projectsRoot }),
+      access: "editor",
+      previewOrigin,
       testFixtures,
     }),
   });
-  console.log(`js-game-zero sandbox listening on http://${host}:${port}`);
+  Bun.serve({
+    hostname: host,
+    port: previewPort,
+    fetch: createSandboxPreviewServerHandler({
+      ...(projectsRoot === undefined ? {} : { projectsRoot }),
+      parentOrigin: editorOrigin,
+    }),
+  });
+  console.log(`js-game-zero sandbox listening on ${editorOrigin}`);
+  console.log(`js-game-zero preview isolated at ${previewOrigin}`);
 }
 
 if (import.meta.main) startSandboxServer();

@@ -1,37 +1,103 @@
 import { expect, test } from "bun:test";
 import * as core from "@js-game-zero/core";
+import * as host from "@js-game-zero/core/host";
+import * as node from "@js-game-zero/core/node";
 import * as browserRuntime from "@js-game-zero/browser-runtime";
 
-test("re-exports every named export of @js-game-zero/core by reference", () => {
-  const coreExports = core as Record<string, unknown>;
-  const browserRuntimeExports = browserRuntime as Record<string, unknown>;
-  const coreKeys = Object.keys(coreExports).sort();
+const learnerValues = [
+  "Actor",
+  "Animation",
+  "Clock",
+  "CreatedTone",
+  "DEFAULT_TONE_VOLUME",
+  "ImageSurface",
+  "InvalidAssetNameError",
+  "JsonStorageError",
+  "KeyboardState",
+  "MissingAssetError",
+  "Rect",
+  "Screen",
+  "Storage",
+  "ValueError",
+  "ZRect",
+  "angleTo",
+  "animate",
+  "clock",
+  "defineGame",
+  "distanceTo",
+  "exit",
+  "fonts",
+  "images",
+  "keyboard",
+  "keymods",
+  "keys",
+  "mouse",
+  "music",
+  "run",
+  "screen",
+  "sounds",
+  "storage",
+  "tone",
+  "tweenNames",
+  "tweens",
+] as const;
 
-  // A real package, not a scaffold: this asserts against the actual size of
-  // core's export surface, so it fails loudly if @js-game-zero/core stops
-  // being re-exported wholesale.
-  expect(coreKeys.length).toBeGreaterThan(20);
+const legacyHostValues = [
+  "AudioUnlockState",
+  "BrowserSoundAsset",
+  "InputDispatcher",
+  "MusicPlayer",
+  "ToneGenerator",
+  "assetUrl",
+  "audioUnlock",
+  "buttonsFromBrowserButtons",
+  "clampVolume",
+  "collectRuntimeDiagnostics",
+  "createAssetLoaders",
+  "createBrowserSoundAsset",
+  "createFontLoader",
+  "createImageLoader",
+  "createInputDispatcher",
+  "createLocalStorageAdapter",
+  "createMusicLoader",
+  "createMusicPlayer",
+  "createSoundLoader",
+  "createStorage",
+  "createToneGenerator",
+  "dispatchHook",
+  "fitTextboxFontSize",
+  "getParameterNames",
+  "getScreen",
+  "layoutText",
+  "mapBrowserKeyEvent",
+  "mapBrowserMouseButton",
+  "mapBrowserMouseEvent",
+  "mapBrowserWheelEvent",
+  "normalizeColor",
+  "normalizeWaveform",
+  "noteToFrequency",
+  "parseToneFrequency",
+  "setScreen",
+  "validateAssetName",
+] as const;
 
-  for (const key of coreKeys) {
-    expect(browserRuntimeExports).toHaveProperty(key);
-    expect(browserRuntimeExports[key]).toBe(coreExports[key]);
-  }
+const approvedCoreValues = [...learnerValues, ...legacyHostValues] as const;
+const approvedHostValues = legacyHostValues;
+
+test("core public entry points expose only their approved runtime values", () => {
+  expect(Object.keys(core).sort()).toEqual([...approvedCoreValues].sort());
+  expect(Object.keys(host).sort()).toEqual([...approvedHostValues].sort());
+  expect(Object.keys(node)).toEqual(["createSandboxFileStorageAdapter"]);
 });
 
-test("does not add any exports beyond core's surface", () => {
-  const coreKeys = new Set(Object.keys(core as Record<string, unknown>));
-  const browserRuntimeKeys = Object.keys(
-    browserRuntime as Record<string, unknown>,
+test("browser-runtime is exactly the learner-facing core facade", () => {
+  const coreValues = core as Record<string, unknown>;
+  const runtimeValues = browserRuntime as Record<string, unknown>;
+
+  expect(Object.keys(runtimeValues).sort()).toEqual(
+    [...approvedCoreValues].sort(),
   );
-  const extra = browserRuntimeKeys.filter((key) => !coreKeys.has(key));
-  expect(extra).toEqual([]);
-});
-
-test("known core symbols (classes, functions, constants) come through intact", () => {
-  expect(browserRuntime.Actor).toBe(core.Actor);
-  expect(browserRuntime.Screen).toBe(core.Screen);
-  expect(browserRuntime.Clock).toBe(core.Clock);
-  expect(browserRuntime.Animation).toBe(core.Animation);
-  expect(typeof browserRuntime.run).toBe("function");
-  expect(typeof browserRuntime.createStorage).toBe("function");
+  for (const key of approvedCoreValues) {
+    expect(runtimeValues[key]).toBe(coreValues[key]);
+  }
 });

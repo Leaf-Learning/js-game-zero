@@ -8,6 +8,8 @@ export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: "**/*.pw.ts",
   timeout: 30_000,
+  forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI
     ? [["html", { open: "never" }], ["github"]]

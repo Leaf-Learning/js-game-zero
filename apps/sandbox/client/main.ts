@@ -1,6 +1,8 @@
 import * as api from "./api";
 import { ApiError } from "./api";
 import { createConsolePanel } from "./console-panel";
+import { SandboxController } from "./controller";
+import { DocumentSession } from "./document-session";
 import { toast } from "./dialogs";
 import { h, qs } from "./dom";
 import { createEditor } from "./editor";
@@ -44,14 +46,7 @@ const openExamplesButton = qs<HTMLButtonElement>(
 
 let projects: ProjectSummary[] = [];
 let examples: ExampleSummary[] = [];
-let selectedProject: string | null = null;
-let selectedFile: string | null = null;
-let savedContent = "";
 let diagnostics: Diagnostic[] = [];
-
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingSave: { project: string; path: string; content: string } | null =
-  null;
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
@@ -71,53 +66,45 @@ function setSaveState(state: "saved" | "saving" | "unsaved" | "error"): void {
   document.body.dataset.jgzDirty = String(state !== "saved");
 }
 
-async function performSave(
-  project: string,
-  path: string,
-  content: string,
-): Promise<void> {
-  setSaveState("saving");
-  try {
-    await api.writeFile(project, path, content);
-    if (project === selectedProject && path === selectedFile) {
-      savedContent = content;
-      setSaveState(editor.getValue() === savedContent ? "saved" : "unsaved");
-    }
-  } catch (error) {
-    setSaveState("error");
+const documentSession = new DocumentSession({
+  write: ({ project, path, content, revision }) =>
+    api.writeFile(project, path, content, { revision }),
+  writeForUnload: ({ project, path, content, revision }) => {
+    void api.writeFile(project, path, content, {
+      keepalive: true,
+      revision,
+    });
+  },
+  onStateChange: setSaveState,
+  onError: (error) => {
     toast(`Couldn't save: ${errorMessage(error)}`, "error");
+  },
+});
+
+/** Returns false when dirty work could not be persisted. Callers that move,
+ * rename, delete, play, or restart must stop rather than discard that work. */
+async function flushSave(): Promise<boolean> {
+  try {
+    await documentSession.flush();
+    return true;
+  } catch {
+    return false;
   }
 }
 
-function scheduleAutosave(
-  project: string,
-  path: string,
-  content: string,
-): void {
-  pendingSave = { project, path, content };
-  setSaveState("unsaved");
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveTimer = null;
-    void flushSave();
-  }, 600);
-}
-
-async function flushSave(): Promise<void> {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-  }
-  const toSave = pendingSave;
-  pendingSave = null;
-  if (!toSave) return;
-  await performSave(toSave.project, toSave.path, toSave.content);
-}
+const selection = new SandboxController({
+  flushSave,
+  readFile: api.readFile,
+});
 
 const editor = createEditor(editorMount, {
   onChange: (content) => {
-    if (!selectedProject || !selectedFile) return;
-    scheduleAutosave(selectedProject, selectedFile, content);
+    if (!selection.selectedProject || !selection.selectedFile) return;
+    documentSession.edit(
+      selection.selectedProject,
+      selection.selectedFile,
+      content,
+    );
   },
   onSaveShortcut: () => {
     void flushSave();
@@ -130,6 +117,9 @@ initPanelResizers(root);
 const consolePanel = createConsolePanel(previewRoot);
 
 const preview = createPreview(previewRoot, {
+  ...(root.dataset.jgzPreviewOrigin
+    ? { previewOrigin: root.dataset.jgzPreviewOrigin }
+    : {}),
   onMessage: (message) => {
     if (message.type === "console") {
       consolePanel.appendConsole({ level: message.level, text: message.text });
@@ -152,16 +142,16 @@ const preview = createPreview(previewRoot, {
   },
   onPlayRequested: () => {
     void (async () => {
-      if (!selectedProject) return;
-      await flushSave();
+      if (!selection.selectedProject) return;
+      if (!(await flushSave())) return;
       diagnostics = [];
       consolePanel.clear();
-      preview.play(selectedProject);
+      preview.play(selection.selectedProject);
     })();
   },
   onRestartRequested: () => {
     void (async () => {
-      await flushSave();
+      if (!(await flushSave())) return;
       diagnostics = [];
       consolePanel.clear();
       preview.restart();
@@ -170,11 +160,17 @@ const preview = createPreview(previewRoot, {
 });
 
 function refreshSidebar(): void {
-  sidebar.update({ projects, selectedProject, selectedFile });
+  sidebar.update({
+    projects,
+    selectedProject: selection.selectedProject,
+    selectedFile: selection.selectedFile,
+  });
 }
 
 function currentCodeFiles(): string[] {
-  const project = projects.find((p) => p.name === selectedProject);
+  const project = projects.find(
+    (candidate) => candidate.name === selection.selectedProject,
+  );
   return project
     ? project.files.filter((path) => !isAssetPath(path)).sort()
     : [];
@@ -214,7 +210,7 @@ function showNoFileHint(): void {
 }
 
 function refreshWorkspaceVisibility(): void {
-  const hasFile = Boolean(selectedProject && selectedFile);
+  const hasFile = Boolean(selection.selectedProject && selection.selectedFile);
   editorPaneEl.hidden = !hasFile;
   emptyStateEl.hidden = hasFile;
   if (hasFile) return;
@@ -244,14 +240,11 @@ async function reloadProjects(): Promise<void> {
 }
 
 async function selectFile(path: string): Promise<void> {
-  if (!selectedProject) return;
-  await flushSave();
   try {
-    const content = await api.readFile(selectedProject, path);
-    selectedFile = path;
-    savedContent = content;
-    editor.setValue(content);
-    selectedFileLabel.textContent = path;
+    const selected = await selection.selectFile(path);
+    if (!selected) return;
+    editor.setValue(selected.content);
+    selectedFileLabel.textContent = selected.path;
     setSaveState("saved");
     refreshSidebar();
     refreshWorkspaceVisibility();
@@ -261,10 +254,7 @@ async function selectFile(path: string): Promise<void> {
 }
 
 async function selectProject(name: string): Promise<void> {
-  await flushSave();
-  selectedProject = name;
-  selectedFile = null;
-  savedContent = "";
+  if (!(await selection.selectProject(name))) return;
   diagnostics = [];
   consolePanel.clear();
   localStorage.setItem(LAST_PROJECT_KEY, name);
@@ -280,7 +270,8 @@ async function selectProject(name: string): Promise<void> {
   refreshWorkspaceVisibility();
   const codeFiles = currentCodeFiles();
   const nextFile = codeFiles.includes("main.js") ? "main.js" : codeFiles[0];
-  if (nextFile) await selectFile(nextFile);
+  if (nextFile && selection.selectedProject === name)
+    await selectFile(nextFile);
 }
 
 const sidebar = createSidebar(sidebarRoot, {
@@ -299,11 +290,11 @@ const sidebar = createSidebar(sidebarRoot, {
         // Pending autosaves are always for the currently selected
         // project/file; flush before renaming/deleting so a stale save
         // never fires against a path that just moved or disappeared.
-        await flushSave();
+        if (!(await flushSave())) return;
         await api.renameProject(name, nextName);
         await reloadProjects();
-        if (selectedProject === name) {
-          selectedProject = nextName;
+        if (selection.selectedProject === name) {
+          selection.renameProject(name, nextName);
           localStorage.setItem(LAST_PROJECT_KEY, nextName);
         }
         refreshSidebar();
@@ -315,13 +306,11 @@ const sidebar = createSidebar(sidebarRoot, {
   onRequestDeleteProject: (name) => {
     void (async () => {
       try {
-        await flushSave();
+        if (!(await flushSave())) return;
         await api.deleteProject(name);
         await reloadProjects();
-        if (selectedProject === name) {
-          selectedProject = null;
-          selectedFile = null;
-          savedContent = "";
+        if (selection.selectedProject === name) {
+          selection.clearProject(name);
           preview.setSelectedProject(null);
           const next = projects[0]?.name ?? null;
           if (next) {
@@ -340,9 +329,9 @@ const sidebar = createSidebar(sidebarRoot, {
   },
   onRequestCreateFile: (path) => {
     void (async () => {
-      if (!selectedProject) return;
+      if (!selection.selectedProject) return;
       try {
-        await api.createFile(selectedProject, path);
+        await api.createFile(selection.selectedProject, path);
         await reloadProjects();
         await selectFile(path);
       } catch (error) {
@@ -352,12 +341,12 @@ const sidebar = createSidebar(sidebarRoot, {
   },
   onRequestRenameFile: (path, nextPath) => {
     void (async () => {
-      if (!selectedProject) return;
+      if (!selection.selectedProject) return;
       try {
-        await flushSave();
-        await api.renameFile(selectedProject, path, nextPath);
+        if (!(await flushSave())) return;
+        await api.renameFile(selection.selectedProject, path, nextPath);
         await reloadProjects();
-        if (selectedFile === path) {
+        if (selection.selectedFile === path) {
           await selectFile(nextPath);
         } else {
           refreshSidebar();
@@ -369,14 +358,13 @@ const sidebar = createSidebar(sidebarRoot, {
   },
   onRequestDeleteFile: (path) => {
     void (async () => {
-      if (!selectedProject) return;
+      if (!selection.selectedProject) return;
       try {
-        await flushSave();
-        await api.deleteFile(selectedProject, path);
+        if (!(await flushSave())) return;
+        await api.deleteFile(selection.selectedProject, path);
         await reloadProjects();
-        if (selectedFile === path) {
-          selectedFile = null;
-          savedContent = "";
+        if (selection.selectedFile === path) {
+          selection.clearFile(path);
           const next = currentCodeFiles()[0] ?? null;
           if (next) {
             await selectFile(next);
@@ -396,10 +384,14 @@ const sidebar = createSidebar(sidebarRoot, {
   },
   onUploadFiles: (kind: AssetDirectory, files: FileList) => {
     void (async () => {
-      if (!selectedProject) return;
+      if (!selection.selectedProject) return;
       try {
         for (const file of Array.from(files)) {
-          await api.uploadAsset(selectedProject, `${kind}/${file.name}`, file);
+          await api.uploadAsset(
+            selection.selectedProject,
+            `${kind}/${file.name}`,
+            file,
+          );
         }
         await reloadProjects();
         refreshSidebar();
@@ -415,9 +407,10 @@ const sidebar = createSidebar(sidebarRoot, {
   },
   onRequestDeleteAsset: (path) => {
     void (async () => {
-      if (!selectedProject) return;
+      if (!selection.selectedProject) return;
       try {
-        await api.deleteAsset(selectedProject, path);
+        if (!(await flushSave())) return;
+        await api.deleteAsset(selection.selectedProject, path);
         await reloadProjects();
         refreshSidebar();
       } catch (error) {
@@ -445,16 +438,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("beforeunload", () => {
-  if (pendingSave) {
-    void api.writeFile(
-      pendingSave.project,
-      pendingSave.path,
-      pendingSave.content,
-      {
-        keepalive: true,
-      },
-    );
-  }
+  documentSession.flushForUnload();
 });
 
 async function bootstrap(): Promise<void> {

@@ -18,9 +18,11 @@ function update() {
 
 You don't need to call `save()` or `load()` yourself in normal use:
 
-- **Auto-load**: storage is loaded before your top-level game code runs, so
-  a top-level read like `let score = storage.get("score") ?? 0` sees
-  previously-saved data immediately, the first time it executes.
+- **Auto-load**: the default browser adapter has a synchronous `loadSync()`
+  path, so a top-level read like `let score = storage.get("score") ?? 0`
+  sees previously-saved data immediately. A custom asynchronous adapter is
+  loaded once during startup and delays frames/`handle.ready`, but cannot
+  retroactively change values already copied into top-level variables.
 - **Auto-save**: any mutation (`storage.set(...)`, `storage.score = 5`,
   `storage.delete(...)`, `storage.clear()`) schedules a save a fraction of a
   second later; rapid changes coalesce into one write instead of saving on

@@ -1,4 +1,11 @@
-import { createBrowserSoundAsset } from "./audio";
+import {
+  fontExtensions,
+  loadBrowserImage,
+  loadFontAsset,
+  loadMusicAsset,
+  loadSoundAsset,
+} from "./browser-asset-backends";
+import { createActiveServiceProxy } from "./active-service";
 import { Rect, type Point, type RectLike } from "./geometry";
 import {
   imageExtensions,
@@ -83,8 +90,9 @@ export type AssetLoader<T> = {
    */
   pendingCount(): number;
   /**
-   * Resolves once there are no in-flight loads. Re-checks after each
-   * settle so loads triggered while waiting are also awaited.
+   * Resolves once there are no in-flight loads, or rejects with failures
+   * settled since the previous idle wait. Re-checks after each settle so
+   * loads triggered while waiting are also awaited.
    */
   waitForIdle(): Promise<void>;
 };
@@ -107,17 +115,30 @@ type PositionKey =
   | "midbottom"
   | "center";
 
-const fontExtensions = ["ttf", "otf", "woff", "woff2"];
-
 export class MissingAssetError extends Error {
   readonly kind: AssetKind;
   readonly assetName: string;
+  readonly attemptedUrls: readonly string[];
 
-  constructor(kind: AssetKind, name: string) {
-    super(`Missing ${kind} asset: ${name}`);
+  constructor(
+    kind: AssetKind,
+    name: string,
+    options: {
+      readonly attemptedUrls?: readonly string[];
+      readonly cause?: unknown;
+    } = {},
+  ) {
+    const attemptedUrls = [...(options.attemptedUrls ?? [])];
+    const attemptedMessage =
+      attemptedUrls.length === 0 ? "" : ` (tried ${attemptedUrls.join(", ")})`;
+    super(
+      `Missing ${kind} asset: ${name}${attemptedMessage}`,
+      options.cause === undefined ? undefined : { cause: options.cause },
+    );
     this.name = "MissingAssetError";
     this.kind = kind;
     this.assetName = name;
+    this.attemptedUrls = attemptedUrls;
   }
 }
 
@@ -172,7 +193,9 @@ export function createImageLoader(
     directory: "images",
     extensions: imageExtensions,
     ...options,
-    loadAsset: options.loadAsset ?? loadBrowserImage,
+    loadAsset:
+      options.loadAsset ??
+      ((url) => loadBrowserImage(url, (image) => new ImageSurface(image))),
   });
 }
 
@@ -313,10 +336,29 @@ export function assetUrl(
   return `${base}/${encodedProjectId}/${directory}/${encodedName}`;
 }
 
-export const images = createImageLoader();
-export const sounds = createSoundLoader();
-export const musicAssets = createMusicLoader();
-export const fonts = createFontLoader();
+const defaultAssetLoaders: AssetLoaders = createAssetLoaders();
+let activeAssetLoaders: AssetLoaders | null = null;
+
+export function setActiveAssetLoaders(
+  loaders: AssetLoaders | null,
+): AssetLoaders | null {
+  const previous = activeAssetLoaders;
+  activeAssetLoaders = loaders;
+  return previous;
+}
+
+export const images = createActiveServiceProxy(
+  () => activeAssetLoaders?.images ?? defaultAssetLoaders.images,
+);
+export const sounds = createActiveServiceProxy(
+  () => activeAssetLoaders?.sounds ?? defaultAssetLoaders.sounds,
+);
+export const musicAssets = createActiveServiceProxy(
+  () => activeAssetLoaders?.music ?? defaultAssetLoaders.music,
+);
+export const fonts = createActiveServiceProxy(
+  () => activeAssetLoaders?.fonts ?? defaultAssetLoaders.fonts,
+);
 
 function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
   const projectId = validateProjectId(options.projectId ?? "default");
@@ -324,6 +366,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
   const cache = new Map<string, T>();
   const aliases = new Map<string, string>();
   const pending = new Map<string, Promise<T>>();
+  const settledFailures: unknown[] = [];
   const lazyProperties = new Map<string, T>();
   const target: AssetLoader<T> = {
     kind: options.kind,
@@ -359,8 +402,14 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
         })
         .catch((error: unknown) => {
           pending.delete(requested);
-          if (error instanceof MissingAssetError) throw error;
-          throw new MissingAssetError(options.kind, requested);
+          const failure =
+            error instanceof MissingAssetError
+              ? error
+              : new MissingAssetError(options.kind, requested, {
+                  cause: error,
+                });
+          settledFailures.push(failure);
+          throw failure;
         });
       pending.set(requested, loadPromise);
       return loadPromise;
@@ -417,6 +466,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
       cache.clear();
       aliases.clear();
       pending.clear();
+      settledFailures.length = 0;
       lazyProperties.clear();
     },
     unloadAll(): void {
@@ -431,6 +481,14 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
     async waitForIdle(): Promise<void> {
       while (pending.size > 0) {
         await Promise.allSettled([...pending.values()]);
+      }
+      const failures = settledFailures.splice(0);
+      if (failures.length === 1) throw failures[0];
+      if (failures.length > 1) {
+        throw new AggregateError(
+          failures,
+          `${failures.length} ${options.kind} assets failed to load.`,
+        );
       }
     },
   };
@@ -554,7 +612,9 @@ function createLazySoundAsset(
       callback(asset);
       return;
     }
-    void ensure().then(callback);
+    void ensure()
+      .then(callback)
+      .catch(() => undefined);
   };
 
   return {
@@ -573,7 +633,9 @@ function createLazySoundAsset(
         asset.stop();
         return;
       }
-      void loading?.then((resolved) => resolved.stop());
+      if (loading) {
+        void loading.then((resolved) => resolved.stop()).catch(() => undefined);
+      }
     },
     get_length(): number {
       return current()?.get_length() ?? 0;
@@ -634,24 +696,41 @@ async function loadFirstMatchingAsset<T>(
 ): Promise<{ asset: T; resolved: string }> {
   const candidates = candidateNames(context.requested, options.extensions);
   const loadAsset = options.loadAsset;
-  if (!loadAsset) throw new MissingAssetError(options.kind, context.requested);
+  const attemptedUrls: string[] = [];
+  const causes: unknown[] = [];
   for (const candidate of candidates) {
+    const url = assetUrl(
+      context.assetBaseUrl,
+      context.projectId,
+      options.directory,
+      candidate,
+    );
+    attemptedUrls.push(url);
+    if (!loadAsset) {
+      causes.push(new Error("No asset loader is configured."));
+      continue;
+    }
     try {
-      const url = assetUrl(
-        context.assetBaseUrl,
-        context.projectId,
-        options.directory,
-        candidate,
-      );
       return {
         asset: await loadAsset(url, candidate),
         resolved: candidate,
       };
-    } catch {
+    } catch (error) {
+      causes.push(error);
       // Try the next supported extension before reporting a clear missing asset.
     }
   }
-  throw new MissingAssetError(options.kind, context.requested);
+  const cause =
+    causes.length === 1
+      ? causes[0]
+      : new AggregateError(
+          causes,
+          `Every candidate for ${options.kind} asset ${context.requested} failed.`,
+        );
+  throw new MissingAssetError(options.kind, context.requested, {
+    attemptedUrls,
+    cause,
+  });
 }
 
 function candidateNames(name: string, extensions: readonly string[]): string[] {
@@ -692,77 +771,6 @@ function validateProjectId(projectId: string): string {
     );
   }
   return projectId;
-}
-
-async function loadBrowserImage(url: string): Promise<SurfaceLike> {
-  const ImageConstructor = globalThis.Image;
-  if (typeof ImageConstructor !== "function") {
-    throw new MissingAssetError("image", url);
-  }
-  const image = new ImageConstructor();
-  image.decoding = "async";
-  const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
-    image.addEventListener("load", () => resolve(image), { once: true });
-    image.addEventListener(
-      "error",
-      () => reject(new Error("image load failed")),
-      {
-        once: true,
-      },
-    );
-  });
-  image.src = url;
-  return new ImageSurface(await loaded);
-}
-
-async function loadSoundAsset(url: string, name: string): Promise<SoundAsset> {
-  const bytes = await fetchBytes(url);
-  return createBrowserSoundAsset({
-    kind: "sound",
-    name,
-    url,
-    bytes,
-  });
-}
-
-async function loadMusicAsset(url: string, name: string): Promise<MusicAsset> {
-  return {
-    kind: "music",
-    name,
-    url,
-    bytes: await fetchBytes(url),
-  };
-}
-
-async function loadFontAsset(url: string, name: string): Promise<FontAsset> {
-  const bytes = await fetchBytes(url);
-  const family = stripKnownExtension(
-    name.split("/").at(-1) ?? name,
-    fontExtensions,
-  );
-  let face: FontFace | undefined;
-  if (typeof globalThis.FontFace === "function") {
-    face = new FontFace(family, bytes);
-    await face.load();
-    globalThis.document?.fonts?.add(face);
-  }
-  return {
-    kind: "font",
-    name,
-    url,
-    bytes,
-    family,
-    ...(face ? { face } : {}),
-  };
-}
-
-async function fetchBytes(url: string): Promise<ArrayBuffer> {
-  if (typeof globalThis.fetch !== "function") {
-    throw new Error("fetch is not available");
-  }
-  const response = await globalThis.fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.arrayBuffer();
 }
 
 function applyRectPosition(rect: Rect, options: SurfaceRectOptions): void {

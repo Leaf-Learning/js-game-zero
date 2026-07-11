@@ -6,6 +6,8 @@ import {
   type FontAsset,
   type SurfaceLike,
 } from "./assets";
+import { createActiveServiceProxy } from "./active-service";
+import { normalizeColor, verticalGradient, type Color } from "./color";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
 import {
   clamp,
@@ -16,10 +18,8 @@ import {
   verticalAnchorOffset,
 } from "./util";
 
-export type Color =
-  | string
-  | readonly [number, number, number]
-  | readonly [number, number, number, number];
+export { normalizeColor } from "./color";
+export type { Color } from "./color";
 
 export type CanvasLike = {
   readonly width: number;
@@ -187,18 +187,18 @@ export class Screen {
   }
 
   clear(): void {
-    this.context.save();
-    this.context.globalAlpha = 1;
-    this.context.fillStyle = "black";
-    this.context.fillRect(0, 0, this.width, this.height);
-    this.context.restore();
+    withSavedCanvasState(this.context, () => {
+      this.context.globalAlpha = 1;
+      this.context.fillStyle = "black";
+      this.context.fillRect(0, 0, this.width, this.height);
+    });
   }
 
   fill(color: Color, gcolor?: Color): void {
     const style =
       gcolor === undefined
         ? normalizeColor(color)
-        : verticalGradient(this.context, this.height, color, gcolor);
+        : verticalGradient(this.context, 0, this.height, color, gcolor);
     this.context.fillStyle = style;
     this.context.fillRect(0, 0, this.width, this.height);
   }
@@ -238,14 +238,14 @@ export class Screen {
   ): void {
     const [startX, startY] = requirePoint(start, "start");
     const [endX, endY] = requirePoint(end, "end");
-    this.context.save();
-    this.context.strokeStyle = normalizeColor(color);
-    this.context.lineWidth = requirePositiveNumber(width, "width");
-    this.context.beginPath();
-    this.context.moveTo(startX, startY);
-    this.context.lineTo(endX, endY);
-    this.context.stroke();
-    this.context.restore();
+    withSavedCanvasState(this.context, () => {
+      this.context.strokeStyle = normalizeColor(color);
+      this.context.lineWidth = requirePositiveNumber(width, "width");
+      this.context.beginPath();
+      this.context.moveTo(startX, startY);
+      this.context.lineTo(endX, endY);
+      this.context.stroke();
+    });
   }
 
   private drawCircle(
@@ -257,18 +257,18 @@ export class Screen {
   ): void {
     const [x, y] = requirePoint(pos, "pos");
     const parsedRadius = requirePositiveNumber(radius, "radius");
-    this.context.save();
-    this.context.beginPath();
-    this.context.arc(x, y, parsedRadius, 0, Math.PI * 2);
-    if (filled) {
-      this.context.fillStyle = normalizeColor(color);
-      this.context.fill();
-    } else {
-      this.context.strokeStyle = normalizeColor(color);
-      this.context.lineWidth = requirePositiveNumber(width, "width");
-      this.context.stroke();
-    }
-    this.context.restore();
+    withSavedCanvasState(this.context, () => {
+      this.context.beginPath();
+      this.context.arc(x, y, parsedRadius, 0, Math.PI * 2);
+      if (filled) {
+        this.context.fillStyle = normalizeColor(color);
+        this.context.fill();
+      } else {
+        this.context.strokeStyle = normalizeColor(color);
+        this.context.lineWidth = requirePositiveNumber(width, "width");
+        this.context.stroke();
+      }
+    });
   }
 
   private drawPolygon(
@@ -285,20 +285,20 @@ export class Screen {
     );
     const first = parsed[0];
     if (!first) throw new TypeError("polygon requires at least three points.");
-    this.context.save();
-    this.context.beginPath();
-    this.context.moveTo(first[0], first[1]);
-    for (const [x, y] of parsed.slice(1)) this.context.lineTo(x, y);
-    this.context.closePath();
-    if (filled) {
-      this.context.fillStyle = normalizeColor(color);
-      this.context.fill();
-    } else {
-      this.context.strokeStyle = normalizeColor(color);
-      this.context.lineWidth = requirePositiveNumber(width, "width");
-      this.context.stroke();
-    }
-    this.context.restore();
+    withSavedCanvasState(this.context, () => {
+      this.context.beginPath();
+      this.context.moveTo(first[0], first[1]);
+      for (const [x, y] of parsed.slice(1)) this.context.lineTo(x, y);
+      this.context.closePath();
+      if (filled) {
+        this.context.fillStyle = normalizeColor(color);
+        this.context.fill();
+      } else {
+        this.context.strokeStyle = normalizeColor(color);
+        this.context.lineWidth = requirePositiveNumber(width, "width");
+        this.context.stroke();
+      }
+    });
   }
 
   private drawRect(
@@ -308,16 +308,16 @@ export class Screen {
     filled = false,
   ): void {
     const rect = new Rect(rectLike);
-    this.context.save();
-    if (filled) {
-      this.context.fillStyle = normalizeColor(color);
-      this.context.fillRect(rect.left, rect.top, rect.width, rect.height);
-    } else {
-      this.context.strokeStyle = normalizeColor(color);
-      this.context.lineWidth = requirePositiveNumber(width, "width");
-      this.context.strokeRect(rect.left, rect.top, rect.width, rect.height);
-    }
-    this.context.restore();
+    withSavedCanvasState(this.context, () => {
+      if (filled) {
+        this.context.fillStyle = normalizeColor(color);
+        this.context.fillRect(rect.left, rect.top, rect.width, rect.height);
+      } else {
+        this.context.strokeStyle = normalizeColor(color);
+        this.context.lineWidth = requirePositiveNumber(width, "width");
+        this.context.strokeRect(rect.left, rect.top, rect.width, rect.height);
+      }
+    });
   }
 
   private drawText(
@@ -358,8 +358,10 @@ export class Screen {
   }
 }
 
-export function setScreen(screen: Screen | null): void {
+export function setScreen(screen: Screen | null): Screen | null {
+  const previous = currentScreen;
   currentScreen = screen;
+  return previous;
 }
 
 export function getScreen(): Screen {
@@ -369,34 +371,7 @@ export function getScreen(): Screen {
   return currentScreen;
 }
 
-export const screen = new Proxy({} as Screen, {
-  get(_target, property, receiver) {
-    return Reflect.get(getScreen(), property, receiver);
-  },
-  set(_target, property, value, receiver) {
-    return Reflect.set(getScreen(), property, value, receiver);
-  },
-});
-
-export function normalizeColor(color: Color): string {
-  if (typeof color === "string" && color.length > 0) return color;
-  if (Array.isArray(color) && (color.length === 3 || color.length === 4)) {
-    const [red, green, blue] = color;
-    const alpha = color[3];
-    const values = [red, green, blue];
-    if (
-      values.every(
-        (value) => Number.isInteger(value) && value >= 0 && value <= 255,
-      )
-    ) {
-      if (alpha === undefined) return `rgb(${red}, ${green}, ${blue})`;
-      if (Number.isFinite(alpha) && alpha >= 0 && alpha <= 255) {
-        return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
-      }
-    }
-  }
-  throw new TypeError("color must be a CSS string or an RGB/RGBA tuple.");
-}
+export const screen = createActiveServiceProxy(getScreen);
 
 export function layoutText(
   context: CanvasRenderingContext2D,
@@ -410,18 +385,20 @@ export function layoutText(
     "lineheight",
   );
   const font = buildFontString(fontSize, options);
-  const previousFont = context.font;
-  context.font = font;
   const widthLimit =
     options.width ??
     (options.widthem === undefined ? undefined : options.widthem * fontSize);
   const strip = options.strip ?? true;
-  const lines = wrapLines(context, String(text), widthLimit, strip);
-  const textWidth = lines.reduce(
-    (maximum, line) => Math.max(maximum, context.measureText(line).width),
-    0,
-  );
-  context.font = previousFont;
+  const { lines, textWidth } = withTemporaryFont(context, font, () => {
+    const lines = wrapLines(context, String(text), widthLimit, strip);
+    return {
+      lines,
+      textWidth: lines.reduce(
+        (maximum, line) => Math.max(maximum, context.measureText(line).width),
+        0,
+      ),
+    };
+  });
 
   const boxWidth = widthLimit ?? textWidth;
   const boxHeight = Math.max(lineHeight, lines.length * lineHeight);
@@ -500,66 +477,65 @@ function renderTextLayout(
   options: TextOptions,
 ): void {
   const angle = options.angle ?? 0;
-  context.save();
-  context.globalAlpha *= layout.alpha;
-  context.translate(
-    layout.topLeft[0] + layout.anchorOffset[0],
-    layout.topLeft[1] + layout.anchorOffset[1],
-  );
-  if (angle !== 0) context.rotate((-angle * Math.PI) / 180);
-  context.font = layout.font;
-  context.textBaseline = "top";
-  context.textAlign = layout.align;
+  withSavedCanvasState(context, () => {
+    context.globalAlpha *= layout.alpha;
+    context.translate(
+      layout.topLeft[0] + layout.anchorOffset[0],
+      layout.topLeft[1] + layout.anchorOffset[1],
+    );
+    if (angle !== 0) context.rotate((-angle * Math.PI) / 180);
+    context.font = layout.font;
+    context.textBaseline = "top";
+    context.textAlign = layout.align;
 
-  const originX = -layout.anchorOffset[0];
-  const originY = -layout.anchorOffset[1];
-  if (options.background !== undefined) {
-    context.fillStyle = normalizeColor(options.background);
-    context.fillRect(originX, originY, layout.boxWidth, layout.boxHeight);
-  }
-
-  const fillStyle =
-    options.gcolor === undefined
-      ? normalizeColor(options.color ?? "white")
-      : textGradient(
-          context,
-          originY,
-          layout.boxHeight,
-          options.color ?? "white",
-          options.gcolor,
-        );
-  const shadowOffset = shadowOffsetFor(options.shadow);
-  const lineX = lineBaseX(originX, layout.boxWidth, layout.align);
-
-  layout.lines.forEach((line, index) => {
-    const y = originY + index * layout.lineHeight;
-    if (shadowOffset) {
-      context.fillStyle = normalizeColor(options.scolor ?? "black");
-      context.fillText(line, lineX + shadowOffset[0], y + shadowOffset[1]);
+    const originX = -layout.anchorOffset[0];
+    const originY = -layout.anchorOffset[1];
+    if (options.background !== undefined) {
+      context.fillStyle = normalizeColor(options.background);
+      context.fillRect(originX, originY, layout.boxWidth, layout.boxHeight);
     }
-    if ((options.owidth ?? 0) > 0) {
-      context.strokeStyle = normalizeColor(options.ocolor ?? "black");
-      context.lineWidth = requirePositiveNumber(options.owidth, "owidth") * 2;
-      context.strokeText(line, lineX, y);
-    }
-    context.fillStyle = fillStyle;
-    context.fillText(line, lineX, y);
-    if (options.underline) {
-      const lineWidth = context.measureText(line).width;
-      const [start, end] = lineExtentX(lineX, lineWidth, layout.align);
-      const thickness = Math.max(1, layout.fontSize / 15);
-      const underlineY = y + layout.fontSize * 0.9;
+
+    const fillStyle =
+      options.gcolor === undefined
+        ? normalizeColor(options.color ?? "white")
+        : verticalGradient(
+            context,
+            originY,
+            layout.boxHeight,
+            options.color ?? "white",
+            options.gcolor,
+          );
+    const shadowOffset = shadowOffsetFor(options.shadow);
+    const lineX = lineBaseX(originX, layout.boxWidth, layout.align);
+
+    layout.lines.forEach((line, index) => {
+      const y = originY + index * layout.lineHeight;
+      if (shadowOffset) {
+        context.fillStyle = normalizeColor(options.scolor ?? "black");
+        context.fillText(line, lineX + shadowOffset[0], y + shadowOffset[1]);
+      }
+      if ((options.owidth ?? 0) > 0) {
+        context.strokeStyle = normalizeColor(options.ocolor ?? "black");
+        context.lineWidth = requirePositiveNumber(options.owidth, "owidth") * 2;
+        context.strokeText(line, lineX, y);
+      }
       context.fillStyle = fillStyle;
-      context.fillRect(
-        start,
-        underlineY - thickness / 2,
-        end - start,
-        thickness,
-      );
-    }
+      context.fillText(line, lineX, y);
+      if (options.underline) {
+        const lineWidth = context.measureText(line).width;
+        const [start, end] = lineExtentX(lineX, lineWidth, layout.align);
+        const thickness = Math.max(1, layout.fontSize / 15);
+        const underlineY = y + layout.fontSize * 0.9;
+        context.fillStyle = fillStyle;
+        context.fillRect(
+          start,
+          underlineY - thickness / 2,
+          end - start,
+          thickness,
+        );
+      }
+    });
   });
-
-  context.restore();
 }
 
 /**
@@ -943,41 +919,42 @@ function shadowOffsetFor(shadow: number | Point | undefined): Point | null {
   return requirePoint(shadow, "shadow");
 }
 
-function verticalGradient(
-  context: CanvasRenderingContext2D,
-  height: number,
-  color: Color,
-  gcolor: Color,
-): CanvasGradient {
-  const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, normalizeColor(color));
-  gradient.addColorStop(1, normalizeColor(gcolor));
-  return gradient;
-}
-
-function textGradient(
-  context: CanvasRenderingContext2D,
-  top: number,
-  height: number,
-  color: Color,
-  gcolor: Color,
-): CanvasGradient {
-  const gradient = context.createLinearGradient(0, top, 0, top + height);
-  gradient.addColorStop(0, normalizeColor(color));
-  gradient.addColorStop(1, normalizeColor(gcolor));
-  return gradient;
-}
-
 function measureWithFont(
   context: CanvasRenderingContext2D,
   text: string,
   font: string,
 ): number {
+  return withTemporaryFont(
+    context,
+    font,
+    () => context.measureText(text).width,
+  );
+}
+
+function withTemporaryFont<T>(
+  context: CanvasRenderingContext2D,
+  font: string,
+  callback: () => T,
+): T {
   const previousFont = context.font;
-  context.font = font;
-  const width = context.measureText(text).width;
-  context.font = previousFont;
-  return width;
+  try {
+    context.font = font;
+    return callback();
+  } finally {
+    context.font = previousFont;
+  }
+}
+
+function withSavedCanvasState<T>(
+  context: CanvasRenderingContext2D,
+  callback: () => T,
+): T {
+  context.save();
+  try {
+    return callback();
+  } finally {
+    context.restore();
+  }
 }
 
 function requirePositiveNumber(value: unknown, label: string): number {

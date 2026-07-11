@@ -3,11 +3,13 @@ import {
   Actor,
   ImageSurface,
   Screen,
+  type SurfaceLike,
+} from "@js-game-zero/core";
+import {
   createImageLoader,
   type CanvasLike,
   type DrawableImage,
-  type SurfaceLike,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 class MockContext {
   readonly operations: Array<{ name: string; args: unknown[] }> = [];
@@ -18,6 +20,7 @@ class MockContext {
   font = "10px sans-serif";
   textBaseline = "alphabetic";
   textAlign = "left";
+  throwOnDraw = false;
 
   save(): void {
     this.record("save");
@@ -38,6 +41,7 @@ class MockContext {
 
   drawImage(...args: unknown[]): void {
     this.record("drawImage", ...args);
+    if (this.throwOnDraw) throw new Error("draw failed");
   }
 
   clearRect(): void {}
@@ -457,5 +461,26 @@ describe("Actor behavior", () => {
       name: "drawImage",
       args: [expect.anything(), -10, -5],
     });
+  });
+
+  test("restores canvas state when drawing throws", () => {
+    const loader = loaderWithSprites();
+    const context = new MockContext();
+    context.throwOnDraw = true;
+    const screen = new Screen(
+      { width: 100, height: 80 },
+      context as unknown as CanvasRenderingContext2D,
+      { imageLoader: loader },
+    );
+    const actor = new Actor("hero.svg", [30, 40], { loader, screen });
+
+    expect(() => actor.draw()).toThrow("draw failed");
+    expect(context.operations.map((operation) => operation.name)).toEqual([
+      "save",
+      "translate",
+      "drawImage",
+      "restore",
+    ]);
+    expect(context.globalAlpha).toBe(1);
   });
 });

@@ -12,6 +12,8 @@
     "baseUrl": ".",
     "paths": {
       "@js-game-zero/core": ["packages/core/src/index.ts"],
+      "@js-game-zero/core/host": ["packages/core/src/host.ts"],
+      "@js-game-zero/core/node": ["packages/core/src/node.ts"],
       "@js-game-zero/browser-runtime": ["packages/browser-runtime/src/index.ts"]
     },
     "allowImportingTsExtensions": true,

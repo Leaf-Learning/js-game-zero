@@ -1,3 +1,5 @@
+import { createActiveServiceProxy } from "./active-service";
+
 type ClockCallback = () => void;
 type TickCallback = (dt: number) => void;
 
@@ -14,12 +16,19 @@ type TickEvent = {
   canceled: boolean;
 };
 
+export type ClockOptions = {
+  /** Receives callback failures after the failing callback is unscheduled. */
+  readonly onError?: (error: unknown) => void;
+};
+
 export class Clock {
   private time = 0;
   private nextOrder = 0;
   private scheduled: ScheduledEvent[] = [];
   private active = new Set<ScheduledEvent>();
   private tickCallbacks: TickEvent[] = [];
+
+  constructor(private readonly options: ClockOptions = {}) {}
 
   schedule(callback: ClockCallback, delay: number): void {
     this.scheduled.push({
@@ -77,6 +86,9 @@ export class Clock {
   }
 
   clear(): void {
+    for (const event of this.scheduled) event.canceled = true;
+    for (const event of this.active) event.canceled = true;
+    for (const event of this.tickCallbacks) event.canceled = true;
     this.scheduled = [];
     this.tickCallbacks = [];
   }
@@ -90,7 +102,7 @@ export class Clock {
       try {
         event.callback(delta);
       } catch (error) {
-        reportClockCallbackError(error);
+        this.reportCallbackError(error);
         this.unschedule(event.callback);
       }
     }
@@ -105,7 +117,7 @@ export class Clock {
         try {
           event.callback();
         } catch (error) {
-          reportClockCallbackError(error);
+          this.reportCallbackError(error);
           this.active.delete(event);
           this.unschedule(event.callback);
           event = this.nextDueEvent();
@@ -134,6 +146,11 @@ export class Clock {
       return best;
     }, undefined);
   }
+
+  private reportCallbackError(error: unknown): void {
+    if (this.options.onError) this.options.onError(error);
+    else reportClockCallbackError(error);
+  }
 }
 
 const defaultClock = new Clock();
@@ -149,18 +166,7 @@ export function getActiveClock(): Clock {
   return activeClock ?? defaultClock;
 }
 
-export const clock = new Proxy({} as Clock, {
-  get(_target, property) {
-    const value = Reflect.get(getActiveClock(), property);
-    return typeof value === "function" ? value.bind(getActiveClock()) : value;
-  },
-  set(_target, property, value) {
-    return Reflect.set(getActiveClock(), property, value);
-  },
-  has(_target, property) {
-    return property in getActiveClock();
-  },
-}) as Clock;
+export const clock = createActiveServiceProxy(getActiveClock);
 
 function validateDuration(value: number, label: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {

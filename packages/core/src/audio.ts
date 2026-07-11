@@ -5,6 +5,7 @@ import {
   type MusicAsset,
   type SoundAsset,
 } from "./assets";
+import { createActiveServiceProxy } from "./active-service";
 import { isPromiseLike } from "./util";
 
 export type AudioElementLike = {
@@ -230,6 +231,7 @@ export type MusicPlayerOptions = {
   readonly loader?: AssetLoader<MusicAsset>;
   readonly createAudioElement?: AudioElementFactory;
   readonly onMusicEnd?: () => void;
+  readonly onError?: (error: unknown) => void;
   readonly scheduler?: TimeoutScheduler;
   readonly volume?: number;
 };
@@ -261,26 +263,30 @@ export class MusicPlayer {
   private currentTrack: CurrentMusicTrack | null = null;
   private queuedNames: string[] = [];
   private onEnd: (() => void) | undefined;
+  private readonly onError: ((error: unknown) => void) | undefined;
   private fadeoutHandles: unknown[] = [];
   private volumeValue: number;
   private lastErrorMessage: string | null = null;
+  private operationGeneration = 0;
+  private pendingStart: Promise<void> | null = null;
 
   constructor(options: MusicPlayerOptions = {}) {
     this.loaderValue = options.loader ?? null;
     this.createElement = options.createAudioElement ?? createHtmlAudioElement;
     this.scheduler = options.scheduler ?? defaultTimeoutScheduler();
     this.onEnd = options.onMusicEnd;
+    this.onError = options.onError;
     this.volumeValue = clampVolume(options.volume ?? 1);
   }
 
   async play(name: string): Promise<void> {
-    this.stop();
-    await this.startTrack(name, "loop");
+    const generation = this.replacePlayback();
+    await this.beginTrackStart(name, "loop", generation);
   }
 
   async play_once(name: string): Promise<void> {
-    this.stop();
-    await this.startTrack(name, "once");
+    const generation = this.replacePlayback();
+    await this.beginTrackStart(name, "once", generation);
   }
 
   async playOnce(name: string): Promise<void> {
@@ -289,13 +295,17 @@ export class MusicPlayer {
 
   async queue(name: string): Promise<void> {
     this.queuedNames.push(name);
-    if (!this.currentTrack) await this.playNextQueuedTrack();
+    if (this.currentTrack) return;
+    const pending = this.pendingStart;
+    if (pending) {
+      await pending;
+      return;
+    }
+    await this.playNextQueuedTrack(this.operationGeneration);
   }
 
   stop(): void {
-    this.clearFadeout();
-    this.queuedNames = [];
-    this.disposeCurrent(true);
+    this.replacePlayback();
   }
 
   pause(): void {
@@ -427,9 +437,33 @@ export class MusicPlayer {
     return this.loaderValue;
   }
 
-  private async startTrack(name: string, mode: MusicMode): Promise<void> {
+  private async beginTrackStart(
+    name: string,
+    mode: MusicMode,
+    generation: number,
+  ): Promise<void> {
+    const pending = this.startTrack(name, mode, generation);
+    this.pendingStart = pending;
+    try {
+      await pending;
+    } catch (error) {
+      if (generation === this.operationGeneration) {
+        this.reportError(error);
+      }
+    } finally {
+      if (this.pendingStart === pending) this.pendingStart = null;
+    }
+  }
+
+  private async startTrack(
+    name: string,
+    mode: MusicMode,
+    generation: number,
+  ): Promise<void> {
     const asset = await this.loader.load(name);
+    if (generation !== this.operationGeneration) return;
     const element = this.createElement(asset.url);
+    if (generation !== this.operationGeneration) return;
     element.volume = this.volumeValue;
     element.loop = mode === "loop";
     const track: CurrentMusicTrack = {
@@ -437,54 +471,99 @@ export class MusicPlayer {
       element,
       mode,
       ended: () => {
-        void this.handleTrackEnded(track);
+        void this.handleTrackEnded(track, generation).catch(
+          (error: unknown) => {
+            if (generation !== this.operationGeneration) return;
+            this.lastErrorMessage = errorMessage(error);
+            this.queuedNames = [];
+          },
+        );
       },
     };
     this.currentTrack = track;
     element.addEventListener("ended", track.ended);
-    this.playElement(element, () => {
-      if (this.currentTrack === track) {
-        this.queuedNames = [];
-        this.disposeCurrent(true);
-      }
-    });
+    this.playElement(
+      element,
+      () => {
+        if (this.currentTrack === track) {
+          this.queuedNames = [];
+          this.disposeCurrent(true);
+        }
+      },
+      generation,
+    );
   }
 
-  private async playNextQueuedTrack(): Promise<void> {
+  private async playNextQueuedTrack(generation: number): Promise<void> {
+    if (generation !== this.operationGeneration) return;
     const next = this.queuedNames.shift();
     if (!next) {
-      this.onEnd?.();
+      if (generation === this.operationGeneration) this.onEnd?.();
       return;
     }
-    await this.startTrack(next, "once");
+    try {
+      await this.beginTrackStart(next, "once", generation);
+    } catch (error) {
+      if (generation === this.operationGeneration) this.queuedNames = [];
+      throw error;
+    }
   }
 
-  private async handleTrackEnded(track: CurrentMusicTrack): Promise<void> {
-    if (this.currentTrack !== track) return;
-    this.disposeCurrent(false);
-    if (this.queuedNames.length > 0) {
-      await this.playNextQueuedTrack();
+  private async handleTrackEnded(
+    track: CurrentMusicTrack,
+    generation: number,
+  ): Promise<void> {
+    if (
+      generation !== this.operationGeneration ||
+      this.currentTrack !== track
+    ) {
       return;
     }
-    this.onEnd?.();
+    this.disposeCurrent(false);
+    if (this.queuedNames.length > 0) {
+      await this.playNextQueuedTrack(generation);
+      return;
+    }
+    if (generation === this.operationGeneration) this.onEnd?.();
   }
 
   private playElement(
     element: AudioElementLike,
     onRejected?: () => void,
+    generation = this.operationGeneration,
   ): void {
     try {
       const result = element.play();
       if (isPromiseLike(result)) {
         void result.catch((error: unknown) => {
-          this.lastErrorMessage = errorMessage(error);
+          if (generation !== this.operationGeneration) return;
+          this.reportError(error);
           onRejected?.();
         });
       }
     } catch (error) {
-      this.lastErrorMessage = errorMessage(error);
+      if (generation !== this.operationGeneration) return;
+      this.reportError(error);
       onRejected?.();
     }
+  }
+
+  private reportError(error: unknown): void {
+    this.lastErrorMessage = errorMessage(error);
+    try {
+      this.onError?.(error);
+    } catch (callbackError) {
+      console.error("Error in music error handler:", callbackError);
+    }
+  }
+
+  private replacePlayback(): number {
+    this.operationGeneration += 1;
+    this.pendingStart = null;
+    this.clearFadeout();
+    this.queuedNames = [];
+    this.disposeCurrent(true);
+    return this.operationGeneration;
   }
 
   private disposeCurrent(resetTime: boolean): void {
@@ -526,19 +605,7 @@ export function getActiveMusicPlayer(): MusicPlayer {
   return activeMusicPlayer ?? defaultMusicPlayer;
 }
 
-export const music = new Proxy({} as MusicPlayer, {
-  get(_target, property) {
-    const target = getActiveMusicPlayer();
-    const value = Reflect.get(target, property);
-    return typeof value === "function" ? value.bind(target) : value;
-  },
-  set(_target, property, value) {
-    return Reflect.set(getActiveMusicPlayer(), property, value);
-  },
-  has(_target, property) {
-    return property in getActiveMusicPlayer();
-  },
-}) as MusicPlayer;
+export const music = createActiveServiceProxy(getActiveMusicPlayer);
 
 export function clampVolume(volume: number): number {
   if (typeof volume !== "number" || Number.isNaN(volume)) return 1;

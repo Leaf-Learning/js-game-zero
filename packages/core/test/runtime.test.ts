@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
-  collectRuntimeDiagnostics,
   clock,
-  createImageLoader,
+  defineGame,
   exit,
   images as globalImages,
   ImageSurface,
@@ -13,10 +12,16 @@ import {
   type AssetLoader,
   type DrawableImage,
   type RuntimeCanvas,
-  type RuntimeDiagnostic,
-  type RuntimeScheduler,
+  type SoundAsset,
   type SurfaceLike,
 } from "@js-game-zero/core";
+import {
+  collectRuntimeDiagnostics,
+  createImageLoader,
+  createSoundLoader,
+  type RuntimeDiagnostic,
+  type RuntimeScheduler,
+} from "@js-game-zero/core/host";
 
 class MockContext {
   fillStyle: unknown = "";
@@ -42,6 +47,7 @@ class MockCanvas extends EventTarget {
   height = 0;
   tabIndex = 0;
   readonly context = new MockContext();
+  removed = false;
 
   getContext(contextId: "2d"): CanvasRenderingContext2D | null {
     return contextId === "2d"
@@ -52,13 +58,21 @@ class MockCanvas extends EventTarget {
   getBoundingClientRect(): { left: number; top: number } {
     return { left: 0, top: 0 };
   }
+
+  remove(): void {
+    this.removed = true;
+  }
 }
 
 class MemoryAdapter {
   readonly path = "memory";
   text: string | null = null;
 
-  load(): string | null {
+  async load(): Promise<string | null> {
+    return this.text;
+  }
+
+  loadSync(): string | null {
     return this.text;
   }
 
@@ -125,6 +139,19 @@ function keyEvent(type: "keydown" | "keyup", code: string, key: string): Event {
     altKey: { value: false },
     metaKey: { value: false },
     getModifierState: { value: () => false },
+  });
+  return event;
+}
+
+function mouseEvent(type: "mousedown" | "mouseup", button = 0): Event {
+  const event = new Event(type);
+  Object.defineProperties(event, {
+    button: { value: button },
+    buttons: { value: type === "mousedown" ? 1 : 0 },
+    clientX: { value: 4 },
+    clientY: { value: 6 },
+    movementX: { value: 0 },
+    movementY: { value: 0 },
   });
   return event;
 }
@@ -332,6 +359,36 @@ describe("runtime explicit import mode", () => {
     second.stop();
   });
 
+  test("legacy package asset proxies follow the current callback's run", async () => {
+    const firstImages = createImageLoader({ projectId: "legacy_first" });
+    const secondImages = createImageLoader({ projectId: "legacy_second" });
+    firstImages.define("hero.svg", surface(13, 5));
+    secondImages.define("hero.svg", surface(26, 5));
+    const widths: number[] = [];
+    const module = {
+      update() {
+        widths.push(globalImages.get("hero.svg")?.get_width() ?? -1);
+      },
+    };
+    const first = run(module, {
+      autostart: false,
+      canvas: canvas(),
+      loaders: { images: firstImages },
+    });
+    const second = run(module, {
+      autostart: false,
+      canvas: canvas(),
+      loaders: { images: secondImages },
+    });
+    await Promise.all([first.ready, second.ready]);
+
+    first.step(0);
+    second.step(0);
+    expect(widths).toEqual([13, 26]);
+
+    await Promise.all([first.dispose(), second.dispose()]);
+  });
+
   test("preloads assets for PGZero-style image property access", async () => {
     const target = canvas();
     const handle = run(
@@ -531,7 +588,7 @@ function draw() {
     handle.stop();
   });
 
-  test("also gates on the package-level singleton loaders used by plain import-mode Actor/images code", async () => {
+  test("does not let package-level singleton loads gate an unrelated handle", async () => {
     const target = canvas();
     // Simulate `new Actor("ghost.svg")` constructed at import-mode
     // top-level code, which defaults to the singleton `images` loader
@@ -547,13 +604,10 @@ function draw() {
     );
 
     handle.step(0);
-    expect(drew).toBe(false);
+    expect(drew).toBe(true);
 
     await pendingLoad;
-    await globalImages.waitForIdle();
-
-    handle.step(0);
-    expect(drew).toBe(true);
+    await globalImages.waitForIdle().catch(() => undefined);
     handle.stop();
   });
 });
@@ -926,5 +980,453 @@ describe("GameHandle lifecycle: autostart scheduler, pause/resume, reload, exit"
     target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
     expect(updates).toBe(1);
     expect(keyDowns).toBe(1);
+  });
+});
+
+describe("scoped game definitions and deterministic lifecycle failures", () => {
+  test("a synchronous startup failure emits a diagnostic and removes an owned canvas", () => {
+    const originalDocument = globalThis.document;
+    const createdCanvas = new MockCanvas();
+    const diagnostics: RuntimeDiagnostic[] = [];
+    const fakeDocument = Object.assign(new EventTarget(), {
+      body: { append() {} },
+      createElement: () => createdCanvas,
+      visibilityState: "visible",
+      title: "",
+      querySelector: () => null,
+      head: { append() {} },
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: fakeDocument,
+    });
+
+    try {
+      expect(() =>
+        run(
+          defineGame(() => {
+            throw new Error("factory exploded");
+          }),
+          {
+            autostart: false,
+            diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+            storage: new MemoryAdapter(),
+          },
+        ),
+      ).toThrow("factory exploded");
+      expect(createdCanvas.removed).toBe(true);
+      expect(
+        diagnostics.filter((diagnostic) => diagnostic.phase === "startup"),
+      ).toHaveLength(1);
+    } finally {
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: originalDocument,
+      });
+    }
+  });
+
+  test("defineGame provides typed, run-scoped services and event objects", async () => {
+    const target = canvas();
+    const loader = createImageLoader({ projectId: "scoped_game" });
+    loader.define("hero.svg", surface(24, 12));
+    let updateDt = 0;
+    let pressedKey = 0;
+    let scopedProject = "";
+    let actorWidth = 0;
+
+    const handle = run(
+      defineGame(({ Actor, images, storage }) => {
+        scopedProject = images.projectId;
+        const hero = new Actor("hero.svg");
+        return {
+          update(dt) {
+            updateDt = dt;
+            actorWidth = hero.width;
+            storage.set("updated", true);
+          },
+          draw() {},
+          onKeyDown(event) {
+            pressedKey = event.key;
+          },
+        };
+      }),
+      {
+        autostart: false,
+        canvas: target,
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    await handle.ready;
+    handle.step(0.125);
+    target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
+
+    expect(scopedProject).toBe("scoped_game");
+    expect(updateDt).toBe(0.125);
+    expect(actorWidth).toBe(24);
+    expect(pressedKey).toBe(keys.RIGHT);
+    expect(handle.storage.get("updated")).toBe(true);
+    await handle.dispose();
+    expect(handle.state).toBe("stopped");
+  });
+
+  test("a draw failure emits one phase diagnostic, fails, and fully disposes", async () => {
+    const target = canvas();
+    let inputCalls = 0;
+    const handle = run(
+      {
+        draw() {
+          throw new Error("draw exploded");
+        },
+        onKeyDown() {
+          inputCalls += 1;
+        },
+      },
+      { autostart: false, canvas: target, storage: new MemoryAdapter() },
+    );
+    await handle.ready;
+
+    handle.step(0);
+    await handle.done;
+    target.dispatchEvent(keyEvent("keydown", "KeyA", "a"));
+
+    expect(handle.state).toBe("failed");
+    expect(handle.failure?.phase).toBe("draw");
+    expect(
+      handle.diagnostics.filter((entry) => entry.phase === "draw"),
+    ).toHaveLength(1);
+    expect(inputCalls).toBe(0);
+  });
+
+  test("an autostart failure does not schedule another frame", async () => {
+    const { scheduler, flush, pendingCount } = fakeScheduler();
+    const handle = run(
+      {
+        update() {
+          throw new Error("update exploded");
+        },
+      },
+      {
+        canvas: canvas(),
+        scheduler,
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    flush(100);
+    await handle.done;
+
+    expect(handle.failure?.phase).toBe("update");
+    expect(pendingCount()).toBe(0);
+  });
+
+  test("an input hook failure fails the handle and detaches listeners", async () => {
+    const target = canvas();
+    let calls = 0;
+    const handle = run(
+      {
+        on_key_down() {
+          calls += 1;
+          throw new Error("input exploded");
+        },
+      },
+      { autostart: false, canvas: target, storage: new MemoryAdapter() },
+    );
+    await handle.ready;
+
+    target.dispatchEvent(keyEvent("keydown", "KeyA", "a"));
+    await handle.done;
+    target.dispatchEvent(keyEvent("keydown", "KeyA", "a"));
+
+    expect(handle.state).toBe("failed");
+    expect(handle.failure?.phase).toBe("input");
+    expect(calls).toBe(1);
+  });
+
+  test("a scheduled clock callback failure crosses the runtime boundary", async () => {
+    const handle = run(
+      defineGame(({ clock }) => {
+        clock.schedule(() => {
+          throw new Error("clock exploded");
+        }, 0);
+        return { draw() {} };
+      }),
+      {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    handle.step(0);
+    await handle.done;
+
+    expect(handle.state).toBe("failed");
+    expect(handle.failure?.phase).toBe("clock");
+  });
+
+  test("stepping an older handle restores the newest handle's global screen", async () => {
+    const firstCanvas = canvas();
+    const secondCanvas = canvas();
+    let widthDuringFirstDraw = 0;
+    const first = run(
+      {
+        WIDTH: 111,
+        draw() {
+          widthDuringFirstDraw = screen.width;
+        },
+      },
+      { autostart: false, canvas: firstCanvas, storage: new MemoryAdapter() },
+    );
+    const second = run(
+      { WIDTH: 222, draw() {} },
+      { autostart: false, canvas: secondCanvas, storage: new MemoryAdapter() },
+    );
+    await Promise.all([first.ready, second.ready]);
+
+    first.step(0);
+    expect(widthDuringFirstDraw).toBe(111);
+    expect(screen.width).toBe(222);
+
+    await second.dispose();
+    expect(screen.width).toBe(111);
+    await first.dispose();
+    expect(() => screen.width).toThrow(/No active Screen/);
+  });
+
+  test("defined-game exit is bound to its own handle", async () => {
+    const first = run(
+      defineGame(({ exit }) => ({ draw: exit })),
+      { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+    );
+    const second = run(
+      defineGame(() => ({ draw() {} })),
+      {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+      },
+    );
+    await Promise.all([first.ready, second.ready]);
+
+    first.step(0);
+    await first.done;
+    expect(first.state).toBe("stopped");
+    expect(second.state).toBe("running");
+    await second.dispose();
+  });
+
+  test("simultaneous defined games keep assets and storage run-scoped", async () => {
+    const firstImages = createImageLoader({ projectId: "first_assets" });
+    const secondImages = createImageLoader({ projectId: "second_assets" });
+    firstImages.define("hero.svg", surface(11, 5));
+    secondImages.define("hero.svg", surface(22, 5));
+    const firstStorage = new MemoryAdapter();
+    const secondStorage = new MemoryAdapter();
+    const tones: unknown[] = [];
+
+    const game = defineGame(({ Actor, storage, tone }) => {
+      tones.push(tone);
+      const hero = new Actor("hero.svg");
+      return {
+        update() {
+          storage.set("heroWidth", hero.width);
+        },
+      };
+    });
+    const first = run(game, {
+      autostart: false,
+      canvas: canvas(),
+      loaders: { images: firstImages },
+      storage: firstStorage,
+    });
+    const second = run(game, {
+      autostart: false,
+      canvas: canvas(),
+      loaders: { images: secondImages },
+      storage: secondStorage,
+    });
+    await Promise.all([first.ready, second.ready]);
+
+    first.step(0);
+    second.step(0);
+    expect(first.storage.get("heroWidth")).toBe(11);
+    expect(second.storage.get("heroWidth")).toBe(22);
+    expect(tones).toHaveLength(2);
+    expect(tones[0]).not.toBe(tones[1]);
+
+    await Promise.all([first.dispose(), second.dispose()]);
+  });
+
+  test("a required scoped Actor asset failure rejects ready and fails startup", async () => {
+    const { loader, reject } = controllableImageLoader();
+    const handle = run(
+      defineGame(({ Actor }) => {
+        void new Actor("missing.svg");
+        return { draw() {} };
+      }),
+      {
+        autostart: false,
+        canvas: canvas(),
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+
+    reject("missing.svg", new Error("404"));
+    await expect(handle.ready).rejects.toThrow();
+    await handle.done;
+    expect(handle.state).toBe("failed");
+    expect(handle.failure?.phase).toBe("startup");
+  });
+
+  test("a late required image failure crosses the runtime asset boundary", async () => {
+    const { loader, reject } = controllableImageLoader();
+    let requested = false;
+    const handle = run(
+      defineGame(({ images }) => ({
+        update() {
+          if (requested) return;
+          requested = true;
+          void images.load("missing.svg").catch(() => undefined);
+        },
+      })),
+      {
+        autostart: false,
+        canvas: canvas(),
+        loaders: { images: loader },
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    handle.step(0);
+    reject("missing.svg", new Error("late 404"));
+    await handle.done;
+
+    expect(handle.state).toBe("failed");
+    expect(handle.failure?.phase).toBe("asset");
+  });
+
+  test("blur clears held keys and mouse release is captured outside the canvas", async () => {
+    const target = canvas();
+    const outer = new EventTarget();
+    let mouseUps = 0;
+    const handle = run(
+      {
+        onMouseUp(button: unknown) {
+          if (button === 1) mouseUps += 1;
+        },
+      },
+      {
+        autostart: false,
+        canvas: target,
+        keyboardTarget: outer,
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    outer.dispatchEvent(keyEvent("keydown", "ArrowLeft", "ArrowLeft"));
+    expect(handle.keyboard.left).toBe(true);
+    outer.dispatchEvent(new Event("blur"));
+    expect(handle.keyboard.left).toBe(false);
+
+    target.dispatchEvent(mouseEvent("mousedown"));
+    outer.dispatchEvent(mouseEvent("mouseup"));
+    expect(mouseUps).toBe(1);
+    await handle.dispose();
+  });
+
+  test("a created canvas mounts in container and is removed during disposal", async () => {
+    const originalDocument = globalThis.document;
+    const createdCanvas = new MockCanvas();
+    let appended: unknown = null;
+    const fakeDocument = Object.assign(new EventTarget(), {
+      body: { append() {} },
+      createElement: () => createdCanvas,
+      visibilityState: "visible",
+      title: "",
+      querySelector: () => null,
+      head: { append() {} },
+    });
+    const container = {
+      append(node: unknown) {
+        appended = node;
+      },
+    } as unknown as HTMLElement;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: fakeDocument,
+    });
+
+    try {
+      const handle = run(
+        { draw() {} },
+        { autostart: false, container, storage: new MemoryAdapter() },
+      );
+      expect(appended).toBe(createdCanvas);
+      await handle.dispose();
+      expect(createdCanvas.removed).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: originalDocument,
+      });
+    }
+  });
+
+  test("a late audio load never freezes update or drawing", async () => {
+    let resolveSound = (_asset: SoundAsset): void => {};
+    const soundLoader = createSoundLoader({
+      projectId: "audio_gate",
+      loadAsset: () =>
+        new Promise<SoundAsset>((resolve) => {
+          resolveSound = resolve;
+        }),
+    });
+    let draws = 0;
+    let started = false;
+    const handle = run(
+      defineGame(({ sounds }) => ({
+        update() {
+          if (started) return;
+          started = true;
+          void sounds.load("beep.ogg");
+        },
+        draw() {
+          draws += 1;
+        },
+      })),
+      {
+        autostart: false,
+        canvas: canvas(),
+        loaders: { sounds: soundLoader },
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    handle.step(0.1);
+    handle.step(0.1);
+    expect(soundLoader.pendingCount()).toBe(1);
+    expect(draws).toBe(2);
+
+    resolveSound({
+      kind: "sound",
+      name: "beep.ogg",
+      url: "/beep.ogg",
+      play() {},
+      stop() {},
+      get_length: () => 0,
+      set_volume() {},
+      get_volume: () => 1,
+    });
+    await soundLoader.waitForIdle();
+    await handle.dispose();
   });
 });

@@ -159,6 +159,11 @@ export class Actor {
       return surface;
     });
     this.imageLoadPromise = loadPromise;
+    // The runtime preload gate observes loader failures even when learner code
+    // never calls ready(). Mark this per-Actor promise as handled as well so a
+    // missing sprite produces one runtime diagnostic instead of an additional
+    // browser-level unhandledrejection. Awaiting ready() still rejects.
+    void loadPromise.catch(() => undefined);
   }
 
   get pos(): Point {
@@ -370,15 +375,20 @@ export class Actor {
     const target = screen ?? this.screen ?? getScreen();
     const [anchorX, anchorY] = this.anchorOffset();
     target.context.save();
-    target.context.globalAlpha *= this.opacity;
-    target.context.translate(this.x, this.y);
-    if (this.angle !== 0) target.context.rotate((-this.angle * Math.PI) / 180);
-    target.context.drawImage(
-      this._surface.source as CanvasImageSource,
-      -anchorX,
-      -anchorY,
-    );
-    target.context.restore();
+    try {
+      target.context.globalAlpha *= this.opacity;
+      target.context.translate(this.x, this.y);
+      if (this.angle !== 0) {
+        target.context.rotate((-this.angle * Math.PI) / 180);
+      }
+      target.context.drawImage(
+        this._surface.source as CanvasImageSource,
+        -anchorX,
+        -anchorY,
+      );
+    } finally {
+      target.context.restore();
+    }
   }
 
   unload_image(): void {
@@ -437,26 +447,24 @@ export class Actor {
     this.applyBaseRectGeometry(rect);
   }
 
-  clamp(other: RectLike | Actor): Rect {
-    return this.rect().clamp(other instanceof Actor ? other.rect() : other);
+  clamp(other: RectLike): Rect {
+    return this.rect().clamp(other);
   }
 
-  clip(other: RectLike | Actor): Rect {
-    return this.rect().clip(other instanceof Actor ? other.rect() : other);
+  clip(other: RectLike): Rect {
+    return this.rect().clip(other);
   }
 
-  union(other: RectLike | Actor): Rect {
-    return this.rect().union(other instanceof Actor ? other.rect() : other);
+  union(other: RectLike): Rect {
+    return this.rect().union(other);
   }
 
-  unionall(others: Array<RectLike | Actor>): Rect {
-    return this.rect().unionall(
-      others.map((other) => (other instanceof Actor ? other.rect() : other)),
-    );
+  unionall(others: RectLike[]): Rect {
+    return this.rect().unionall(others);
   }
 
-  fit(other: RectLike | Actor): Rect {
-    return this.rect().fit(other instanceof Actor ? other.rect() : other);
+  fit(other: RectLike): Rect {
+    return this.rect().fit(other);
   }
 
   collidepoint(point: Point): boolean;
@@ -466,26 +474,20 @@ export class Actor {
     return this.rect().collidepoint(pointOrX, y as number);
   }
 
-  colliderect(other: RectLike | Actor): boolean {
-    return this.rect().colliderect(
-      other instanceof Actor ? other.rect() : other,
-    );
+  colliderect(other: RectLike): boolean {
+    return this.rect().colliderect(other);
   }
 
-  collidelist(others: Array<RectLike | Actor>): number {
-    return others.findIndex((other) => this.colliderect(other));
+  collidelist(others: RectLike[]): number {
+    return this.rect().collidelist(others);
   }
 
-  collidelistall(others: Array<RectLike | Actor>): number[] {
-    const indexes: number[] = [];
-    others.forEach((other, index) => {
-      if (this.colliderect(other)) indexes.push(index);
-    });
-    return indexes;
+  collidelistall(others: RectLike[]): number[] {
+    return this.rect().collidelistall(others);
   }
 
-  contains(other: RectLike | Actor): boolean {
-    return this.rect().contains(other instanceof Actor ? other.rect() : other);
+  contains(other: RectLike): boolean {
+    return this.rect().contains(other);
   }
 
   private baseRect(): Rect {

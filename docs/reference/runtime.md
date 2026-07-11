@@ -8,12 +8,50 @@ an automated test).
 
 ```ts
 function run(
-  moduleOrSource: GameModule | string,
+  moduleOrSource: GameModule | DefinedGame | string,
   options?: RunOptions,
 ): GameHandle;
 ```
 
-## Two entry styles
+## Three entry styles
+
+**Scoped import mode (recommended for applications)** — `defineGame()` gives
+the game a typed set of services owned by that one run. Actors, assets,
+storage, animation, input, and audio therefore cannot accidentally bind to a
+different game on the same page:
+
+```ts
+import { defineGame, run } from "@js-game-zero/core";
+
+run(
+  defineGame(({ Actor, screen, keyboard }) => {
+    const player = new Actor("player.svg");
+    return {
+      WIDTH: 320,
+      HEIGHT: 180,
+      update(dt) {
+        if (keyboard.right) player.x += 120 * dt;
+      },
+      draw() {
+        screen.clear();
+        player.draw();
+      },
+      onKeyDown(event) {
+        console.log(event.key);
+      },
+    };
+  }),
+);
+```
+
+The camelCase input hooks in a defined game receive one typed event object.
+Existing zero-boilerplate and raw import hooks keep their Pygame Zero-style
+parameter-name dispatch unchanged.
+
+Package-level `screen`, `clock`, `keyboard`, `images`, `sounds`, `music`, and
+`storage` remain available for learner compatibility. They are convenience
+proxies for a single active runtime; applications that can run more than one
+game should prefer the services passed to `defineGame()`.
 
 **Import mode** — pass a plain object of hooks and config:
 
@@ -75,16 +113,20 @@ object, the option wins and a diagnostic warns about the duplicate.
 
 `run()` returns a handle for controlling the running game:
 
-| Member                                                        | Purpose                                                                                                                                                  |
-| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `canvas`, `screen`, `clock`, `keyboard`, `loaders`, `storage` | The live instances this run is using.                                                                                                                    |
-| `module`                                                      | The final, merged hook/config object.                                                                                                                    |
-| `diagnostics`                                                 | The diagnostics collected so far.                                                                                                                        |
-| `ready: Promise<void>`                                        | Resolves once the preload gate is satisfied (see below).                                                                                                 |
-| `pause()` / `resume()`                                        | Stop/restart the frame loop without tearing anything down.                                                                                               |
-| `step(dt)`                                                    | Manually advance one frame by `dt` seconds — only meaningful with `autostart: false`.                                                                    |
-| `stop()`                                                      | Detaches input listeners, flushes any pending storage save, and cancels the frame loop.                                                                  |
-| `reload(nextSource?)`                                         | Stops this run and starts a fresh one with the same options (used by the sandbox's Restart button); pass a new module/source to swap the code being run. |
+| Member                                                        | Purpose                                                                                              |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `canvas`, `screen`, `clock`, `keyboard`, `loaders`, `storage` | The live instances this run is using.                                                                |
+| `module`                                                      | The final, merged hook/config object.                                                                |
+| `diagnostics`                                                 | The diagnostics collected so far.                                                                    |
+| `state`, `failure`                                            | Lifecycle state and the first fatal runtime failure, if one occurred.                                |
+| `ready: Promise<void>`                                        | Resolves once the preload gate is satisfied (see below).                                             |
+| `done: Promise<void>`                                         | Resolves after final storage flushing and resource cleanup complete.                                 |
+| `pause()` / `resume()`                                        | Stop/restart the frame loop without tearing anything down.                                           |
+| `step(dt)`                                                    | Manually advance one frame by `dt` seconds — only meaningful with `autostart: false`.                |
+| `stop()`                                                      | Detaches input listeners, flushes any pending storage save, and cancels the frame loop.              |
+| `dispose()`                                                   | Awaited form of cleanup; resolves only after pending persistence work is finished.                   |
+| `restart(nextSource?)`                                        | Awaits cleanup, then starts a fresh run with the same options.                                       |
+| `reload(nextSource?)`                                         | Compatibility alias that starts synchronously; prefer `restart()` when persistence ordering matters. |
 
 ```js
 const handle = run(gameModule, { canvas });
@@ -104,15 +146,21 @@ directly to end itself.
 
 ## Preload gate
 
-The runtime tracks every asset load kicked off while your top-level code
-runs (Actor constructions, `images.player` touches, `preload` entries) and
-holds the very first frame's `draw()` until they've all settled — and until
-storage has finished loading. This is why a game can safely read
-`storage.get("score")` or `images.player.get_size()` at the top level and
-never show a half-loaded frame: by the time anything is drawn, everything
-that was requested during startup is ready. `handle.ready` resolves at the
-same moment, for hosts that want to `await` startup explicitly instead of
+Each run tracks its own required image and font loads (Actor constructions,
+`images.player` touches, and `preload` entries) and holds drawing until those
+loads and storage initialization settle. A required image/font failure rejects
+`handle.ready`, fails the handle, and performs cleanup. Sound and music loads
+are recoverable: they report a warning but never freeze another run or stop
+rendering. `handle.ready` lets hosts await startup explicitly instead of
 polling.
+
+## Package boundaries
+
+Games import learner-facing values from `@js-game-zero/core`. Embedders should
+import loader factories, browser adapters, scheduler/diagnostic types, and
+other integration APIs from `@js-game-zero/core/host`; Node filesystem storage
+lives at `@js-game-zero/core/node`. Browser-safe advanced root imports remain
+as deprecated compatibility aliases through 0.2.
 
 ## Diagnostics
 

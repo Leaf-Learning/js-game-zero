@@ -62,6 +62,10 @@ type BoundsTarget = {
    */
   width?: number;
   height?: number;
+  ownerDocument?: EventTarget & {
+    readonly hidden?: boolean;
+    readonly visibilityState?: string;
+  };
   getBoundingClientRect?: () => TargetBounds;
 };
 
@@ -79,14 +83,17 @@ export type MappedMouseEvent = {
   rel: Point;
 };
 
-const hookNames = {
-  on_mouse_down: ["on_mouse_down", "onMouseDown"],
-  on_mouse_up: ["on_mouse_up", "onMouseUp"],
-  on_mouse_move: ["on_mouse_move", "onMouseMove"],
-  on_key_down: ["on_key_down", "onKeyDown"],
-  on_key_up: ["on_key_up", "onKeyUp"],
-  on_music_end: ["on_music_end", "onMusicEnd"],
-} as const;
+/** Single source of truth for legacy snake_case and typed camelCase hooks. */
+export const HOOK_ALIASES = [
+  ["on_mouse_down", "onMouseDown"],
+  ["on_mouse_up", "onMouseUp"],
+  ["on_mouse_move", "onMouseMove"],
+  ["on_key_down", "onKeyDown"],
+  ["on_key_up", "onKeyUp"],
+  ["on_music_end", "onMusicEnd"],
+] as const;
+
+type SnakeHookName = (typeof HOOK_ALIASES)[number][0];
 
 const browserCodeToKey = new Map<string, number>([
   ["Backspace", keys.BACKSPACE],
@@ -171,9 +178,11 @@ export function dispatchHook(handler: Hook | undefined, args: HookArgs): void {
 
 export function getHook(
   hooks: InputHooks,
-  name: keyof typeof hookNames,
+  name: SnakeHookName,
 ): Hook | undefined {
-  const [snakeName, camelName] = hookNames[name];
+  const alias = HOOK_ALIASES.find(([snakeName]) => snakeName === name);
+  if (!alias) return undefined;
+  const [snakeName, camelName] = alias;
   return hooks[snakeName] ?? hooks[camelName];
 }
 
@@ -292,6 +301,10 @@ export class InputDispatcher {
     return true;
   }
 
+  handleFocusLoss(): void {
+    this.keyboard.clear();
+  }
+
   handleMouseDown(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.lastMousePos = mapped.pos;
@@ -343,19 +356,45 @@ export class InputDispatcher {
       this.handleMouseMove(event as MouseEvent, mouseTarget);
     const wheel = (event: Event) =>
       this.handleWheel(event as WheelEvent, mouseTarget);
+    const focusLoss = () => this.handleFocusLoss();
+    const visibilityTarget =
+      mouseTarget.ownerDocument ??
+      (typeof document === "undefined" ? keyboardTarget : document);
+    const visibilityChange = () => {
+      const target = visibilityTarget as EventTarget & {
+        readonly hidden?: boolean;
+        readonly visibilityState?: string;
+      };
+      if (target.hidden === false || target.visibilityState === "visible") {
+        return;
+      }
+      this.handleFocusLoss();
+    };
+    // Mouseup bubbles to the keyboard/window target, which also catches a
+    // release after a drag leaves the canvas. Avoid registering on both
+    // targets so an in-canvas release is dispatched exactly once.
+    const mouseReleaseTarget =
+      keyboardTarget === mouseTarget ? mouseTarget : keyboardTarget;
 
     keyboardTarget.addEventListener("keydown", keyDown);
     keyboardTarget.addEventListener("keyup", keyUp);
+    keyboardTarget.addEventListener("blur", focusLoss);
+    visibilityTarget.addEventListener("visibilitychange", visibilityChange);
     mouseTarget.addEventListener("mousedown", mouseDown);
-    mouseTarget.addEventListener("mouseup", mouseUp);
+    mouseReleaseTarget.addEventListener("mouseup", mouseUp);
     mouseTarget.addEventListener("mousemove", mouseMove);
     mouseTarget.addEventListener("wheel", wheel, { passive: true });
 
     return () => {
       keyboardTarget.removeEventListener("keydown", keyDown);
       keyboardTarget.removeEventListener("keyup", keyUp);
+      keyboardTarget.removeEventListener("blur", focusLoss);
+      visibilityTarget.removeEventListener(
+        "visibilitychange",
+        visibilityChange,
+      );
       mouseTarget.removeEventListener("mousedown", mouseDown);
-      mouseTarget.removeEventListener("mouseup", mouseUp);
+      mouseReleaseTarget.removeEventListener("mouseup", mouseUp);
       mouseTarget.removeEventListener("mousemove", mouseMove);
       mouseTarget.removeEventListener("wheel", wheel);
     };

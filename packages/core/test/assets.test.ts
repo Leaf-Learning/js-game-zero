@@ -2,18 +2,20 @@ import { describe, expect, test } from "bun:test";
 import {
   ImageSurface,
   MissingAssetError,
-  assetUrl,
-  createFontLoader,
-  createImageLoader,
-  createMusicLoader,
-  createSoundLoader,
-  validateAssetName,
   type DrawableImage,
   type FontAsset,
   type MusicAsset,
   type SoundAsset,
   type SurfaceLike,
 } from "@js-game-zero/core";
+import {
+  assetUrl,
+  createFontLoader,
+  createImageLoader,
+  createMusicLoader,
+  createSoundLoader,
+  validateAssetName,
+} from "@js-game-zero/core/host";
 
 function surface(width = 32, height = 16): SurfaceLike {
   return new ImageSurface(
@@ -102,15 +104,27 @@ describe("image loader cache and surfaces", () => {
   });
 
   test("throws a clear missing asset error", async () => {
+    const backendError = new Error("not found");
     const loader = createImageLoader({
       projectId: "test_project",
       loadAsset: async () => {
-        throw new Error("not found");
+        throw backendError;
       },
     });
-    await expect(loader.load("ghost.svg")).rejects.toBeInstanceOf(
-      MissingAssetError,
-    );
+    const failure = await loader
+      .load("ghost.svg")
+      .catch((error: unknown) =>
+        error instanceof MissingAssetError ? error : Promise.reject(error),
+      );
+    expect(failure).toBeInstanceOf(MissingAssetError);
+    if (!(failure instanceof MissingAssetError)) {
+      throw new Error("Expected a MissingAssetError.");
+    }
+    expect(failure.attemptedUrls).toEqual([
+      "/assets/test_project/images/ghost.svg",
+    ]);
+    expect(failure.cause).toBe(backendError);
+    expect(failure.message).toContain("/assets/test_project/images/ghost.svg");
   });
 
   test("returns cached image assets through PGZero-style property access", () => {
@@ -178,7 +192,7 @@ describe("image loader cache and surfaces", () => {
     expect(loader.pendingCount()).toBe(0);
   });
 
-  test("pendingCount clears after a load rejects, and waitForIdle still settles", async () => {
+  test("pendingCount clears after a load rejects, and waitForIdle reports the settled failure", async () => {
     const loader = createImageLoader({
       projectId: "test_project",
       loadAsset: async () => {
@@ -189,9 +203,32 @@ describe("image loader cache and surfaces", () => {
     const rejected = loader.load("ghost.svg").catch(() => "handled");
     expect(loader.pendingCount()).toBe(1);
 
-    await loader.waitForIdle();
+    await expect(loader.waitForIdle()).rejects.toBeInstanceOf(
+      MissingAssetError,
+    );
     expect(loader.pendingCount()).toBe(0);
     expect(await rejected).toBe("handled");
+    // Failures are consumed once reported rather than poisoning every later
+    // idle wait.
+    await expect(loader.waitForIdle()).resolves.toBeUndefined();
+  });
+
+  test("failed lazy sound access does not create an unhandled rejection", async () => {
+    const loader = createSoundLoader({
+      projectId: "test_project",
+      loadAsset: async () => {
+        throw new Error("missing lazy sound");
+      },
+    });
+    const ghost = (loader as unknown as Record<string, SoundAsset>).ghost;
+    if (!ghost) throw new Error("Missing lazy sound placeholder.");
+
+    ghost.play();
+    await expect(loader.waitForIdle()).rejects.toBeInstanceOf(
+      MissingAssetError,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(loader.pendingCount()).toBe(0);
   });
 
   test("waitForIdle re-checks so a load started while waiting is also awaited", async () => {

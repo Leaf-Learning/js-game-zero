@@ -119,6 +119,68 @@ test("create project, starter code runs on Play", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("learner preview origin cannot mutate editor projects", async ({
+  page,
+}) => {
+  const name = uniqueName("isolated");
+  await page.goto("/");
+  await createBlankProject(page, name);
+  await page.locator("[data-jgz-play]").click();
+  await expect(previewCanvas(page)).toBeVisible();
+  const editorOrigin = new URL(page.url()).origin;
+
+  await page
+    .frameLocator("[data-jgz-preview]")
+    .locator("body")
+    .evaluate(
+      async (_body, { editorOrigin, project }) => {
+        const send = (path: string, method: string, body?: string) =>
+          fetch(`${editorOrigin}${path}`, {
+            method,
+            mode: "no-cors",
+            headers: { "content-type": "text/plain" },
+            ...(body === undefined ? {} : { body }),
+          }).catch(() => undefined);
+        await Promise.all([
+          send(
+            "/api/projects",
+            "POST",
+            JSON.stringify({ name: "created_by_learner" }),
+          ),
+          send(
+            `/api/projects/${project}/rename`,
+            "POST",
+            JSON.stringify({ name: "renamed_by_learner" }),
+          ),
+          send(
+            `/api/projects/${project}/files/main.js`,
+            "PUT",
+            JSON.stringify({
+              content: "MUTATED",
+              baseVersion: 0,
+              revision: 99,
+              sessionId: "learner-preview",
+            }),
+          ),
+          send(`/api/projects/${project}`, "DELETE"),
+        ]);
+      },
+      { editorOrigin, project: name },
+    );
+
+  const projects = await page.evaluate(async () =>
+    fetch("/api/projects").then((response) => response.json()),
+  );
+  expect(projects).toMatchObject({
+    projects: expect.arrayContaining([expect.objectContaining({ name })]),
+  });
+  expect(JSON.stringify(projects)).not.toContain("created_by_learner");
+  expect(JSON.stringify(projects)).not.toContain("renamed_by_learner");
+  expect(
+    await readFile(resolve(projectsRoot, name, "main.js"), "utf8"),
+  ).not.toBe("MUTATED");
+});
+
 test("human-speed clicks on another project while a game is running still switch projects", async ({
   page,
 }) => {
@@ -179,6 +241,55 @@ test("editing autosaves and survives a reload", async ({ page }) => {
   await expect(
     page.locator("[data-jgz-editor-mount] .cm-content"),
   ).toContainText(marker);
+});
+
+test("unload save cannot let an older in-flight write overwrite newer work", async ({
+  page,
+}) => {
+  const name = uniqueName("unload_order");
+  await page.goto("/");
+  await createBlankProject(page, name);
+
+  let releaseFirst!: () => void;
+  const firstBlocked = new Promise<void>((resolveBlocked) => {
+    releaseFirst = resolveBlocked;
+  });
+  let markFirstSeen!: () => void;
+  const firstSeen = new Promise<void>((resolveSeen) => {
+    markFirstSeen = resolveSeen;
+  });
+  const revisions: number[] = [];
+  let firstRevision: number | null = null;
+  await page.route(`**/api/projects/${name}/files/main.js`, async (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    const body = route.request().postDataJSON() as { revision: number };
+    revisions.push(body.revision);
+    if (firstRevision === null) {
+      firstRevision = body.revision;
+      markFirstSeen();
+      await firstBlocked;
+    }
+    await route.continue();
+  });
+
+  await setEditorContent(page, "REVISION_ONE");
+  await page.locator("[data-jgz-save]").click();
+  await firstSeen;
+  await setEditorContent(page, "REVISION_TWO");
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeunload")));
+  await expect
+    .poll(() => revisions.some((revision) => revision > (firstRevision ?? 0)))
+    .toBe(true);
+
+  releaseFirst();
+  await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved", {
+    timeout: 8_000,
+  });
+  await expect
+    .poll(() => readFile(resolve(projectsRoot, name, "main.js"), "utf8"), {
+      timeout: 8_000,
+    })
+    .toBe("REVISION_TWO");
 });
 
 test("uploading an image asset shows a thumbnail and never opens as text", async ({

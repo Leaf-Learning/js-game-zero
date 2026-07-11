@@ -4,13 +4,14 @@ import {
   type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
-import { assetSourceUrl } from "./api";
+import { assetSourceUrl, getProject, readFile } from "./api";
 
 type ConsoleLevel = "log" | "info" | "warn" | "error";
 
 const body = document.body;
 const project = body.dataset.jgzProject ?? "";
 const entry = body.dataset.jgzEntry ?? "main.js";
+const parentOrigin = body.dataset.jgzParentOrigin ?? window.location.origin;
 const canvasOrNull = document.querySelector<HTMLCanvasElement>(
   "[data-jgz-preview-canvas]",
 );
@@ -19,11 +20,12 @@ if (!canvasOrNull) throw new Error("Missing preview canvas element.");
 const canvas: HTMLCanvasElement = canvasOrNull;
 
 const seenMessages = new Set<string>();
+let fatalRuntimeDiagnosticPosted = false;
 
 function post(message: Record<string, unknown>): void {
   window.parent.postMessage(
     { source: "jgz-sandbox-preview", project, ...message },
-    window.location.origin,
+    parentOrigin,
   );
 }
 
@@ -31,10 +33,17 @@ function postDiagnosticOnce(diagnostic: RuntimeDiagnostic): void {
   const key = `${diagnostic.severity}:${diagnostic.message}`;
   if (seenMessages.has(key)) return;
   seenMessages.add(key);
+  if (diagnostic.code === "runtime-error" && diagnostic.severity === "error") {
+    fatalRuntimeDiagnosticPosted = true;
+  }
   post({ type: "diagnostic", diagnostic });
 }
 
 function postRuntimeErrorOnce(message: string, line?: number): void {
+  // `run()` reports synchronous startup failures through diagnostics before
+  // rethrowing them. The outer loader catch and browser rejection events must
+  // not turn the same failure into a second Problems entry.
+  if (fatalRuntimeDiagnosticPosted) return;
   const key = `error:${message}`;
   if (seenMessages.has(key)) return;
   seenMessages.add(key);
@@ -178,16 +187,11 @@ async function preloadAssets(
 forwardConsole();
 
 try {
-  const [entryResponse, projectResponse] = await Promise.all([
-    fetch(`/api/projects/${encodeURIComponent(project)}/files/${entry}`),
-    fetch(`/api/projects/${encodeURIComponent(project)}`),
+  const [source, projectSummary] = await Promise.all([
+    readFile(project, entry),
+    getProject(project),
   ]);
-  if (!entryResponse.ok) throw new Error(`Failed to load ${entry}`);
-  const source = (await entryResponse.json()).content as string;
-  const files: string[] = projectResponse.ok
-    ? ((await projectResponse.json()).project?.files ?? [])
-    : [];
-  const { images, preload } = await preloadAssets(files);
+  const { images, preload } = await preloadAssets(projectSummary.files);
   run(source, {
     canvas,
     projectId: project,

@@ -79,8 +79,11 @@ a font being ready (e.g. to measure text before your first draw), import
 
 ## Loader methods (advanced)
 
-Every asset kind is backed by a loader with the same shape —
-`images`/`sounds`/`music`/`fonts` when imported from `@js-game-zero/core`:
+Every asset kind is backed by a loader with the same shape. Games normally use
+the `images`, `sounds`, and `fonts` services from `@js-game-zero/core`; music
+playback uses the `music` player. Hosts that need to construct or override
+loaders import `createAssetLoaders()` or the individual factories from
+`@js-game-zero/core/host`:
 
 - `load(name): Promise<Asset>` — fetches and caches the asset.
 - `get(name): Asset | undefined` — synchronous; only returns something if
@@ -93,7 +96,8 @@ Every asset kind is backed by a loader with the same shape —
   alias of `unload_all`.
 - `cache_keys(): string[]` — every currently-cached asset name, sorted.
 
-Why a frame never shows a half-loaded sprite: the runtime tracks every load
-started while your script's top level runs (and any started afterward) and
-holds the very first frame's draw until they've all settled — see the
+Why a frame never shows a half-loaded sprite: each runtime tracks its own image
+and font loads started while the script's top level runs (and any started
+afterward) and holds drawing until they settle. Audio loads remain recoverable
+and do not gate frames — see the
 "preload gate" section of [`docs/reference/runtime.md`](runtime.md).

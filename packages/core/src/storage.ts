@@ -1,4 +1,5 @@
-import { isPromiseLike } from "./util";
+import { createActiveServiceProxy } from "./active-service";
+import { normalizeStoragePath } from "./storage-path";
 
 export type JsonValue =
   | null
@@ -10,7 +11,8 @@ export type JsonValue =
 
 export type StorageAdapter = {
   readonly path: string;
-  load(): Promise<string | null> | string | null;
+  load(): Promise<string | null>;
+  loadSync?(): string | null;
   save(text: string): Promise<void> | void;
 };
 
@@ -23,13 +25,6 @@ export type LocalStorageAdapterOptions = {
   readonly projectId?: string;
   readonly path?: string;
   readonly localStorage?: BrowserStorageLike;
-};
-
-export type SandboxFileStorageAdapterOptions = {
-  readonly projectRoot: string;
-  readonly path?: string;
-  readonly readText?: (path: string) => Promise<string | null> | string | null;
-  readonly writeText?: (path: string, text: string) => Promise<void> | void;
 };
 
 export type StorageOptions = {
@@ -138,19 +133,13 @@ export class Storage {
   }
 
   /**
-   * Attempts a fully synchronous load: succeeds (returning true) only if
-   * the underlying adapter's `load()` returns a value directly rather
-   * than a Promise (true for the default browser localStorage adapter).
-   * This lets the runtime populate storage before top-level game code
-   * runs, matching the fully synchronous startup of the upstream
-   * reference framework this package reimplements. Returns false
-   * (without side effects) when the adapter is inherently asynchronous;
-   * callers should fall back to `load()` in that case.
+   * Attempts a fully synchronous load when the adapter explicitly supports
+   * one. Async adapters are never probed here, so falling back to `load()`
+   * performs exactly one read.
    */
   loadSync(): boolean {
-    const result = this.adapter.load();
-    if (isPromiseLike(result)) return false;
-    this.applyLoadedText(result);
+    if (!this.adapter.loadSync) return false;
+    this.applyLoadedText(this.adapter.loadSync());
     return true;
   }
 
@@ -202,34 +191,17 @@ export function createLocalStorageAdapter(
   const scopedKey = `js-game-zero:${projectId}:${path}`;
   return {
     path: scopedKey,
-    load() {
+    async load() {
+      const localStorage = resolveLocalStorage(options.localStorage);
+      return localStorage.getItem(scopedKey);
+    },
+    loadSync() {
       const localStorage = resolveLocalStorage(options.localStorage);
       return localStorage.getItem(scopedKey);
     },
     save(text) {
       const localStorage = resolveLocalStorage(options.localStorage);
       localStorage.setItem(scopedKey, text);
-    },
-  };
-}
-
-export function createSandboxFileStorageAdapter(
-  options: SandboxFileStorageAdapterOptions,
-): StorageAdapter {
-  const safePath = normalizeSandboxStoragePath(options.path ?? "storage.json");
-  const path = sandboxStoragePath(options.projectRoot, safePath);
-  return {
-    path,
-    async load() {
-      if (options.readText) return options.readText(path);
-      return readSandboxText(options.projectRoot, safePath);
-    },
-    async save(text) {
-      if (options.writeText) {
-        await options.writeText(path, text);
-        return;
-      }
-      await writeSandboxText(options.projectRoot, safePath, text);
     },
   };
 }
@@ -292,37 +264,6 @@ function validateStorageProjectId(projectId: string): string {
   return projectId;
 }
 
-function normalizeStoragePath(path: string): string {
-  if (path.length === 0 || path.includes("\\") || path.startsWith("/")) {
-    throw new TypeError("storage path must be a relative forward-slash path.");
-  }
-  const segments = path.split("/");
-  if (
-    segments.some(
-      (segment) => segment.length === 0 || segment === "." || segment === "..",
-    )
-  ) {
-    throw new TypeError(
-      "storage path cannot include empty or traversal segments.",
-    );
-  }
-  return segments.join("/");
-}
-
-function normalizeSandboxStoragePath(path: string): string {
-  if (/^(\/|[a-z]:[\\/])/i.test(path)) {
-    throw new TypeError("sandbox storage path must be relative.");
-  }
-  return normalizeStoragePath(path);
-}
-
-function sandboxStoragePath(projectRoot: string, safePath: string): string {
-  if (!projectRoot || projectRoot.includes("\0")) {
-    throw new TypeError("projectRoot must be a non-empty filesystem path.");
-  }
-  return `${projectRoot.replace(/[\\/]+$/, "")}/${safePath}`;
-}
-
 function resolveLocalStorage(
   localStorage: BrowserStorageLike | undefined,
 ): BrowserStorageLike {
@@ -331,112 +272,6 @@ function resolveLocalStorage(
     throw new Error("localStorage is not available in this environment.");
   }
   return resolved;
-}
-
-async function readSandboxText(
-  projectRoot: string,
-  safePath: string,
-): Promise<string | null> {
-  const resolved = await resolveSandboxFilePath(projectRoot, safePath, false);
-  if (!resolved) return null;
-  try {
-    return await resolved.fs.readFile(resolved.targetPath, "utf8");
-  } catch (error) {
-    if (isMissingFileError(error)) return null;
-    throw error;
-  }
-}
-
-async function writeSandboxText(
-  projectRoot: string,
-  safePath: string,
-  text: string,
-): Promise<void> {
-  const resolved = await resolveSandboxFilePath(projectRoot, safePath, true);
-  if (!resolved) return;
-  const tempPath = resolved.path.join(
-    resolved.parentPath,
-    `.jgz-storage-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`,
-  );
-  try {
-    await resolved.fs.writeFile(tempPath, text, "utf8");
-    await resolved.fs.rename(tempPath, resolved.targetPath);
-  } catch (error) {
-    await resolved.fs.rm(tempPath, { force: true });
-    throw error;
-  }
-}
-
-async function resolveSandboxFilePath(
-  projectRoot: string,
-  safePath: string,
-  createParent: boolean,
-): Promise<{
-  readonly fs: typeof import("node:fs/promises");
-  readonly path: typeof import("node:path");
-  readonly parentPath: string;
-  readonly targetPath: string;
-} | null> {
-  const fs = await import("node:fs/promises");
-  const path = await import("node:path");
-  const rootPath = path.resolve(projectRoot);
-  const realRoot = await fs.realpath(rootPath);
-  const lexicalTarget = path.join(realRoot, safePath);
-  const lexicalParent = path.dirname(lexicalTarget);
-  if (createParent) {
-    await fs.mkdir(lexicalParent, { recursive: true });
-  }
-
-  let parentPath: string;
-  try {
-    parentPath = await fs.realpath(lexicalParent);
-  } catch (error) {
-    if (!createParent && isMissingFileError(error)) return null;
-    throw error;
-  }
-
-  if (!isPathInside(parentPath, realRoot, path)) {
-    throw new TypeError("sandbox storage path must stay inside project root.");
-  }
-
-  const targetPath = path.join(parentPath, path.basename(lexicalTarget));
-  if (!isPathInside(targetPath, realRoot, path)) {
-    throw new TypeError("sandbox storage path must stay inside project root.");
-  }
-
-  try {
-    const stat = await fs.lstat(targetPath);
-    if (stat.isSymbolicLink()) {
-      throw new TypeError("sandbox storage path must not be a symbolic link.");
-    }
-  } catch (error) {
-    if (!isMissingFileError(error)) throw error;
-  }
-
-  return { fs, path, parentPath, targetPath };
-}
-
-function isPathInside(
-  targetPath: string,
-  rootPath: string,
-  path: typeof import("node:path"),
-): boolean {
-  const relative = path.relative(rootPath, targetPath);
-  return (
-    relative === "" ||
-    (relative.length > 0 &&
-      !relative.startsWith("..") &&
-      !path.isAbsolute(relative))
-  );
-}
-
-function isMissingFileError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "ENOENT"
-  );
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -497,4 +332,23 @@ const storageProxyHandler: ProxyHandler<Storage> = {
   },
 };
 
-export const storage = createStorage();
+/** Default backing instance used when no runtime-scoped storage is active. */
+export const defaultStorage = createStorage();
+let activeStorage: Storage | null = null;
+
+export function setActiveStorage(nextStorage: Storage | null): Storage | null {
+  const previous = activeStorage;
+  activeStorage = nextStorage;
+  return previous;
+}
+
+export function getActiveStorage(): Storage {
+  return activeStorage ?? defaultStorage;
+}
+
+/**
+ * PGZero-style process-level convenience proxy. Runtime callbacks scope this
+ * proxy to their own Storage instance; outside a runtime it uses a default
+ * local-storage-backed instance.
+ */
+export const storage = createActiveServiceProxy(getActiveStorage);

@@ -154,8 +154,8 @@ against it or building your own tooling on top:
 | `GET`    | `/api/projects/:project`              | Project summary and file list.             |
 | `POST`   | `/api/projects/:project/rename`       | Rename a project.                          |
 | `DELETE` | `/api/projects/:project`              | Delete a project.                          |
-| `GET`    | `/api/projects/:project/files/:path`  | Read a file.                               |
-| `PUT`    | `/api/projects/:project/files/:path`  | Write (or create) a file.                  |
+| `GET`    | `/api/projects/:project/files/:path`  | Read content plus its save `version`.      |
+| `PUT`    | `/api/projects/:project/files/:path`  | Versioned write or file creation.          |
 | `DELETE` | `/api/projects/:project/files/:path`  | Delete a file.                             |
 | `POST`   | `/api/projects/:project/files/rename` | Rename a file (`{from, to}`).              |
 | `PUT`    | `/api/projects/:project/assets/:path` | Upload an asset (raw bytes).               |
@@ -166,3 +166,11 @@ against it or building your own tooling on top:
 Every project/file/asset route rejects path traversal, absolute paths,
 encoded escapes, backslashes, and symlink escapes — file and asset paths are
 always confined to their project's own directory on disk.
+
+File writes send `{content, baseVersion, revision, sessionId}`. The server
+serializes writes per path and compares revisions only within the same editor
+session, so an unload-safe save cannot let stale content overwrite a newer edit
+and one editor cannot supersede another editor's stale base. Mutation
+requests carrying a foreign `Origin` are rejected; the separate learner
+preview origin can read only its narrowly scoped source/assets and cannot use
+the editor's project mutation API.

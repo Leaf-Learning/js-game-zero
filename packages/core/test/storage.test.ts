@@ -5,23 +5,35 @@ import { join } from "node:path";
 import {
   JsonStorageError,
   Storage,
-  createLocalStorageAdapter,
-  createSandboxFileStorageAdapter,
-  createStorage,
-  type BrowserStorageLike,
+  storage,
   type StorageAdapter,
 } from "@js-game-zero/core";
+import {
+  createLocalStorageAdapter,
+  createStorage,
+  type BrowserStorageLike,
+} from "@js-game-zero/core/host";
+import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
+import { getActiveStorage, setActiveStorage } from "../src/storage";
 
 class MemoryAdapter implements StorageAdapter {
   readonly path: string;
   text: string | null;
+  loadCalls = 0;
+  loadSyncCalls = 0;
 
   constructor(path = "memory", text: string | null = null) {
     this.path = path;
     this.text = text;
   }
 
-  load(): string | null {
+  async load(): Promise<string | null> {
+    this.loadCalls += 1;
+    return this.text;
+  }
+
+  loadSync(): string | null {
+    this.loadSyncCalls += 1;
     return this.text;
   }
 
@@ -287,12 +299,16 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
 
     expect(store.loadSync()).toBe(true);
     expect(store.get("score")).toBe(3);
+    expect(adapter.loadSyncCalls).toBe(1);
+    expect(adapter.loadCalls).toBe(0);
   });
 
-  test("loadSync returns false without side effects for an inherently async adapter", async () => {
+  test("loadSync does not probe an async adapter before the one async read", async () => {
+    let loadCalls = 0;
     const asyncAdapter: StorageAdapter = {
       path: "async",
       async load() {
+        loadCalls += 1;
         return JSON.stringify({ score: 9 });
       },
       async save() {},
@@ -301,9 +317,11 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
 
     expect(store.loadSync()).toBe(false);
     expect(store.get("score")).toBeUndefined();
+    expect(loadCalls).toBe(0);
 
     await store.load();
     expect(store.get("score")).toBe(9);
+    expect(loadCalls).toBe(1);
   });
 
   test("loadSync treats an empty/missing sync value as empty storage", () => {
@@ -314,6 +332,29 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
     expect(store.loadSync()).toBe(true);
     expect(store.has("stale")).toBe(false);
     expect(store.keys()).toEqual([]);
+  });
+
+  test("package storage proxy follows the active storage and restores the previous service", () => {
+    const first = createStorage({ adapter: new MemoryAdapter("first") });
+    const second = createStorage({ adapter: new MemoryAdapter("second") });
+    setActiveStorage(null);
+    try {
+      expect(storage).toBeInstanceOf(Storage);
+      expect(setActiveStorage(first)).toBeNull();
+      storage.set("score", 10);
+      expect(first.get("score")).toBe(10);
+      expect(getActiveStorage()).toBe(first);
+
+      expect(setActiveStorage(second)).toBe(first);
+      expect(storage.get("score")).toBeUndefined();
+      storage.set("score", 20);
+      expect(second.get("score")).toBe(20);
+
+      expect(setActiveStorage(first)).toBe(second);
+      expect(storage.get("score")).toBe(10);
+    } finally {
+      setActiveStorage(null);
+    }
   });
 
   test("onChange notifies on set/delete/clear/setdefault-insert but not on no-op mutations or load/save", async () => {

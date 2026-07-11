@@ -3,22 +3,16 @@ import { Animation, animate, withAnimationClock } from "./animation";
 import {
   assetUrl,
   createAssetLoaders,
-  fonts as globalFonts,
-  images as globalImages,
-  musicAssets as globalMusicAssets,
-  sounds as globalSounds,
+  setActiveAssetLoaders,
   validateAssetName,
   type AssetLoaders,
-  type FontAsset,
-  type MusicAsset,
-  type SoundAsset,
-  type SurfaceLike,
 } from "./assets";
 import { Clock, setActiveClock } from "./clock";
 import {
   createInputDispatcher,
   getHook,
   getParameterNames,
+  HOOK_ALIASES,
   type Hook,
   type InputHooks,
 } from "./events";
@@ -31,90 +25,103 @@ import {
   setActiveKeyboard,
 } from "./input";
 import {
-  createBrowserSoundAsset,
+  AudioUnlockState,
   createMusicPlayer,
   setActiveMusicPlayer,
 } from "./audio";
 import { Screen, setScreen } from "./rendering";
 import {
+  attachAutosave,
+  primeStorage,
+  type Autosave,
+} from "./runtime-persistence";
+import {
   createLocalStorageAdapter,
   createStorage,
+  setActiveStorage,
   Storage,
-  storage as defaultStorage,
   type StorageAdapter,
 } from "./storage";
-import { tone } from "./tone";
-import { imageExtensions, levenshtein, soundExtensions } from "./util";
+import { createToneGenerator } from "./tone";
+import {
+  createDiagnosticEmitter,
+  describeRuntimeError as describeError,
+  diagnoseGameModule,
+  isValidRuntimeDimension as validDimension,
+  RUNTIME_MODULE_OPTION_NAMES as moduleOptionNames,
+} from "./runtime-diagnostics";
+import { executeZeroBoilerplateSource } from "./runtime-source";
+import type {
+  DefinedGameModule,
+  GameHandleState,
+  GameKeyEvent,
+  GameModule,
+  GameMouseEvent,
+  PreloadedAssets,
+  RunOptions,
+  RuntimeCanvas,
+  RuntimeDiagnostic,
+  RuntimeFailure,
+  RuntimeFailurePhase,
+  RuntimeMode,
+  RuntimeScheduler,
+} from "./runtime-contracts";
 
-export type GameModule = InputHooks & {
-  readonly WIDTH?: number;
-  readonly HEIGHT?: number;
-  readonly TITLE?: string;
-  readonly ICON?: string | null;
-  readonly draw?: Hook;
-  readonly update?: Hook;
+export type {
+  DefinedGameModule,
+  GameHandleState,
+  GameKeyEvent,
+  GameModule,
+  GameMouseEvent,
+  PreloadedAssets,
+  RunOptions,
+  RuntimeCanvas,
+  RuntimeDiagnostic,
+  RuntimeFailure,
+  RuntimeFailurePhase,
+  RuntimeMode,
+  RuntimeScheduler,
+} from "./runtime-contracts";
+export { collectRuntimeDiagnostics } from "./runtime-diagnostics";
+
+export type GameContext = {
+  readonly Actor: typeof Actor;
+  readonly Animation: typeof Animation;
+  readonly Rect: typeof Rect;
+  readonly ZRect: typeof ZRect;
+  readonly Screen: typeof Screen;
+  readonly Storage: typeof Storage;
+  readonly screen: Screen;
+  readonly clock: Clock;
+  readonly keyboard: KeyboardState;
+  readonly keymods: typeof keymods;
+  readonly keys: typeof keys;
+  readonly mouse: typeof mouse;
+  readonly images: AssetLoaders["images"];
+  readonly sounds: AssetLoaders["sounds"];
+  readonly music: ReturnType<typeof createMusicPlayer>;
+  readonly fonts: AssetLoaders["fonts"];
+  readonly storage: Storage;
+  readonly tone: ReturnType<typeof createToneGenerator>;
+  readonly animate: typeof animate;
+  readonly exit: typeof exit;
 };
 
-export type RuntimeMode = "global" | "import";
+const definedGameBrand: unique symbol = Symbol("js-game-zero.defined-game");
 
-export type RuntimeDiagnostic = {
-  readonly code:
-    | "asset-name"
-    | "constant-typo"
-    | "duplicate-config"
-    | "duplicate-hook-alias"
-    | "hook-arity"
-    | "hook-typo"
-    | "invalid-config"
-    | "runtime-error";
-  readonly severity: "warning" | "error";
-  readonly message: string;
-  readonly name?: string;
-  readonly suggestion?: string;
+export type DefinedGame = {
+  readonly [definedGameBrand]: true;
+  readonly create: (context: GameContext) => DefinedGameModule;
 };
 
-export type RuntimeScheduler = {
-  requestAnimationFrame(callback: (timestamp: number) => void): unknown;
-  cancelAnimationFrame(handle: unknown): void;
-  now?(): number;
-};
-
-export type RuntimeCanvas = HTMLCanvasElement & {
-  getBoundingClientRect?: () => {
-    left: number;
-    top: number;
-    width?: number;
-    height?: number;
-  };
-};
-
-export type RunOptions = Partial<GameModule> & {
-  readonly assetBaseUrl?: string;
-  readonly autostart?: boolean;
-  readonly canvas?: RuntimeCanvas;
-  readonly container?: HTMLElement;
-  readonly diagnostics?: (diagnostic: RuntimeDiagnostic) => void;
-  readonly keyboardTarget?: EventTarget;
-  readonly preload?: readonly string[];
-  readonly preloadedAssets?: PreloadedAssets;
-  readonly projectId?: string;
-  readonly scheduler?: RuntimeScheduler;
-  readonly storage?: Storage | StorageAdapter;
-  /**
-   * Overrides the loaders used for `images`/`Actor` (zero-boilerplate
-   * mode) and `sounds`/`music`/`fonts`. Defaults to fresh loaders scoped
-   * by `projectId`/`assetBaseUrl`. Mainly useful for embedding hosts and
-   * tests that need deterministic control over asset load timing.
-   */
-  readonly loaders?: Partial<AssetLoaders>;
-};
-
-export type PreloadedAssets = {
-  readonly images?: Record<string, SurfaceLike>;
-  readonly sounds?: Record<string, SoundAsset>;
-  readonly music?: Record<string, MusicAsset>;
-  readonly fonts?: Record<string, FontAsset>;
-};
+export function defineGame(
+  factory: (context: GameContext) => DefinedGameModule,
+): DefinedGame {
+  if (typeof factory !== "function") {
+    throw new TypeError("defineGame requires a game factory function.");
+  }
+  return { [definedGameBrand]: true, create: factory };
+}
 
 export type GameHandle = {
   readonly mode: RuntimeMode;
@@ -126,6 +133,8 @@ export type GameHandle = {
   readonly storage: Storage;
   readonly diagnostics: readonly RuntimeDiagnostic[];
   readonly module: GameModule;
+  readonly state: GameHandleState;
+  readonly failure: RuntimeFailure | null;
   /**
    * Resolves once the "preload gate" is satisfied: storage has been
    * loaded and every asset requested while the game module was
@@ -135,65 +144,21 @@ export type GameHandle = {
    * await readiness explicitly instead of polling `step()`.
    */
   readonly ready: Promise<void>;
+  readonly done: Promise<void>;
   pause(): void;
   resume(): void;
   step(dt: number): void;
   stop(): void;
-  reload(source?: GameModule | string): GameHandle;
+  dispose(): Promise<void>;
+  restart(source?: GameModule | string | DefinedGame): Promise<GameHandle>;
+  /** @deprecated Prefer restart(), which awaits cleanup before starting again. */
+  reload(source?: GameModule | string | DefinedGame): GameHandle;
 };
 
-const configurationNames = ["WIDTH", "HEIGHT", "TITLE", "ICON"] as const;
-const snakeHookNames = [
-  "draw",
-  "update",
-  "on_mouse_down",
-  "on_mouse_up",
-  "on_mouse_move",
-  "on_key_down",
-  "on_key_up",
-  "on_music_end",
-] as const;
-const camelHookNames = [
-  "onMouseDown",
-  "onMouseUp",
-  "onMouseMove",
-  "onKeyDown",
-  "onKeyUp",
-  "onMusicEnd",
-] as const;
-const hookNames = [...snakeHookNames, ...camelHookNames] as const;
-const moduleOptionNames = [...configurationNames, ...hookNames] as const;
-const constantNames = new Set<string>(configurationNames);
-const hookNameSet = new Set<string>(hookNames);
-
-const builtinGlobals: Record<string, unknown> = {
-  Array,
-  Boolean,
-  Date,
-  Error,
-  Infinity,
-  JSON,
-  Map,
-  Math,
-  NaN,
-  Number,
-  Object,
-  Promise,
-  RangeError,
-  RegExp,
-  Set,
-  String,
-  TypeError,
-  console,
-  parseFloat,
-  parseInt,
-  undefined,
-};
-
-let activeHandle: GameHandle | null = null;
+const activeHandles: GameHandle[] = [];
 
 export function run(
-  moduleOrSource: GameModule | string,
+  moduleOrSource: GameModule | string | DefinedGame,
   options: RunOptions = {},
 ): GameHandle {
   const diagnostics: RuntimeDiagnostic[] = [];
@@ -201,49 +166,145 @@ export function run(
   const mode: RuntimeMode =
     typeof moduleOrSource === "string" ? "global" : "import";
 
-  let module: GameModule;
-  let context: RuntimeContext;
-  if (mode === "global") {
-    context = createRuntimeContext(options, diagnostics, emit, undefined);
-    module = withRuntimeContext(context, () =>
-      executeZeroBoilerplateSource(String(moduleOrSource), context, emit),
-    );
-  } else {
-    module = moduleOrSource as GameModule;
-    context = createRuntimeContext(options, diagnostics, emit, module);
+  let module!: GameModule;
+  let context!: RuntimeContext;
+  let game!: GameModule;
+  try {
+    if (mode === "global") {
+      context = createRuntimeContext(options, diagnostics, emit, undefined);
+      module = withRuntimeContext(context, () =>
+        executeZeroBoilerplateSource(
+          String(moduleOrSource),
+          context,
+          run,
+          emit,
+        ),
+      );
+    } else if (isDefinedGame(moduleOrSource)) {
+      context = createRuntimeContext(options, diagnostics, emit, undefined);
+      module = withRuntimeContext(context, () =>
+        adaptDefinedGame(moduleOrSource.create(createGameContext(context))),
+      );
+    } else {
+      module = moduleOrSource as GameModule;
+      context = createRuntimeContext(options, diagnostics, emit, module);
+    }
+
+    diagnoseGameModule(module, options, emit, mode);
+    game = mergeModuleOptions(module, options);
+    requireDrawArity(game.draw);
+    applyCanvasConfiguration(context.canvas, game, emit);
+    configureDocumentTitle(game);
+    applyFavicon(context, game.ICON, emit);
+  } catch (error) {
+    emit({
+      code: "runtime-error",
+      severity: "error",
+      phase: "startup",
+      recoverable: false,
+      message: `startup failed: ${describeError(error)}`,
+    });
+    cleanupFailedStartup(context, emit);
+    throw error;
   }
-
-  diagnoseGameModule(module, options, emit, mode);
-  const game = mergeModuleOptions(module, options);
-  requireDrawArity(game.draw);
-  applyCanvasConfiguration(context.canvas, game, emit);
-  configureDocumentTitle(game);
-  applyFavicon(context, game.ICON, emit);
-
-  const hooks: InputHooks = game;
-  const dispatcher = createInputDispatcher(hooks, context.keyboard);
-  const detachInput = attachDispatcher(
-    dispatcher,
-    context,
-    context.canvas,
-    options,
-  );
-  const musicEndHook = getHook(hooks, "on_music_end") as
-    (() => void) | undefined;
-  context.music.set_on_music_end(
-    musicEndHook
-      ? () => withRuntimeContext(context, () => musicEndHook())
-      : undefined,
-  );
 
   let stopped = false;
   let paused = false;
   let frameHandle: unknown = null;
   let lastTimestamp: number | null = null;
+  let state: GameHandleState = "starting";
+  let failure: RuntimeFailure | null = null;
+  let detachInput = (): void => {};
+  let cleanupPromise: Promise<void> | null = null;
+  let resolveDone = (): void => {};
+  const done = new Promise<void>((resolve) => {
+    resolveDone = resolve;
+  });
+  let handle: GameHandle;
 
-  const ready = waitForPreloadGate(context);
+  const removeActiveHandle = (): void => {
+    const index = activeHandles.indexOf(handle);
+    if (index >= 0) activeHandles.splice(index, 1);
+    setScreen(activeHandles.at(-1)?.screen ?? null);
+  };
 
-  const handle: GameHandle = {
+  const dispose = (): Promise<void> => {
+    if (cleanupPromise) return cleanupPromise;
+    stopped = true;
+    paused = false;
+    if (state !== "failed") state = "stopped";
+    detachInput();
+    context.scheduler.cancelAnimationFrame(frameHandle);
+    context.keyboard.clear();
+    context.clock.clear();
+    context.music.stop();
+    context.stop = null;
+    context.autosave.detach();
+    removeActiveHandle();
+    if (context.ownsCanvas) context.canvas.remove?.();
+    cleanupPromise = Promise.resolve(context.autosave.flush())
+      .catch((error: unknown) => {
+        emit({
+          code: "runtime-error",
+          severity: "warning",
+          phase: "storage",
+          recoverable: true,
+          message: `Failed to flush storage while stopping: ${describeError(error)}`,
+        });
+      })
+      .then(() => {
+        resolveDone();
+      });
+    return cleanupPromise;
+  };
+
+  const failRuntime = (phase: RuntimeFailurePhase, error: unknown): void => {
+    if (state === "failed" || state === "stopped") return;
+    failure = { phase, message: describeError(error), cause: error };
+    state = "failed";
+    emit({
+      code: "runtime-error",
+      severity: "error",
+      phase,
+      recoverable: false,
+      message: `${phase} failed: ${describeError(error)}`,
+    });
+    void dispose();
+  };
+
+  const hooks: InputHooks = game;
+  const dispatcher = createInputDispatcher(hooks, context.keyboard);
+  detachInput = attachDispatcher(
+    dispatcher,
+    context,
+    context.canvas,
+    options,
+    (error) => failRuntime("input", error),
+  );
+  const musicEndHook = getHook(hooks, "on_music_end") as
+    (() => void) | undefined;
+  context.music.set_on_music_end(
+    musicEndHook
+      ? () => {
+          try {
+            withRuntimeContext(context, () => musicEndHook());
+          } catch (error) {
+            failRuntime("audio", error);
+          }
+        }
+      : undefined,
+  );
+
+  const ready = waitForPreloadGate(context)
+    .then(() => {
+      if (state === "starting") state = "running";
+    })
+    .catch((error: unknown) => {
+      failRuntime("startup", error);
+      throw error;
+    });
+
+  handle = {
     mode,
     canvas: context.canvas,
     screen: context.screen,
@@ -253,39 +314,48 @@ export function run(
     storage: context.storage,
     diagnostics,
     module: game,
+    get state() {
+      return state;
+    },
+    get failure() {
+      return failure;
+    },
     ready,
+    done,
     pause() {
+      if (stopped || state === "failed") return;
       paused = true;
+      state = "paused";
     },
     resume() {
       if (stopped) return;
       paused = false;
+      state = "running";
     },
     step(dt: number) {
       if (stopped || paused) return;
-      if (isRuntimeGated(context)) return;
-      runFrame(game, context, dt);
+      if (isRuntimeGated(context)) {
+        if (state !== "starting") monitorLateAssetGate(context, failRuntime);
+        return;
+      }
+      runFrame(game, context, dt, failRuntime);
     },
     stop() {
-      if (stopped) return;
-      stopped = true;
-      detachInput();
-      context.autosave.flush();
-      context.autosave.detach();
-      context.scheduler.cancelAnimationFrame(frameHandle);
-      context.keyboard.clear();
-      if (activeHandle === handle) {
-        activeHandle = null;
-        setScreen(null);
-      }
+      void dispose();
     },
-    reload(nextSource: GameModule | string = moduleOrSource) {
+    dispose,
+    async restart(nextSource = moduleOrSource) {
+      await dispose();
+      return run(nextSource, options);
+    },
+    reload(nextSource = moduleOrSource) {
       handle.stop();
       return run(nextSource, options);
     },
   };
 
-  activeHandle = handle;
+  context.stop = () => handle.stop();
+  activeHandles.push(handle);
   setScreen(context.screen);
 
   if (options.autostart !== false) {
@@ -293,11 +363,17 @@ export function run(
       if (stopped) return;
       const previous = lastTimestamp ?? timestamp;
       lastTimestamp = timestamp;
-      if (!paused && !isRuntimeGated(context)) {
-        const dt = Math.min(0.25, Math.max(0, (timestamp - previous) / 1000));
-        runFrame(game, context, dt);
+      if (!paused) {
+        if (isRuntimeGated(context)) {
+          if (state !== "starting") monitorLateAssetGate(context, failRuntime);
+        } else {
+          const dt = Math.min(0.25, Math.max(0, (timestamp - previous) / 1000));
+          runFrame(game, context, dt, failRuntime);
+        }
       }
-      frameHandle = context.scheduler.requestAnimationFrame(frame);
+      if (!stopped) {
+        frameHandle = context.scheduler.requestAnimationFrame(frame);
+      }
     };
     frameHandle = context.scheduler.requestAnimationFrame(frame);
   }
@@ -306,27 +382,15 @@ export function run(
 }
 
 export function exit(): void {
-  activeHandle?.stop();
-}
-
-export function collectRuntimeDiagnostics(
-  moduleOrSource: GameModule | string,
-  options: RunOptions = {},
-): RuntimeDiagnostic[] {
-  const diagnostics: RuntimeDiagnostic[] = [];
-  const emit = createDiagnosticEmitter(diagnostics);
-  if (typeof moduleOrSource === "string") {
-    diagnoseSource(moduleOrSource, emit);
-    return diagnostics;
-  }
-  diagnoseGameModule(moduleOrSource, options, emit, "import");
-  return diagnostics;
+  activeHandles.at(-1)?.stop();
 }
 
 type RuntimeContext = {
   readonly canvas: RuntimeCanvas;
+  readonly ownsCanvas: boolean;
   readonly screen: Screen;
   readonly clock: Clock;
+  readonly clockFailure: { current: unknown | null };
   readonly keyboard: KeyboardState;
   readonly loaders: AssetLoaders;
   readonly music: ReturnType<typeof createMusicPlayer>;
@@ -337,6 +401,10 @@ type RuntimeContext = {
   /** Resolves once the storage preload has settled (success or handled failure). */
   readonly storageReady: Promise<void>;
   readonly autosave: Autosave;
+  readonly tone: ReturnType<typeof createToneGenerator>;
+  stop: (() => void) | null;
+  /** The one active late image/font completion boundary, if any. */
+  assetGate: Promise<void> | null;
 };
 
 function createRuntimeContext(
@@ -345,90 +413,143 @@ function createRuntimeContext(
   emit: (diagnostic: RuntimeDiagnostic) => void,
   module: GameModule | undefined,
 ): RuntimeContext {
-  const canvas = options.canvas ?? createCanvas();
-  const scheduler = options.scheduler ?? createDefaultScheduler();
-  const defaultLoaders = createAssetLoaders({
-    projectId: options.projectId ?? "default",
-    assetBaseUrl: options.assetBaseUrl ?? "/assets",
-  });
-  const loaders: AssetLoaders = {
-    images: options.loaders?.images ?? defaultLoaders.images,
-    sounds: options.loaders?.sounds ?? defaultLoaders.sounds,
-    music: options.loaders?.music ?? defaultLoaders.music,
-    fonts: options.loaders?.fonts ?? defaultLoaders.fonts,
-  };
-  const screen = new Screen(canvas, canvas.getContext("2d"), {
-    imageLoader: loaders.images,
-  });
-  definePreloadedAssets(loaders, options.preloadedAssets);
-  preloadAssets(loaders, options.preload);
-  const keyboard = new KeyboardState();
-  const clock = new Clock();
-  const storage = resolveStorage(options);
-  const { state: storageReadyState, promise: storageReady } = primeStorage(
-    storage,
-    emit,
-  );
-  // Attached before any top-level game code runs (in particular before
-  // executeZeroBoilerplateSource evaluates the zero-boilerplate script),
-  // so a top-level mutation like `storage.score = 5` is captured by the
-  // auto-save listener from the very first tick, not just mutations made
-  // later inside update()/draw().
-  const autosave = attachAutosave(storage, emit);
-  const onMusicEnd = module
-    ? (getHook(module, "on_music_end") as (() => void) | undefined)
-    : undefined;
-  const music = createMusicPlayer({
-    loader: loaders.music,
-    ...(onMusicEnd ? { onMusicEnd } : {}),
-  });
-  setScreen(screen);
-  return {
-    canvas,
-    screen,
-    clock,
-    keyboard,
-    loaders,
-    music,
-    storage,
-    scheduler,
-    storageReadyState,
-    storageReady,
-    autosave,
-  };
+  const ownsCanvas = options.canvas === undefined;
+  const canvas = options.canvas ?? createCanvas(options.container);
+  try {
+    const scheduler = options.scheduler ?? createDefaultScheduler();
+    const defaultLoaders = createAssetLoaders({
+      projectId: options.projectId ?? "default",
+      assetBaseUrl: options.assetBaseUrl ?? "/assets",
+    });
+    const loaders: AssetLoaders = {
+      images: options.loaders?.images ?? defaultLoaders.images,
+      sounds: options.loaders?.sounds ?? defaultLoaders.sounds,
+      music: options.loaders?.music ?? defaultLoaders.music,
+      fonts: options.loaders?.fonts ?? defaultLoaders.fonts,
+    };
+    const screen = new Screen(canvas, canvas.getContext("2d"), {
+      imageLoader: loaders.images,
+    });
+    definePreloadedAssets(loaders, options.preloadedAssets);
+    preloadAssets(loaders, options.preload, emit);
+    const keyboard = new KeyboardState();
+    const clockFailure = { current: null as unknown | null };
+    const clock = new Clock({
+      onError(error) {
+        clockFailure.current ??= error;
+      },
+    });
+    const storage = resolveStorage(options);
+    const { state: storageReadyState, promise: storageReady } = primeStorage(
+      storage,
+      emit,
+    );
+    // Attached before any top-level game code runs (in particular before
+    // executeZeroBoilerplateSource evaluates the zero-boilerplate script),
+    // so a top-level mutation like `storage.score = 5` is captured by the
+    // auto-save listener from the very first tick, not just mutations made
+    // later inside update()/draw().
+    const autosave = attachAutosave(storage, emit);
+    const onMusicEnd = module
+      ? (getHook(module, "on_music_end") as (() => void) | undefined)
+      : undefined;
+    const music = createMusicPlayer({
+      loader: loaders.music,
+      ...(onMusicEnd ? { onMusicEnd } : {}),
+      onError(error) {
+        emit({
+          code: "runtime-error",
+          severity: "warning",
+          phase: "audio",
+          recoverable: true,
+          message: `Music playback failed: ${describeError(error)}`,
+        });
+      },
+    });
+    const scopedTone = createToneGenerator({
+      unlockState: new AudioUnlockState(),
+    });
+    return {
+      canvas,
+      ownsCanvas,
+      screen,
+      clock,
+      clockFailure,
+      keyboard,
+      loaders,
+      music,
+      tone: scopedTone,
+      storage,
+      scheduler,
+      storageReadyState,
+      storageReady,
+      autosave,
+      assetGate: null,
+      stop: null,
+    };
+  } catch (error) {
+    if (ownsCanvas) canvas.remove?.();
+    throw error;
+  }
 }
 
-function executeZeroBoilerplateSource(
-  source: string,
-  context: RuntimeContext,
+function cleanupFailedStartup(
+  context: RuntimeContext | undefined,
   emit: (diagnostic: RuntimeDiagnostic) => void,
-): GameModule {
-  diagnoseSource(source, emit);
+): void {
+  if (!context) return;
+  context.autosave.detach();
+  context.keyboard.clear();
+  context.clock.clear();
+  context.music.stop();
+  if (context.ownsCanvas) context.canvas.remove?.();
+  setScreen(activeHandles.at(-1)?.screen ?? null);
+  void context.autosave.flush().catch((flushError: unknown) => {
+    emit({
+      code: "runtime-error",
+      severity: "warning",
+      phase: "storage",
+      recoverable: true,
+      message: `Failed to flush storage after startup failure: ${describeError(flushError)}`,
+    });
+  });
+}
 
-  class RuntimeActor extends Actor {
+function isDefinedGame(value: unknown): value is DefinedGame {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    definedGameBrand in value &&
+    (value as DefinedGame)[definedGameBrand] === true &&
+    typeof (value as DefinedGame).create === "function"
+  );
+}
+
+function createGameContext(context: RuntimeContext): GameContext {
+  class ScopedActor extends Actor {
     constructor(
       image: string,
       pos?: ConstructorParameters<typeof Actor>[1],
       options: ActorOptions = {},
     ) {
       super(image, pos as never, {
+        ...options,
         screen: context.screen,
         loader: context.loaders.images,
-        ...options,
       });
     }
   }
 
-  const globals = {
+  const scopedAnimate: typeof animate = (object, options) =>
+    withAnimationClock(context.clock, () => animate(object, options));
+
+  return {
+    Actor: ScopedActor,
     Animation,
-    animate,
-    Clock,
-    KeyboardState,
     Rect,
     ZRect,
     Screen,
     Storage,
-    Actor: RuntimeActor,
     screen: context.screen,
     clock: context.clock,
     keyboard: context.keyboard,
@@ -438,62 +559,39 @@ function executeZeroBoilerplateSource(
     images: context.loaders.images,
     sounds: context.loaders.sounds,
     music: context.music,
-    createBrowserSoundAsset,
+    fonts: context.loaders.fonts,
     storage: context.storage,
-    tone,
-    run,
-    exit,
+    tone: context.tone,
+    animate: scopedAnimate,
+    exit: () => context.stop?.(),
   };
-  const scopeTarget: Record<string, unknown> = { ...globals };
-  const scope = new Proxy(scopeTarget, {
-    has(_target, property) {
-      return property !== Symbol.unscopables;
-    },
-    get(target, property) {
-      if (property === Symbol.unscopables) return undefined;
-      if (typeof property !== "string") return undefined;
-      if (property in target) return target[property];
-      if (property in builtinGlobals) return builtinGlobals[property];
-      return undefined;
-    },
-    set(target, property, value) {
-      if (typeof property === "string") target[property] = value;
-      return true;
-    },
-  });
+}
 
-  try {
-    const factory = new Function(
-      "scope",
-      `return (function() {
-        with (scope) {
-          ${source}
-        }
-        return {
-          WIDTH: scope.WIDTH,
-          HEIGHT: scope.HEIGHT,
-          TITLE: scope.TITLE,
-          ICON: scope.ICON,
-          draw: typeof draw === "function" ? draw : (typeof scope.draw === "function" ? scope.draw : undefined),
-          update: typeof update === "function" ? update : (typeof scope.update === "function" ? scope.update : undefined),
-          on_mouse_down: typeof on_mouse_down === "function" ? on_mouse_down : (typeof scope.on_mouse_down === "function" ? scope.on_mouse_down : undefined),
-          on_mouse_up: typeof on_mouse_up === "function" ? on_mouse_up : (typeof scope.on_mouse_up === "function" ? scope.on_mouse_up : undefined),
-          on_mouse_move: typeof on_mouse_move === "function" ? on_mouse_move : (typeof scope.on_mouse_move === "function" ? scope.on_mouse_move : undefined),
-          on_key_down: typeof on_key_down === "function" ? on_key_down : (typeof scope.on_key_down === "function" ? scope.on_key_down : undefined),
-          on_key_up: typeof on_key_up === "function" ? on_key_up : (typeof scope.on_key_up === "function" ? scope.on_key_up : undefined),
-          on_music_end: typeof on_music_end === "function" ? on_music_end : (typeof scope.on_music_end === "function" ? scope.on_music_end : undefined)
-        };
-      })();`,
-    );
-    return factory(scope) as GameModule;
-  } catch (error) {
-    emit({
-      code: "runtime-error",
-      severity: "error",
-      message: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
+function adaptDefinedGame(module: DefinedGameModule): GameModule {
+  const adapted: GameModule = {
+    ...(module.WIDTH === undefined ? {} : { WIDTH: module.WIDTH }),
+    ...(module.HEIGHT === undefined ? {} : { HEIGHT: module.HEIGHT }),
+    ...(module.TITLE === undefined ? {} : { TITLE: module.TITLE }),
+    ...(module.ICON === undefined ? {} : { ICON: module.ICON }),
+    ...(module.draw ? { draw: module.draw } : {}),
+    ...(module.update ? { update: module.update as Hook } : {}),
+  };
+  const writable = adapted as Record<string, unknown>;
+  for (const [, camelName] of HOOK_ALIASES) {
+    const callback = module[camelName];
+    if (!callback) continue;
+    if (camelName === "onMusicEnd") {
+      writable[camelName] = callback;
+      continue;
+    }
+    const eventCallback = callback as unknown as (
+      event: GameKeyEvent | GameMouseEvent,
+    ) => void;
+    writable[camelName] = (event: unknown): void => {
+      eventCallback(event as GameKeyEvent | GameMouseEvent);
+    };
   }
+  return adapted;
 }
 
 function mergeModuleOptions(
@@ -513,77 +611,92 @@ function runFrame(
   module: GameModule,
   context: RuntimeContext,
   dt: number,
+  onFailure: (phase: RuntimeFailurePhase, error: unknown) => void,
 ): void {
-  withRuntimeContext(context, () => {
-    setScreen(context.screen);
-    context.clock.tick(dt);
-    if (module.update) {
-      const parameters = getParameterNames(module.update);
-      if (parameters.length === 0) module.update();
-      else module.update(dt);
-    }
-    // A late asset request (e.g. `actor.image = "other"` inside update())
-    // may have just started a new load. Hold this tick's draw rather than
-    // paint a frame that mixes updated state with a stale/missing image;
-    // the loop keeps retrying on subsequent ticks (see isRuntimeGated)
-    // until the load resolves, then draws with fully correct data.
-    if (isRuntimeGated(context)) return;
-    module.draw?.();
-  });
+  try {
+    withRuntimeContext(context, () => {
+      try {
+        context.clock.tick(dt);
+      } catch (error) {
+        onFailure("clock", error);
+        return;
+      }
+      if (context.clockFailure.current !== null) {
+        const error = context.clockFailure.current;
+        context.clockFailure.current = null;
+        onFailure("clock", error);
+        return;
+      }
+      if (module.update) {
+        try {
+          const parameters = getParameterNames(module.update);
+          if (parameters.length === 0) module.update();
+          else module.update(dt);
+        } catch (error) {
+          onFailure("update", error);
+          return;
+        }
+      }
+      // A late render asset request may have just started a new load. Hold
+      // drawing until it settles, but never freeze gameplay for audio loads.
+      if (isRuntimeGated(context)) {
+        monitorLateAssetGate(context, onFailure);
+        return;
+      }
+      try {
+        module.draw?.();
+      } catch (error) {
+        onFailure("draw", error);
+      }
+    });
+  } catch (error) {
+    onFailure("draw", error);
+  }
 }
 
 /**
  * True while the runtime should hold frames: storage hasn't finished its
- * initial load, or some asset loader (context-scoped or the package-level
- * singletons used by plain `import { Actor, images } from ...` code) has
- * an in-flight load. Checked synchronously so it is cheap to call every
- * tick; the underlying counts only change on load start (synchronous) or
- * load settle (observed on the next macrotask, after microtasks drain).
+ * initial load, or a render-critical image/font owned by this run has an
+ * in-flight load. Audio loading never freezes gameplay, and package-level
+ * singleton activity cannot stall an unrelated handle.
  */
 function isRuntimeGated(context: RuntimeContext): boolean {
   if (!context.storageReadyState.current) return true;
-  return totalPendingAssetCount(context) > 0;
-}
-
-function totalPendingAssetCount(context: RuntimeContext): number {
   return (
-    loaderGroupPendingCount(context.loaders) +
     context.loaders.images.pendingCount() +
-    globalImages.pendingCount() +
-    globalSounds.pendingCount() +
-    globalMusicAssets.pendingCount() +
-    globalFonts.pendingCount()
-  );
-}
-
-function loaderGroupPendingCount(loaders: AssetLoaders): number {
-  return (
-    loaders.sounds.pendingCount() +
-    loaders.music.pendingCount() +
-    loaders.fonts.pendingCount()
+      context.loaders.fonts.pendingCount() >
+    0
   );
 }
 
 /**
- * One-shot promise resolving once the preload gate is satisfied: storage
- * has settled and every asset in flight (across both the context-scoped
- * loaders used by zero-boilerplate `Actor`/`images` globals, and the
- * package-level singleton loaders used by plain `import`-mode code) has
- * settled. Loads triggered while waiting (chained loads) are also
- * awaited via each loader's `waitForIdle()`.
+ * One-shot promise resolving once this run's preload gate is satisfied.
+ * Loads triggered while waiting (chained loads) are also awaited via each
+ * context-owned loader's `waitForIdle()`.
  */
 function waitForPreloadGate(context: RuntimeContext): Promise<void> {
   return Promise.all([
     context.storageReady,
     context.loaders.images.waitForIdle(),
-    context.loaders.sounds.waitForIdle(),
-    context.loaders.music.waitForIdle(),
     context.loaders.fonts.waitForIdle(),
-    globalImages.waitForIdle(),
-    globalSounds.waitForIdle(),
-    globalMusicAssets.waitForIdle(),
-    globalFonts.waitForIdle(),
   ]).then(() => undefined);
+}
+
+function monitorLateAssetGate(
+  context: RuntimeContext,
+  onFailure: (phase: RuntimeFailurePhase, error: unknown) => void,
+): void {
+  if (context.assetGate) return;
+  const gate = Promise.all([
+    context.loaders.images.waitForIdle(),
+    context.loaders.fonts.waitForIdle(),
+  ]).then(() => undefined);
+  context.assetGate = gate;
+  void gate
+    .catch((error: unknown) => onFailure("asset", error))
+    .finally(() => {
+      if (context.assetGate === gate) context.assetGate = null;
+    });
 }
 
 function requireDrawArity(hook: Hook | undefined): void {
@@ -625,298 +738,6 @@ function applyFavicon(
   link.href = href;
 }
 
-const AUTOSAVE_DEBOUNCE_MS = 250;
-
-type Autosave = {
-  /** Cancels any pending debounce timer and saves immediately, if dirty. */
-  flush(): void;
-  /** Unsubscribes from storage changes and browser lifecycle events. */
-  detach(): void;
-};
-
-/**
- * Wires debounced auto-save: any storage mutation (including via the
- * PGZero-style proxy, e.g. `storage.score = 5`) schedules a save a short
- * while later so rapid mutations coalesce into one write. Also flushes
- * immediately on `pagehide`/`visibilitychange` (tab close/backgrounding)
- * so data is not lost; `handle.stop()` calls `flush()` explicitly too.
- */
-function attachAutosave(
-  storage: Storage,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): Autosave {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  const saveNow = (): void => {
-    void storage.save().catch((error: unknown) => {
-      emit({
-        code: "runtime-error",
-        severity: "warning",
-        message: `Failed to auto-save storage: ${describeError(error)}`,
-      });
-    });
-  };
-
-  const flush = (): void => {
-    if (timer === null) return;
-    clearTimeout(timer);
-    timer = null;
-    saveNow();
-  };
-
-  const unsubscribe = storage.onChange(() => {
-    if (timer !== null) clearTimeout(timer);
-    timer = setTimeout(() => {
-      timer = null;
-      saveNow();
-    }, AUTOSAVE_DEBOUNCE_MS);
-  });
-
-  const hasWindow =
-    typeof window !== "undefined" &&
-    typeof window.addEventListener === "function";
-  const pagehideHandler = hasWindow ? () => flush() : undefined;
-  const visibilityHandler =
-    hasWindow && typeof document !== "undefined"
-      ? () => {
-          if (document.visibilityState === "hidden") flush();
-        }
-      : undefined;
-  if (hasWindow && pagehideHandler) {
-    window.addEventListener("pagehide", pagehideHandler);
-  }
-  if (hasWindow && visibilityHandler && typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", visibilityHandler);
-  }
-
-  return {
-    flush,
-    detach() {
-      unsubscribe();
-      if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      if (hasWindow && pagehideHandler) {
-        window.removeEventListener("pagehide", pagehideHandler);
-      }
-      if (hasWindow && visibilityHandler && typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", visibilityHandler);
-      }
-    },
-  };
-}
-
-/**
- * Attempts a synchronous storage load first (works for the default
- * browser localStorage adapter) so top-level game code — e.g.
- * `let score = storage.get("score") ?? 0` in a zero-boilerplate script —
- * sees persisted data immediately, matching the fully synchronous
- * startup of the upstream reference framework this package
- * reimplements. Falls back to the async `load()` for adapters
- * that are inherently asynchronous (e.g. sandboxed file storage); in
- * that case the runtime's preload gate holds frames until it settles,
- * but top-level reads that happen before `run()` returns will not see
- * persisted values.
- */
-function primeStorage(
-  storage: Storage,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): { state: { current: boolean }; promise: Promise<void> } {
-  const state = { current: false };
-  try {
-    if (storage.loadSync()) {
-      state.current = true;
-      return { state, promise: Promise.resolve() };
-    }
-  } catch (error) {
-    emit({
-      code: "runtime-error",
-      severity: "warning",
-      message: `Failed to load storage: ${describeError(error)}`,
-    });
-    state.current = true;
-    return { state, promise: Promise.resolve() };
-  }
-  const promise = storage
-    .load()
-    .catch((error: unknown) => {
-      emit({
-        code: "runtime-error",
-        severity: "warning",
-        message: `Failed to load storage: ${describeError(error)}`,
-      });
-    })
-    .then(() => {
-      state.current = true;
-    });
-  return { state, promise };
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function diagnoseGameModule(
-  module: GameModule,
-  options: RunOptions,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-  mode: RuntimeMode,
-): void {
-  for (const key of Object.keys(module)) {
-    diagnoseIdentifier(key, emit);
-  }
-  for (const key of moduleOptionNames) {
-    if (module[key] !== undefined && options[key] !== undefined) {
-      emit({
-        code: "duplicate-config",
-        severity: "warning",
-        name: key,
-        message: `${key} appears in both the ${mode} module and run options.`,
-      });
-    }
-  }
-  warnDuplicateHookAliases(module, emit);
-  warnHookArity("draw", module.draw, 0, emit);
-  warnHookArity("update", module.update, 1, emit);
-  if (module.WIDTH !== undefined && !validDimension(module.WIDTH)) {
-    emit({
-      code: "invalid-config",
-      severity: "warning",
-      name: "WIDTH",
-      message: "WIDTH should be a positive finite number.",
-    });
-  }
-  if (module.HEIGHT !== undefined && !validDimension(module.HEIGHT)) {
-    emit({
-      code: "invalid-config",
-      severity: "warning",
-      name: "HEIGHT",
-      message: "HEIGHT should be a positive finite number.",
-    });
-  }
-}
-
-function diagnoseSource(
-  source: string,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  const stripped = stripCommentsAndStrings(source);
-  const seen = new Set<string>();
-  for (const match of stripped.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
-    const name = match[0];
-    if (seen.has(name)) continue;
-    seen.add(name);
-    diagnoseIdentifier(name, emit);
-  }
-  for (const match of source.matchAll(/["'`]([^"'`]+)["'`]/g)) {
-    const name = match[1];
-    if (name) diagnoseAssetName(name, emit);
-  }
-}
-
-function diagnoseIdentifier(
-  name: string,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  if (constantNames.has(name) || hookNameSet.has(name)) return;
-  const constantSuggestion =
-    name !== name.toLowerCase()
-      ? closestName(name, configurationNames)
-      : undefined;
-  if (constantSuggestion) {
-    emit({
-      code: "constant-typo",
-      severity: "warning",
-      name,
-      suggestion: constantSuggestion,
-      message: `Did you mean ${constantSuggestion} instead of ${name}?`,
-    });
-    return;
-  }
-  const hookSuggestion = closestName(name, hookNames);
-  if (hookSuggestion) {
-    emit({
-      code: "hook-typo",
-      severity: "warning",
-      name,
-      suggestion: hookSuggestion,
-      message: `Did you mean ${hookSuggestion} instead of ${name}?`,
-    });
-  }
-}
-
-function diagnoseAssetName(
-  name: string,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  const extension = name.split(".").at(-1)?.toLowerCase();
-  const kind =
-    extension && imageExtensions.includes(extension)
-      ? "image"
-      : extension && soundExtensions.includes(extension)
-        ? "sound"
-        : null;
-  if (!kind) return;
-  const extensions = kind === "image" ? imageExtensions : soundExtensions;
-  try {
-    validateAssetName(kind, name, extensions);
-  } catch (error) {
-    emit({
-      code: "asset-name",
-      severity: "warning",
-      name,
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
-
-function warnDuplicateHookAliases(
-  module: GameModule,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  const pairs = [
-    ["on_mouse_down", "onMouseDown"],
-    ["on_mouse_up", "onMouseUp"],
-    ["on_mouse_move", "onMouseMove"],
-    ["on_key_down", "onKeyDown"],
-    ["on_key_up", "onKeyUp"],
-    ["on_music_end", "onMusicEnd"],
-  ] as const;
-  for (const [snake, camel] of pairs) {
-    if (module[snake] && module[camel]) {
-      emit({
-        code: "duplicate-hook-alias",
-        severity: "warning",
-        name: snake,
-        suggestion: camel,
-        message: `${snake} and ${camel} are both defined; ${snake} will run first.`,
-      });
-    }
-  }
-}
-
-function warnHookArity(
-  name: "draw" | "update",
-  hook: Hook | undefined,
-  maximum: number,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  if (!hook) return;
-  const arity = getParameterNames(hook).length;
-  if (arity > maximum) {
-    emit({
-      code: "hook-arity",
-      severity: "warning",
-      name,
-      message:
-        name === "draw"
-          ? "draw should not declare parameters."
-          : "update should accept either no parameters or one dt parameter.",
-    });
-  }
-}
-
 function applyCanvasConfiguration(
   canvas: RuntimeCanvas,
   module: GameModule,
@@ -948,15 +769,12 @@ function readDimension(
   return fallback;
 }
 
-function validDimension(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
 function attachDispatcher(
   dispatcher: ReturnType<typeof createInputDispatcher>,
   context: RuntimeContext,
   canvas: RuntimeCanvas,
   options: RunOptions,
+  onFailure: (error: unknown) => void,
 ): () => void {
   const keyboardTarget =
     options.keyboardTarget ??
@@ -968,59 +786,77 @@ function attachDispatcher(
   ) {
     return () => {};
   }
+  const invoke = (callback: () => void): void => {
+    try {
+      withRuntimeContext(context, callback);
+    } catch (error) {
+      onFailure(error);
+    }
+  };
   const keyDown = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleKeyDown(event as KeyboardEvent),
-    );
+    invoke(() => void dispatcher.handleKeyDown(event as KeyboardEvent));
   const keyUp = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleKeyUp(event as KeyboardEvent),
-    );
+    invoke(() => void dispatcher.handleKeyUp(event as KeyboardEvent));
   const mouseDown = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleMouseDown(event as MouseEvent, canvas),
-    );
+    invoke(() => void dispatcher.handleMouseDown(event as MouseEvent, canvas));
   const mouseUp = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleMouseUp(event as MouseEvent, canvas),
-    );
+    invoke(() => void dispatcher.handleMouseUp(event as MouseEvent, canvas));
   const mouseMove = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleMouseMove(event as MouseEvent, canvas),
-    );
+    invoke(() => void dispatcher.handleMouseMove(event as MouseEvent, canvas));
   const wheel = (event: Event) =>
-    withRuntimeContext(context, () =>
-      dispatcher.handleWheel(event as WheelEvent, canvas),
-    );
+    invoke(() => void dispatcher.handleWheel(event as WheelEvent, canvas));
+  const clearKeyboard = (): void => context.keyboard.clear();
+  const visibilityChange = (): void => {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      clearKeyboard();
+    }
+  };
+  const mouseReleaseTarget = keyboardTarget;
 
   keyboardTarget.addEventListener("keydown", keyDown);
   keyboardTarget.addEventListener("keyup", keyUp);
+  keyboardTarget.addEventListener("blur", clearKeyboard);
   canvas.addEventListener("mousedown", mouseDown);
-  canvas.addEventListener("mouseup", mouseUp);
+  mouseReleaseTarget.addEventListener("mouseup", mouseUp);
   canvas.addEventListener("mousemove", mouseMove);
   canvas.addEventListener("wheel", wheel, { passive: true });
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", visibilityChange);
+  }
 
   return () => {
     keyboardTarget.removeEventListener("keydown", keyDown);
     keyboardTarget.removeEventListener("keyup", keyUp);
+    keyboardTarget.removeEventListener("blur", clearKeyboard);
     canvas.removeEventListener("mousedown", mouseDown);
-    canvas.removeEventListener("mouseup", mouseUp);
+    mouseReleaseTarget.removeEventListener("mouseup", mouseUp);
     canvas.removeEventListener("mousemove", mouseMove);
     canvas.removeEventListener("wheel", wheel);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", visibilityChange);
+    }
   };
 }
 
 function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
+  const previousAssets = setActiveAssetLoaders(context.loaders);
   const previousKeyboard = setActiveKeyboard(context.keyboard);
   const previousClock = setActiveClock(context.clock);
   const previousMusic = setActiveMusicPlayer(context.music);
-  setScreen(context.screen);
+  const previousStorage = setActiveStorage(context.storage);
+  const previousScreen = setScreen(context.screen);
   try {
     return withAnimationClock(context.clock, callback);
   } finally {
+    setScreen(previousScreen);
+    setActiveStorage(previousStorage);
     setActiveMusicPlayer(previousMusic);
     setActiveClock(previousClock);
     setActiveKeyboard(previousKeyboard);
+    setActiveAssetLoaders(previousAssets);
   }
 }
 
@@ -1033,7 +869,7 @@ function resolveStorage(options: RunOptions): Storage {
         }),
       });
     } catch {
-      return defaultStorage;
+      return createStorage();
     }
   }
   if (options.storage instanceof Storage) return options.storage;
@@ -1050,15 +886,25 @@ function resolveStorage(options: RunOptions): Storage {
 function preloadAssets(
   loaders: AssetLoaders,
   assets: readonly string[] = [],
+  emit?: (diagnostic: RuntimeDiagnostic) => void,
 ): void {
   for (const asset of assets) {
     const [directory, ...rest] = asset.split("/");
     const name = rest.join("/");
     if (!directory || !name) continue;
     if (directory === "images") void loaders.images.load(name);
-    else if (directory === "sounds") void loaders.sounds.load(name);
-    else if (directory === "music") void loaders.music.load(name);
-    else if (directory === "fonts") void loaders.fonts.load(name);
+    else if (directory === "sounds" || directory === "music") {
+      const loader = directory === "sounds" ? loaders.sounds : loaders.music;
+      void loader.load(name).catch((error: unknown) => {
+        emit?.({
+          code: "runtime-error",
+          severity: "warning",
+          phase: "audio",
+          recoverable: true,
+          message: `Failed to preload ${directory}/${name}: ${describeError(error)}`,
+        });
+      });
+    } else if (directory === "fonts") void loaders.fonts.load(name);
   }
 }
 
@@ -1081,13 +927,13 @@ function definePreloadedAssets(
   }
 }
 
-function createCanvas(): RuntimeCanvas {
+function createCanvas(container?: HTMLElement): RuntimeCanvas {
   if (typeof document === "undefined") {
     throw new Error("run requires a canvas option outside the browser.");
   }
   const canvas = document.createElement("canvas") as RuntimeCanvas;
   canvas.tabIndex = 0;
-  document.body.append(canvas);
+  (container ?? document.body).append(canvas);
   return canvas;
 }
 
@@ -1114,35 +960,4 @@ function createDefaultScheduler(): RuntimeScheduler {
       return performance.now();
     },
   };
-}
-
-function createDiagnosticEmitter(
-  diagnostics: RuntimeDiagnostic[],
-  callback?: (diagnostic: RuntimeDiagnostic) => void,
-): (diagnostic: RuntimeDiagnostic) => void {
-  return (diagnostic) => {
-    diagnostics.push(diagnostic);
-    callback?.(diagnostic);
-  };
-}
-
-function closestName(
-  name: string,
-  candidates: readonly string[],
-): string | undefined {
-  const lower = name.toLowerCase();
-  let best: { name: string; distance: number } | null = null;
-  for (const candidate of candidates) {
-    const distance = levenshtein(lower, candidate.toLowerCase());
-    if (distance > 2) continue;
-    if (!best || distance < best.distance) best = { name: candidate, distance };
-  }
-  return best?.name;
-}
-
-function stripCommentsAndStrings(source: string): string {
-  return source.replaceAll(
-    /\/\*[\s\S]*?\*\/|\/\/.*$|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/gm,
-    " ",
-  );
 }

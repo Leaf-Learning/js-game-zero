@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_TONE_VOLUME, type Waveform } from "@js-game-zero/core";
 import {
   AudioUnlockState,
-  DEFAULT_TONE_VOLUME,
   createToneGenerator,
   noteToFrequency,
   normalizeWaveform,
@@ -10,8 +10,7 @@ import {
   type AudioParamLike,
   type GainNodeLike,
   type OscillatorNodeLike,
-  type Waveform,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 class MockAudioParam implements AudioParamLike {
   value = 0;

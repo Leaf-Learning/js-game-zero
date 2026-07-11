@@ -1,3 +1,5 @@
+import { createActiveServiceProxy } from "./active-service";
+
 const baseKeys = {
   BACKSPACE: 8,
   TAB: 9,
@@ -271,19 +273,7 @@ export function getActiveKeyboard(): KeyboardState {
   return activeKeyboard ?? defaultKeyboard;
 }
 
-export const keyboard = new Proxy({} as KeyboardState, {
-  get(_target, property) {
-    const target = getActiveKeyboard();
-    const value = Reflect.get(target, property);
-    return typeof value === "function" ? value.bind(target) : value;
-  },
-  set(_target, property, value) {
-    return Reflect.set(getActiveKeyboard(), property, value);
-  },
-  has(_target, property) {
-    return property in getActiveKeyboard();
-  },
-}) as KeyboardState;
+export const keyboard = createActiveServiceProxy(getActiveKeyboard);
 
 export function isKeyConstant(value: unknown): value is number {
   return typeof value === "number" && keyValues.has(value);

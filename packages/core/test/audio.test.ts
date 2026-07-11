@@ -1,14 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { MissingAssetError, type MusicAsset } from "@js-game-zero/core";
 import {
   AudioUnlockState,
-  MissingAssetError,
   createBrowserSoundAsset,
   createMusicLoader,
   createMusicPlayer,
   createSoundLoader,
   type AudioElementLike,
-  type MusicAsset,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 class MockAudioElement implements AudioElementLike {
   src: string;
@@ -103,6 +102,17 @@ function soundFixture(options: { rejectPlay?: boolean } = {}) {
 async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function deferred<T>(): {
+  readonly promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 describe("browser sound effects", () => {
@@ -259,6 +269,134 @@ describe("music player", () => {
       isPlaying: true,
     });
     expect(elements[1]?.loop).toBe(true);
+  });
+
+  test("stop invalidates a track that is still loading", async () => {
+    const loading = deferred<MusicAsset>();
+    const elements: MockAudioElement[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      loadAsset: () => loading.promise,
+    });
+    const player = createMusicPlayer({
+      loader,
+      createAudioElement(url) {
+        const element = new MockAudioElement(url);
+        elements.push(element);
+        return element;
+      },
+    });
+
+    const play = player.play_once("slow.ogg");
+    await Promise.resolve();
+    player.stop();
+    loading.resolve({
+      kind: "music",
+      name: "slow.ogg",
+      url: "/assets/test_project/music/slow.ogg",
+    });
+    await play;
+
+    expect(elements).toHaveLength(0);
+    expect(player.debug_state()).toMatchObject({
+      current: null,
+      queued: [],
+      isPlaying: false,
+    });
+  });
+
+  test("music asset load failures are recoverable and reported without rejecting play", async () => {
+    const reported: unknown[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      loadAsset: async () => {
+        throw new Error("music fetch failed");
+      },
+    });
+    const player = createMusicPlayer({
+      loader,
+      onError: (error) => reported.push(error),
+      createAudioElement: (url) => new MockAudioElement(url),
+    });
+
+    await expect(player.play_once("missing.ogg")).resolves.toBeUndefined();
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBeInstanceOf(MissingAssetError);
+    expect(player.debug_state()).toMatchObject({
+      current: null,
+      isPlaying: false,
+    });
+    expect(player.debug_state().lastError).toContain("missing.ogg");
+  });
+
+  test("a newer play wins even when an older load resolves last", async () => {
+    const slow = deferred<MusicAsset>();
+    const fast = deferred<MusicAsset>();
+    const elements: MockAudioElement[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      loadAsset(_url, name) {
+        return name === "slow.ogg" ? slow.promise : fast.promise;
+      },
+    });
+    const player = createMusicPlayer({
+      loader,
+      createAudioElement(url) {
+        const element = new MockAudioElement(url);
+        elements.push(element);
+        return element;
+      },
+    });
+
+    const firstPlay = player.play_once("slow.ogg");
+    await Promise.resolve();
+    const secondPlay = player.play_once("fast.ogg");
+    fast.resolve({ kind: "music", name: "fast.ogg", url: "/fast.ogg" });
+    await secondPlay;
+    slow.resolve({ kind: "music", name: "slow.ogg", url: "/slow.ogg" });
+    await firstPlay;
+
+    expect(elements.map((element) => element.src)).toEqual(["/fast.ogg"]);
+    expect(player.debug_state()).toMatchObject({
+      current: "fast.ogg",
+      isPlaying: true,
+    });
+  });
+
+  test("stop invalidates queued-track advancement that is still loading", async () => {
+    const next = deferred<MusicAsset>();
+    const elements: MockAudioElement[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      async loadAsset(url, name) {
+        if (name === "next.ogg") return next.promise;
+        return { kind: "music", name, url };
+      },
+    });
+    const player = createMusicPlayer({
+      loader,
+      createAudioElement(url) {
+        const element = new MockAudioElement(url);
+        elements.push(element);
+        return element;
+      },
+    });
+
+    await player.play_once("first.ogg");
+    await player.queue("next.ogg");
+    elements[0]?.emitEnded();
+    await Promise.resolve();
+    player.stop();
+    next.resolve({ kind: "music", name: "next.ogg", url: "/next.ogg" });
+    await flushAsyncWork();
+
+    expect(elements).toHaveLength(1);
+    expect(player.debug_state()).toMatchObject({
+      current: null,
+      queued: [],
+      isPlaying: false,
+    });
   });
 
   test("play_once and queue advance in order before on_music_end fires", async () => {

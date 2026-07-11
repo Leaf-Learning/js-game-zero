@@ -3,13 +3,18 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createSandboxServerHandler } from "../src/server";
+import {
+  createSandboxPreviewServerHandler,
+  createSandboxServerHandler,
+  testFixtureRoutesLoaded,
+} from "../src/server";
 import { normalizeSandboxRelativePath } from "../src/sandbox";
 
 let projectsRoot = "";
@@ -73,7 +78,12 @@ describe("sandbox routes", () => {
     const write = await request("/api/projects/demo_game/files/src/notes.md", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ content: "hello sandbox" }),
+      body: JSON.stringify({
+        content: "hello sandbox",
+        baseVersion: 0,
+        revision: 1,
+        sessionId: "session-a",
+      }),
     });
     expect(write.status).toBe(200);
     expect(
@@ -82,6 +92,11 @@ describe("sandbox routes", () => {
         "utf8",
       ),
     ).toBe("hello sandbox");
+    expect(
+      (await readdir(join(projectsRoot, "demo_game", "src"))).filter((name) =>
+        name.includes(".jgz-tmp-"),
+      ),
+    ).toEqual([]);
 
     const read = await request("/api/projects/demo_game/files/src/notes.md");
     expect(read.status).toBe(200);
@@ -89,6 +104,7 @@ describe("sandbox routes", () => {
       project: "demo_game",
       path: "src/notes.md",
       content: "hello sandbox",
+      version: 1,
     });
   });
 
@@ -162,7 +178,12 @@ describe("sandbox routes", () => {
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content: "// level one" }),
+        body: JSON.stringify({
+          content: "// level one",
+          baseVersion: 0,
+          revision: 1,
+          sessionId: "session-a",
+        }),
       },
     );
     expect(created.status).toBe(200);
@@ -260,11 +281,199 @@ describe("sandbox routes", () => {
         join(projectsRoot, "cloned_game", "images", "player.svg"),
       ).exists(),
     ).toBe(true);
+    expect(
+      (await readdir(projectsRoot)).filter((name) =>
+        name.startsWith(".jgz-staging-"),
+      ),
+    ).toEqual([]);
+  });
+
+  test("versioned writes keep the newest revision regardless of arrival order", async () => {
+    await createProject();
+    const path = "/api/projects/demo_game/files/main.js";
+    const put = (content: string, revision: number) =>
+      request(path, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          content,
+          baseVersion: 0,
+          revision,
+          sessionId: "session-a",
+        }),
+      });
+
+    const [newer, older] = await Promise.all([
+      put("REVISION_TWO", 2),
+      put("REVISION_ONE", 1),
+    ]);
+    expect(newer.status).toBe(200);
+    expect(older.status).toBe(200);
+    expect(
+      await readFile(join(projectsRoot, "demo_game", "main.js"), "utf8"),
+    ).toBe("REVISION_TWO");
+
+    const response = await request(path);
+    const responseBody = (await response.json()) as {
+      content: string;
+      version: number;
+    };
+    expect(responseBody).toMatchObject({
+      content: "REVISION_TWO",
+    });
+    expect(responseBody.version).toBeGreaterThanOrEqual(1);
+  });
+
+  test("independent sessions cannot supersede a stale base with a higher local revision", async () => {
+    await createProject();
+    const path = "/api/projects/demo_game/files/main.js";
+    const put = (content: string, revision: number, sessionId: string) =>
+      request(path, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          content,
+          baseVersion: 0,
+          revision,
+          sessionId,
+        }),
+      });
+
+    const first = await put("CLIENT_A", 1, "session-a");
+    const second = await put("CLIENT_B", 99, "session-b");
+    expect(await first.json()).toMatchObject({ ok: true, stale: false });
+    expect(second.status).toBe(409);
+    expect(await second.json()).toMatchObject({ code: "conflict" });
+    expect(
+      await readFile(join(projectsRoot, "demo_game", "main.js"), "utf8"),
+    ).toBe("CLIENT_A");
+  });
+
+  test("same-session exact replays are idempotent but mismatched duplicates conflict", async () => {
+    await createProject();
+    const path = "/api/projects/demo_game/files/main.js";
+    const put = (content: string) =>
+      request(path, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          content,
+          baseVersion: 0,
+          revision: 4,
+          sessionId: "session-a",
+        }),
+      });
+
+    const first = await put("LATEST");
+    const replay = await put("LATEST");
+    const mismatch = await put("DIFFERENT");
+    expect(await first.json()).toMatchObject({
+      ok: true,
+      stale: false,
+      version: 1,
+    });
+    expect(await replay.json()).toMatchObject({
+      ok: true,
+      stale: false,
+      version: 1,
+    });
+    expect(mismatch.status).toBe(409);
+    expect(
+      await readFile(join(projectsRoot, "demo_game", "main.js"), "utf8"),
+    ).toBe("LATEST");
+  });
+
+  test("version state follows renames and clears when files or projects are deleted", async () => {
+    await createProject();
+    const write = (
+      project: string,
+      path: string,
+      content: string,
+      baseVersion: number,
+      revision: number,
+    ) =>
+      request(`/api/projects/${project}/files/${path}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          content,
+          baseVersion,
+          revision,
+          sessionId: "session-a",
+        }),
+      });
+
+    expect(
+      (await write("demo_game", "levels/one.js", "one", 0, 1)).status,
+    ).toBe(200);
+    expect(
+      (
+        await request("/api/projects/demo_game/files/rename", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            from: "levels/one.js",
+            to: "levels/first.js",
+          }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await (
+        await request("/api/projects/demo_game/files/levels/first.js")
+      ).json(),
+    ).toMatchObject({ version: 1 });
+
+    expect(
+      (
+        await request("/api/projects/demo_game/files/levels/first.js", {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await write("demo_game", "levels/first.js", "recreated", 0, 2)).status,
+    ).toBe(200);
+
+    expect((await write("demo_game", "main.js", "moved", 0, 3)).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await request("/api/projects/demo_game/rename", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "renamed_game" }),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await (await request("/api/projects/renamed_game/files/main.js")).json(),
+    ).toMatchObject({ content: "moved", version: 1 });
+    expect((await write("renamed_game", "main.js", "next", 1, 4)).status).toBe(
+      200,
+    );
+
+    expect(
+      (
+        await request("/api/projects/renamed_game", {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(200);
+    await createProject("renamed_game");
+    expect(
+      await (await request("/api/projects/renamed_game/files/main.js")).json(),
+    ).toMatchObject({ version: 0 });
+    expect((await write("renamed_game", "main.js", "fresh", 0, 5)).status).toBe(
+      200,
+    );
   });
 
   test("missing projects, missing files, invalid names, and invalid bodies fail clearly", async () => {
     const missingProject = await request("/api/projects/missing/files/main.js");
     expect(missingProject.status).toBe(404);
+    expect(await missingProject.json()).toMatchObject({ code: "not_found" });
 
     const invalidProject = await request("/api/projects", {
       method: "POST",
@@ -272,6 +481,9 @@ describe("sandbox routes", () => {
       body: JSON.stringify({ name: "../bad" }),
     });
     expect(invalidProject.status).toBe(400);
+    expect(await invalidProject.json()).toMatchObject({
+      code: "invalid_request",
+    });
 
     await createProject();
     const duplicate = await request("/api/projects", {
@@ -280,6 +492,7 @@ describe("sandbox routes", () => {
       body: JSON.stringify({ name: "demo_game" }),
     });
     expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toMatchObject({ code: "conflict" });
 
     const missingFile = await request("/api/projects/demo_game/files/nope.js");
     expect(missingFile.status).toBe(404);
@@ -290,6 +503,74 @@ describe("sandbox routes", () => {
       body: JSON.stringify({ content: 42 }),
     });
     expect(invalidBody.status).toBe(400);
+    expect(await invalidBody.json()).toMatchObject({ code: "invalid_request" });
+  });
+
+  test("the preview-only handler exposes reads but no project mutations", async () => {
+    await createProject();
+    const parentOrigin = "http://127.0.0.1:4173";
+    const preview = createSandboxPreviewServerHandler({
+      projectsRoot,
+      parentOrigin,
+    });
+    const previewRequest = (path: string, init?: RequestInit) =>
+      preview(new Request(`http://127.0.0.1:4174${path}`, init));
+
+    const source = await previewRequest(
+      "/api/projects/demo_game/files/main.js",
+    );
+    expect(source.status).toBe(200);
+    expect(source.headers.get("access-control-allow-origin")).toBe(
+      parentOrigin,
+    );
+
+    const mutation = await previewRequest(
+      "/api/projects/demo_game/files/main.js",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: "malicious" }),
+      },
+    );
+    expect(mutation.status).toBe(404);
+    expect(
+      await readFile(join(projectsRoot, "demo_game", "main.js"), "utf8"),
+    ).toContain("Use the arrow keys!");
+
+    const shell = await previewRequest("/play/demo_game");
+    expect(shell.status).toBe(200);
+    expect(shell.headers.get("content-security-policy")).toBe(
+      `frame-ancestors ${parentOrigin}`,
+    );
+    expect(await shell.text()).toContain(
+      `data-jgz-parent-origin="${parentOrigin}"`,
+    );
+  });
+
+  test("the editor shell publishes its separate preview origin", async () => {
+    const configured = createSandboxServerHandler({
+      projectsRoot,
+      access: "editor",
+      previewOrigin: "http://127.0.0.1:4174",
+    });
+    const response = await configured(new Request("http://127.0.0.1:4173/"));
+    expect(await response.text()).toContain(
+      'data-jgz-preview-origin="http://127.0.0.1:4174"',
+    );
+  });
+
+  test("editor mutations reject learner-preview origins", async () => {
+    const response = await request("/api/projects", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        origin: "http://127.0.0.1:4274",
+      },
+      body: JSON.stringify({ name: "created_by_learner" }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "forbidden" });
+    expect(await readdir(projectsRoot)).not.toContain("created_by_learner");
   });
 
   test("path safety rejects traversal, absolute paths, backslashes, and encoded escapes", async () => {
@@ -385,6 +666,7 @@ describe("sandbox routes", () => {
   });
 
   test("e2e fixture routes are gated behind testFixtures", async () => {
+    expect(testFixtureRoutesLoaded()).toBe(false);
     // Default handler (as used by the real product server without
     // --test-fixtures / JGZ_TEST_FIXTURES=1): fixture pages/assets 404,
     // while real product routes keep working.
@@ -411,6 +693,7 @@ describe("sandbox routes", () => {
       new Request("http://localhost/examples"),
     );
     expect(examples.status).toBe(200);
+    expect(testFixtureRoutesLoaded()).toBe(false);
 
     // With testFixtures enabled (as playwright.config.ts's webServer command
     // does via --test-fixtures), the fixture pages/assets respond.
@@ -418,10 +701,14 @@ describe("sandbox routes", () => {
       projectsRoot,
       testFixtures: true,
     });
+    // Constructing the opted-in handler is still lazy; the test-owned module
+    // is evaluated only when a request falls through the product routes.
+    expect(testFixtureRoutesLoaded()).toBe(false);
     const openPage = await fixturesOn(
       new Request("http://localhost/fixtures/rendering/drawing"),
     );
     expect(openPage.status).toBe(200);
+    expect(testFixtureRoutesLoaded()).toBe(true);
     const openAsset = await fixturesOn(
       new Request(
         "http://localhost/assets/rendering-fixture/images/player.svg",
@@ -435,5 +722,13 @@ describe("sandbox routes", () => {
     expect(openRuntime.headers.get("content-type")).toContain(
       "text/javascript",
     );
+
+    const syncedAsset = await fixturesOn(
+      new Request(
+        "http://localhost/assets/asset-sync-fixture/images/player.svg",
+      ),
+    );
+    expect(syncedAsset.status).toBe(200);
+    expect(syncedAsset.headers.get("content-type")).toBe("image/svg+xml");
   });
 });

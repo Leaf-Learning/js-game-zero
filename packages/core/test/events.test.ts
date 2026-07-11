@@ -1,17 +1,15 @@
 import { describe, expect, test } from "bun:test";
+import { keymods, keys, mouse } from "@js-game-zero/core";
 import {
   InputDispatcher,
   buttonsFromBrowserButtons,
   dispatchHook,
   getParameterNames,
-  keymods,
-  keys,
   mapBrowserKeyEvent,
   mapBrowserMouseButton,
   mapBrowserMouseEvent,
   mapBrowserWheelEvent,
-  mouse,
-} from "@js-game-zero/core";
+} from "@js-game-zero/core/host";
 
 // The `BoundsTarget` type that `attach()`'s first parameter is intersected
 // with is not exported from events.ts, so derive the parameter type
@@ -342,7 +340,16 @@ describe("InputDispatcher", () => {
     const detach = dispatcher.attach(target as unknown as AttachMouseTarget);
 
     expect(addCalls.sort()).toEqual(
-      ["keydown", "keyup", "mousedown", "mouseup", "mousemove", "wheel"].sort(),
+      [
+        "blur",
+        "keydown",
+        "keyup",
+        "mousedown",
+        "mouseup",
+        "mousemove",
+        "visibilitychange",
+        "wheel",
+      ].sort(),
     );
 
     target.dispatch("mousedown", {
@@ -365,6 +372,60 @@ describe("InputDispatcher", () => {
       buttons: 1,
     });
     expect(downEvents).toEqual([]);
+  });
+
+  test("attach clears held keys on blur and when the page becomes hidden", () => {
+    const { target } = createFakeEventTarget();
+    const dispatcher = new InputDispatcher();
+    const detach = dispatcher.attach(target as unknown as AttachMouseTarget);
+    try {
+      target.dispatch("keydown", { code: "KeyA", key: "a" });
+      expect(dispatcher.keyboard.a).toBe(true);
+      target.dispatch("blur", {});
+      expect(dispatcher.keyboard.a).toBe(false);
+
+      target.dispatch("keydown", { code: "KeyA", key: "a" });
+      expect(dispatcher.keyboard.a).toBe(true);
+      target.dispatch("visibilitychange", {});
+      expect(dispatcher.keyboard.a).toBe(false);
+    } finally {
+      detach();
+    }
+  });
+
+  test("attach captures mouse release on the keyboard/window target after a drag leaves the canvas", () => {
+    const canvas = createFakeEventTarget();
+    const browserWindow = createFakeEventTarget();
+    const events: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseUp(pos: unknown, button: unknown) {
+        events.push({ pos, button });
+      },
+    });
+
+    const detach = dispatcher.attach(
+      canvas.target as unknown as AttachMouseTarget,
+      browserWindow.target as unknown as EventTarget,
+    );
+    try {
+      expect(canvas.addCalls).not.toContain("mouseup");
+      expect(browserWindow.addCalls).toContain("mouseup");
+      canvas.target.dispatch("mousedown", {
+        clientX: 4,
+        clientY: 5,
+        button: 0,
+        buttons: 1,
+      });
+      browserWindow.target.dispatch("mouseup", {
+        clientX: 40,
+        clientY: 50,
+        button: 0,
+        buttons: 0,
+      });
+      expect(events).toEqual([{ pos: [40, 50], button: mouse.LEFT }]);
+    } finally {
+      detach();
+    }
   });
 
   test("drag-release sequence: mousedown -> mousemove -> mouseup produces a coherent event sequence", () => {
