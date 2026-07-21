@@ -16,6 +16,10 @@ import {
   verticalAnchorOffset,
 } from "./util";
 import { getScreen, type Screen } from "./rendering";
+import {
+  describeRuntimeError,
+  getActiveDiagnosticEmit,
+} from "./runtime-diagnostics";
 
 export type ActorAnchor = readonly [
   HorizontalActorAnchor | number,
@@ -163,7 +167,19 @@ export class Actor {
     // never calls ready(). Mark this per-Actor promise as handled as well so a
     // missing sprite produces one runtime diagnostic instead of an additional
     // browser-level unhandledrejection. Awaiting ready() still rejects.
-    void loadPromise.catch(() => undefined);
+    // Capture the active run's diagnostic sink now (synchronously, at load
+    // time) rather than inside the .catch below: by the time the promise
+    // settles the ambient run may have changed or already stopped.
+    const reportDiagnostic = getActiveDiagnosticEmit();
+    void loadPromise.catch((error: unknown) => {
+      reportDiagnostic?.({
+        code: "runtime-error",
+        severity: "warning",
+        phase: "asset",
+        recoverable: true,
+        message: `Failed to load image "${value}": ${describeRuntimeError(error)}`,
+      });
+    });
   }
 
   get pos(): Point {

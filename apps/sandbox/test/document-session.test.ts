@@ -135,6 +135,44 @@ describe("DocumentSession", () => {
     expect(session.state).toBe("saved");
   });
 
+  test("discard drops unsaved revisions so the next flush writes nothing", async () => {
+    const contents: string[] = [];
+    const session = new DocumentSession({
+      write: async ({ content }) => {
+        contents.push(content);
+      },
+      debounceMs: 60_000,
+    });
+
+    session.edit("demo", "main.js", "doomed");
+    session.discard();
+    expect(session.state).toBe("saved");
+    expect(session.pendingSnapshot()).toBeNull();
+
+    await session.flush();
+    expect(contents).toEqual([]);
+  });
+
+  test("discard clears a failed snapshot retained for retry", async () => {
+    let attempts = 0;
+    const session = new DocumentSession({
+      write: async () => {
+        attempts += 1;
+        throw new Error("conflict");
+      },
+      debounceMs: 60_000,
+    });
+
+    session.edit("demo", "main.js", "conflicted");
+    await expect(session.flush()).rejects.toThrow("conflict");
+    expect(session.state).toBe("error");
+
+    session.discard();
+    await session.flush();
+    expect(attempts).toBe(1);
+    expect(session.state).toBe("saved");
+  });
+
   test("flush is an idle barrier for navigation and play actions", async () => {
     const write = deferred();
     let navigated = false;

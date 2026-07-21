@@ -1,9 +1,9 @@
 import * as api from "./api";
-import { ApiError } from "./api";
+import { ApiError, WriteConflictError } from "./api";
 import { createConsolePanel } from "./console-panel";
 import { SandboxController } from "./controller";
 import { DocumentSession } from "./document-session";
-import { toast } from "./dialogs";
+import { choiceDialog, toast } from "./dialogs";
 import { h, qs } from "./dom";
 import { createEditor } from "./editor";
 import { initPanelResizers } from "./layout";
@@ -77,9 +77,50 @@ const documentSession = new DocumentSession({
   },
   onStateChange: setSaveState,
   onError: (error) => {
+    if (error instanceof WriteConflictError) {
+      void offerConflictRecovery(error);
+      return;
+    }
     toast(`Couldn't save: ${errorMessage(error)}`, "error");
   },
 });
+
+let conflictRecoveryOpen = false;
+
+/** A 409 that survives the automatic restart rebase means someone else's copy
+ * is on the server. The editor must never be left permanently blocked, so the
+ * user picks a side: take the server's copy, or push the local one. */
+async function offerConflictRecovery(error: WriteConflictError): Promise<void> {
+  if (conflictRecoveryOpen) return;
+  if (
+    selection.selectedProject !== error.project ||
+    selection.selectedFile !== error.path
+  ) {
+    toast(`Couldn't save "${error.path}": ${errorMessage(error)}`, "error");
+    return;
+  }
+  conflictRecoveryOpen = true;
+  try {
+    const choice = await choiceDialog({
+      title: "This file changed on the server",
+      body: `"${error.path}" was modified outside this editor tab. Reload the server's copy (your unsaved edits here are discarded), or overwrite it with your copy?`,
+      choices: [
+        { id: "reload", label: "Reload from server", danger: true },
+        { id: "overwrite", label: "Overwrite with my copy" },
+      ],
+    });
+    if (choice === "reload") {
+      documentSession.discard();
+      await selectFile(error.path);
+    } else if (choice === "overwrite") {
+      // The failed write already rebased the cached version onto the
+      // server's, so retrying now sends a matching base version.
+      await flushSave();
+    }
+  } finally {
+    conflictRecoveryOpen = false;
+  }
+}
 
 /** Returns false when dirty work could not be persisted. Callers that move,
  * rename, delete, play, or restart must stop rather than discard that work. */

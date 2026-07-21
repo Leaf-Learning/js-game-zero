@@ -12,7 +12,8 @@ import {
 } from "../shared/contracts";
 
 const fileVersions = new Map<string, number>();
-const writeSessionId = createWriteSessionId();
+let writeSessionId = createWriteSessionId();
+let serverBootId: string | null = null;
 
 export type FileWriteOutcome = "written" | "stale";
 
@@ -26,6 +27,40 @@ export class ApiError extends Error {
     super(message, options);
     this.name = "ApiError";
   }
+}
+
+/** A write was rejected because the server holds a genuinely different copy
+ * of the file (not a restart artifact). The UI offers recovery: reload the
+ * server's copy or overwrite it with the local one. */
+export class WriteConflictError extends ApiError {
+  constructor(
+    readonly project: string,
+    readonly path: string,
+    options?: ErrorOptions,
+  ) {
+    super(
+      "This file was changed outside this editor tab.",
+      "conflict",
+      409,
+      options,
+    );
+    this.name = "WriteConflictError";
+  }
+}
+
+/** Every read/write response carries the server's boot ID. A changed boot ID
+ * means the server restarted and lost its in-memory version state, so every
+ * cached file version is ahead of it: drop them all (the next read adopts the
+ * server's version verbatim) and start a fresh write session. */
+function adoptBootId(bootId: string | undefined): boolean {
+  if (bootId === undefined || bootId === serverBootId) return false;
+  const restarted = serverBootId !== null;
+  serverBootId = bootId;
+  if (restarted) {
+    fileVersions.clear();
+    writeSessionId = createWriteSessionId();
+  }
+  return restarted;
 }
 
 function encodePath(path: string): string {
@@ -143,16 +178,52 @@ export async function readFile(project: string, path: string): Promise<string> {
     projectFilesUrl(project, path),
     decodeFileResponse,
   );
+  // After a restart the cache was just cleared, so the max below adopts the
+  // server's version verbatim instead of ratcheting from a stale value.
+  adoptBootId(data.bootId);
   const key = fileVersionKey(project, path);
   fileVersions.set(key, Math.max(fileVersions.get(key) ?? 0, data.version));
   return data.content;
 }
 
+export type FileWriteInit = {
+  readonly keepalive?: boolean;
+  readonly revision?: number;
+  readonly createOnly?: boolean;
+};
+
 export async function writeFile(
   project: string,
   path: string,
   content: string,
-  init?: { readonly keepalive?: boolean; readonly revision?: number },
+  init?: FileWriteInit,
+): Promise<FileWriteOutcome> {
+  try {
+    return await sendWrite(project, path, content, init);
+  } catch (error) {
+    if (
+      !(error instanceof ApiError) ||
+      error.status !== 409 ||
+      init?.createOnly === true
+    ) {
+      throw error;
+    }
+    // A 409 is either a genuine concurrent edit or a version cache that got
+    // ahead of a restarted server. Re-reading reveals the server's boot ID
+    // and rebases the cached version; after a restart the pending write is
+    // retried once against the rebased version.
+    if (await rebaseAfterConflict(project, path)) {
+      return await sendWrite(project, path, content, init);
+    }
+    throw new WriteConflictError(project, path, { cause: error });
+  }
+}
+
+async function sendWrite(
+  project: string,
+  path: string,
+  content: string,
+  init?: FileWriteInit,
 ): Promise<FileWriteOutcome> {
   const key = fileVersionKey(project, path);
   const baseVersion = fileVersions.get(key) ?? 0;
@@ -167,14 +238,32 @@ export async function writeFile(
         baseVersion,
         revision: init?.revision ?? 0,
         sessionId: writeSessionId,
+        ...(init?.createOnly === true ? { createOnly: true } : {}),
       }),
       keepalive: init?.keepalive ?? false,
     },
   );
+  adoptBootId(data.bootId);
   if (!data.stale && data.version !== undefined) {
     fileVersions.set(key, Math.max(fileVersions.get(key) ?? 0, data.version));
   }
   return data.stale ? "stale" : "written";
+}
+
+/** Re-reads the file after a conflict and reports whether the conflict was
+ * caused by a server restart (boot ID change). The read itself refreshes the
+ * cached version either way. */
+async function rebaseAfterConflict(
+  project: string,
+  path: string,
+): Promise<boolean> {
+  const previousBootId = serverBootId;
+  try {
+    await readFile(project, path);
+  } catch {
+    return false;
+  }
+  return previousBootId !== null && serverBootId !== previousBootId;
 }
 
 export async function deleteFile(project: string, path: string): Promise<void> {
@@ -207,7 +296,9 @@ export async function renameFile(
 }
 
 export async function createFile(project: string, path: string): Promise<void> {
-  await writeFile(project, path, "", { revision: 0 });
+  // Exclusive create: the server rejects this if the file already exists on
+  // disk, so creating can never truncate an existing file.
+  await writeFile(project, path, "", { revision: 0, createOnly: true });
 }
 
 function fileVersionKey(project: string, path: string): string {

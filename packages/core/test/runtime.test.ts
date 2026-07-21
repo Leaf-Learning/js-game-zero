@@ -9,6 +9,7 @@ import {
   keys,
   run,
   screen,
+  storage as globalStorage,
   type AssetLoader,
   type DrawableImage,
   type RuntimeCanvas,
@@ -588,11 +589,27 @@ function draw() {
     handle.stop();
   });
 
-  test("does not let package-level singleton loads gate an unrelated handle", async () => {
+  test("passing the ambient storage export as RunOptions.storage behaves like omitting it", () => {
+    // The public `storage` export is an active-service proxy; passing it
+    // back in as RunOptions.storage must not install it as its own
+    // backing target (which would recurse infinitely resolving itself).
+    const handle = run(
+      { update: () => globalStorage.set("count", 1) },
+      { autostart: false, canvas: canvas(), storage: globalStorage },
+    );
+
+    expect(() => handle.step(0)).not.toThrow();
+    expect(handle.storage.get("count")).toBe(1);
+    expect(handle.storage).not.toBe(globalStorage);
+    handle.stop();
+  });
+
+  test("adopts a pending package-level singleton load into the first run's preload gate", async () => {
     const target = canvas();
-    // Simulate `new Actor("ghost.svg")` constructed at import-mode
-    // top-level code, which defaults to the singleton `images` loader
-    // (not the runtime's context-scoped loader).
+    // Simulate `new Actor("ghost.svg")`/`images.load(...)` at import-mode
+    // top-level code, executed before `run()` is even called: it lands on
+    // the singleton `images` loader, not any run's context-owned loader.
+    // With no other run active yet, this handle must adopt it.
     const probeName = "jgz_runtime_gate_probe.svg";
     const pendingLoad = globalImages.load(probeName).catch(() => undefined);
     expect(globalImages.pendingCount()).toBeGreaterThan(0);
@@ -603,12 +620,47 @@ function draw() {
       { autostart: false, canvas: target, storage: new MemoryAdapter() },
     );
 
+    // Gated: the adopted singleton load has not settled yet.
     handle.step(0);
+    expect(drew).toBe(false);
+
+    await pendingLoad;
+    // The probe asset can never actually load in this environment, so the
+    // adopted failure surfaces through `ready` and fails startup, just as a
+    // context-owned required-asset failure would.
+    await handle.ready.catch(() => undefined);
+    expect(handle.state).toBe("failed");
+    expect(drew).toBe(false);
+  });
+
+  test("does not let package-level singleton loads gate a second concurrent handle", async () => {
+    const first = run(
+      { draw() {} },
+      { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+    );
+    await first.ready;
+
+    // Simulate `new Actor("ghost.svg")` constructed at import-mode
+    // top-level code for a *second* game while another run is already
+    // active: it defaults to the singleton `images` loader, but this
+    // handle is not the first/only active run so it must not adopt it.
+    const probeName = "jgz_runtime_gate_probe_concurrent.svg";
+    const pendingLoad = globalImages.load(probeName).catch(() => undefined);
+    expect(globalImages.pendingCount()).toBeGreaterThan(0);
+
+    let drew = false;
+    const second = run(
+      { draw: () => (drew = true) },
+      { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+    );
+
+    second.step(0);
     expect(drew).toBe(true);
 
     await pendingLoad;
     await globalImages.waitForIdle().catch(() => undefined);
-    handle.stop();
+    first.stop();
+    second.stop();
   });
 });
 
@@ -1284,6 +1336,114 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
     expect(handle.failure?.phase).toBe("startup");
   });
 
+  test("a preload failure does not become an unhandled rejection when the host never awaits handle.ready", async () => {
+    const { loader, reject } = controllableImageLoader();
+    const diagnostics: RuntimeDiagnostic[] = [];
+    let unhandled: unknown;
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandled = reason;
+    };
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      const handle = run(
+        defineGame(({ Actor }) => {
+          void new Actor("missing.svg");
+          return { draw() {} };
+        }),
+        {
+          autostart: false,
+          canvas: canvas(),
+          loaders: { images: loader },
+          storage: new MemoryAdapter(),
+          diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+        },
+      );
+
+      // The host (deliberately) never touches `handle.ready`.
+      reject("missing.svg", new Error("404"));
+
+      // Give the failed preload's rejection, and any (incorrect) global
+      // unhandled-rejection reporting, time to surface.
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+
+      expect(unhandled).toBeUndefined();
+      expect(handle.state).toBe("failed");
+      expect(
+        diagnostics.some(
+          (diagnostic) =>
+            diagnostic.severity === "error" && diagnostic.phase === "startup",
+        ),
+      ).toBe(true);
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
+  test("routes a late Actor sprite-load failure through the run's diagnostics instead of swallowing it silently", async () => {
+    // A loader that is not registered with the runtime at all (neither the
+    // context-owned loader nor the package-level singleton), matching an
+    // Actor constructed with an explicit `imageLoader`. No preload/late
+    // asset gate ever watches it, so Actor's own promise handling is the
+    // only channel that can report a failure once `ready` has resolved.
+    const standalone = controllableImageLoader();
+    standalone.loader.define("start.svg", surface(4, 4));
+    const diagnostics: RuntimeDiagnostic[] = [];
+    let unhandled: unknown;
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandled = reason;
+    };
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      const handle = run(
+        defineGame(({ Actor }) => {
+          const hero = new Actor("start.svg", [0, 0], {
+            imageLoader: standalone.loader,
+          });
+          let swapped = false;
+          return {
+            update() {
+              // Reassigning inside update() so the load is kicked off
+              // while this run's context is ambiently active, matching how
+              // a real game swaps sprites mid-play.
+              if (!swapped) {
+                hero.image = "missing.svg";
+                swapped = true;
+              }
+            },
+            draw() {},
+          };
+        }),
+        {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+        },
+      );
+
+      await handle.ready; // "start.svg" is already cached via define()
+
+      handle.step(0); // update() swaps to the missing image
+      standalone.reject("missing.svg", new Error("404"));
+
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+
+      expect(unhandled).toBeUndefined();
+      expect(handle.state).not.toBe("failed");
+      expect(
+        diagnostics.some(
+          (diagnostic) =>
+            diagnostic.severity === "warning" &&
+            diagnostic.phase === "asset" &&
+            diagnostic.message.includes("missing.svg"),
+        ),
+      ).toBe(true);
+      handle.stop();
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+  });
+
   test("a late required image failure crosses the runtime asset boundary", async () => {
     const { loader, reject } = controllableImageLoader();
     let requested = false;
@@ -1338,6 +1498,31 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
 
     target.dispatchEvent(mouseEvent("mousedown"));
     outer.dispatchEvent(mouseEvent("mouseup"));
+    expect(mouseUps).toBe(1);
+    await handle.dispose();
+  });
+
+  test("a release over the canvas dispatches even with a detached, unrelated keyboardTarget", async () => {
+    const target = canvas();
+    const unrelated = new EventTarget();
+    let mouseUps = 0;
+    const handle = run(
+      {
+        onMouseUp(button: unknown) {
+          if (button === 1) mouseUps += 1;
+        },
+      },
+      {
+        autostart: false,
+        canvas: target,
+        keyboardTarget: unrelated,
+        storage: new MemoryAdapter(),
+      },
+    );
+    await handle.ready;
+
+    target.dispatchEvent(mouseEvent("mousedown"));
+    target.dispatchEvent(mouseEvent("mouseup"));
     expect(mouseUps).toBe(1);
     await handle.dispose();
   });
@@ -1427,6 +1612,62 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
       get_volume: () => 1,
     });
     await soundLoader.waitForIdle();
+    await handle.dispose();
+  });
+
+  test("drains repeated sound-load failures every frame instead of letting them pile up unboundedly", async () => {
+    const soundLoader = createSoundLoader({
+      projectId: "audio_gate",
+      loadAsset: async () => {
+        throw new Error("missing sound");
+      },
+    });
+    const diagnostics: RuntimeDiagnostic[] = [];
+    let draws = 0;
+    const handle = run(
+      defineGame(({ sounds }) => ({
+        update() {
+          // A game retrying a permanently-missing asset on every tick (e.g.
+          // driven by a timer) must not freeze drawing or leak failures.
+          void sounds.load("missing.wav").catch(() => undefined);
+        },
+        draw() {
+          draws += 1;
+        },
+      })),
+      {
+        autostart: false,
+        canvas: canvas(),
+        loaders: { sounds: soundLoader },
+        storage: new MemoryAdapter(),
+        diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+      },
+    );
+    await handle.ready;
+
+    for (let index = 0; index < 40; index += 1) {
+      handle.step(0.1);
+      // Let each tick's load rejection and the runtime's per-frame drain
+      // settle before the next tick starts a fresh retry.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    // Audio failures never gate drawing, and never fail the run.
+    expect(draws).toBe(40);
+    expect(handle.state).toBe("running");
+    // The runtime observed and reported the failures via diagnostics rather
+    // than only letting them silently accumulate in the loader.
+    expect(
+      diagnostics.some(
+        (diagnostic) =>
+          diagnostic.phase === "asset" && diagnostic.severity === "warning",
+      ),
+    ).toBe(true);
+    // Once drained each frame, the loader's own failure buffer is not left
+    // holding 40 retries' worth of errors.
+    expect(soundLoader.pendingCount()).toBe(0);
+    await expect(soundLoader.waitForIdle()).resolves.toBeUndefined();
+
     await handle.dispose();
   });
 });

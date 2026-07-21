@@ -105,6 +105,7 @@ describe("sandbox routes", () => {
       path: "src/notes.md",
       content: "hello sandbox",
       version: 1,
+      bootId: expect.any(String),
     });
   });
 
@@ -571,6 +572,89 @@ describe("sandbox routes", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ code: "forbidden" });
     expect(await readdir(projectsRoot)).not.toContain("created_by_learner");
+  });
+
+  test("editor mutations reject Sec-Fetch-Site: same-site from the preview port (same host, different origin)", async () => {
+    // Real browsers classify same-host/different-port as `same-site`, so the
+    // isolated preview's mutations arrive with this header; it must fall
+    // through to the host comparison rather than being accepted outright.
+    const response = await request("/api/projects", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        origin: "http://127.0.0.1:4274",
+        "sec-fetch-site": "same-site",
+      },
+      body: JSON.stringify({ name: "created_by_learner_same_site" }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "forbidden" });
+    expect(await readdir(projectsRoot)).not.toContain(
+      "created_by_learner_same_site",
+    );
+  });
+
+  test("editor mutations accept an https origin against an http request URL (TLS-terminating proxy)", async () => {
+    const response = await request("/api/projects", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        origin: "https://localhost",
+      },
+      body: JSON.stringify({ name: "created_behind_proxy" }),
+    });
+    expect(response.status).toBe(201);
+    expect(await readdir(projectsRoot)).toContain("created_behind_proxy");
+  });
+
+  test("editor mutations accept Sec-Fetch-Site: same-origin even with a mismatched Origin scheme", async () => {
+    const response = await request("/api/projects", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        origin: "https://totally-different-host.example",
+        "sec-fetch-site": "same-origin",
+      },
+      body: JSON.stringify({ name: "created_via_sec_fetch_site" }),
+    });
+    expect(response.status).toBe(201);
+    expect(await readdir(projectsRoot)).toContain("created_via_sec_fetch_site");
+  });
+
+  test("editor mutations reject Sec-Fetch-Site: cross-site regardless of Origin host", async () => {
+    const response = await request("/api/projects", {
+      method: "POST",
+      headers: {
+        "content-type": "text/plain",
+        origin: "http://localhost",
+        "sec-fetch-site": "cross-site",
+      },
+      body: JSON.stringify({ name: "created_cross_site" }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "forbidden" });
+    expect(await readdir(projectsRoot)).not.toContain("created_cross_site");
+  });
+
+  test("JGZ_ALLOWED_ORIGINS allows a cross-host origin to be explicitly trusted", async () => {
+    const previous = process.env.JGZ_ALLOWED_ORIGINS;
+    process.env.JGZ_ALLOWED_ORIGINS =
+      "example.dev, forwarded-host.example:4173";
+    try {
+      const response = await request("/api/projects", {
+        method: "POST",
+        headers: {
+          "content-type": "text/plain",
+          origin: "https://forwarded-host.example:4173",
+        },
+        body: JSON.stringify({ name: "created_via_allowlist" }),
+      });
+      expect(response.status).toBe(201);
+      expect(await readdir(projectsRoot)).toContain("created_via_allowlist");
+    } finally {
+      if (previous === undefined) delete process.env.JGZ_ALLOWED_ORIGINS;
+      else process.env.JGZ_ALLOWED_ORIGINS = previous;
+    }
   });
 
   test("path safety rejects traversal, absolute paths, backslashes, and encoded escapes", async () => {

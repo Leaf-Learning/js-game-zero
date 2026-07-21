@@ -76,6 +76,10 @@ export type WriteFileRequest = {
   readonly baseVersion: number;
   readonly revision: number;
   readonly sessionId: string;
+  /** Exclusive create: the write is rejected with a conflict if the file
+   * already exists on disk, even when the server has no version state for
+   * it (e.g. example-cloned files, or any file after a server restart). */
+  readonly createOnly?: boolean;
 };
 export type RenameFileRequest = {
   readonly from: string;
@@ -90,6 +94,9 @@ export type FileResponse = {
   readonly path: string;
   readonly content: string;
   readonly version: number;
+  /** Identifies the server's in-memory version state; changes on restart so
+   * clients know to discard their cached file versions. */
+  readonly bootId?: string;
 };
 export type MutationResponse = {
   readonly ok: true;
@@ -100,6 +107,7 @@ export type MutationResponse = {
   readonly bytes?: number;
   readonly version?: number;
   readonly stale?: boolean;
+  readonly bootId?: string;
 };
 
 export type Decoder<T> = (value: unknown) => T | null;
@@ -136,12 +144,16 @@ export function decodeWriteFileRequest(
     isNonNegativeInteger(value.revision) &&
     typeof value.sessionId === "string" &&
     value.sessionId.length > 0 &&
-    value.sessionId.length <= 128
+    value.sessionId.length <= 128 &&
+    (value.createOnly === undefined || typeof value.createOnly === "boolean")
     ? {
         content: value.content,
         baseVersion: value.baseVersion,
         revision: value.revision,
         sessionId: value.sessionId,
+        ...(typeof value.createOnly === "boolean"
+          ? { createOnly: value.createOnly }
+          : {}),
       }
     : null;
 }
@@ -183,12 +195,14 @@ export function decodeFileResponse(value: unknown): FileResponse | null {
     typeof value.project === "string" &&
     typeof value.path === "string" &&
     typeof value.content === "string" &&
-    isNonNegativeInteger(value.version)
+    isNonNegativeInteger(value.version) &&
+    (value.bootId === undefined || typeof value.bootId === "string")
     ? {
         project: value.project,
         path: value.path,
         content: value.content,
         version: value.version,
+        ...(typeof value.bootId === "string" ? { bootId: value.bootId } : {}),
       }
     : null;
 }
@@ -209,6 +223,9 @@ export function decodeMutationResponse(
   if (value.stale !== undefined && typeof value.stale !== "boolean") {
     return null;
   }
+  if (value.bootId !== undefined && typeof value.bootId !== "string") {
+    return null;
+  }
   if (value.path !== undefined && typeof value.path !== "string") return null;
   if (value.from !== undefined && typeof value.from !== "string") return null;
   if (value.to !== undefined && typeof value.to !== "string") return null;
@@ -227,6 +244,7 @@ export function decodeMutationResponse(
     ...(typeof value.bytes === "number" ? { bytes: value.bytes } : {}),
     ...(typeof value.version === "number" ? { version: value.version } : {}),
     ...(typeof value.stale === "boolean" ? { stale: value.stale } : {}),
+    ...(typeof value.bootId === "string" ? { bootId: value.bootId } : {}),
   };
 }
 

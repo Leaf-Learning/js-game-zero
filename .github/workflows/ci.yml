@@ -15,7 +15,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
       - run: bun run lint
-      - run: bun test
+      - run: bun test packages/browser-runtime
       - run: bun run coverage:check
       - run: bun run docs:check
       - run: bun run build

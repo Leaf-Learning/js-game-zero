@@ -422,6 +422,48 @@ describe("music player", () => {
     expect(ended).toEqual(["end"]);
   });
 
+  test("a queued track that fails to load is skipped without stalling the queue", async () => {
+    const elements: MockAudioElement[] = [];
+    const ended: string[] = [];
+    const reported: unknown[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      loadAsset: async (url, name): Promise<MusicAsset> => {
+        if (name === "bad.ogg") throw new Error("music fetch failed");
+        return { kind: "music", name, url };
+      },
+    });
+    const player = createMusicPlayer({
+      loader,
+      onMusicEnd: () => ended.push("end"),
+      onError: (error) => reported.push(error),
+      createAudioElement(url) {
+        const element = new MockAudioElement(url);
+        elements.push(element);
+        return element;
+      },
+    });
+
+    await player.play_once("one.ogg");
+    await player.queue("bad.ogg");
+    await player.queue("three.ogg");
+
+    elements[0]?.emitEnded();
+    await flushAsyncWork();
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBeInstanceOf(MissingAssetError);
+    expect(player.debug_state().current).toBe("three.ogg");
+    expect(player.debug_state().queued).toEqual([]);
+    expect(ended).toEqual([]);
+
+    elements[1]?.emitEnded();
+    await flushAsyncWork();
+
+    expect(player.debug_state().current).toBe(null);
+    expect(ended).toEqual(["end"]);
+  });
+
   test("pause, unpause, stop, fadeout timing, volume, and is_playing are deterministic", async () => {
     const { player, elements, scheduler } = musicFixture();
 

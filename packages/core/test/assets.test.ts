@@ -231,6 +231,29 @@ describe("image loader cache and surfaces", () => {
     expect(loader.pendingCount()).toBe(0);
   });
 
+  test("caps settledFailures at 32 and clears them once consumed", async () => {
+    const loader = createImageLoader({
+      projectId: "test_project",
+      loadAsset: async () => {
+        throw new Error("boom");
+      },
+    });
+
+    // A game that keeps retrying a permanently-missing asset (e.g. on a
+    // timer) must not grow the failure buffer without bound.
+    for (let index = 0; index < 40; index += 1) {
+      await loader.load("ghost.svg").catch(() => undefined);
+    }
+
+    const failure = await loader.waitForIdle().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect((failure as AggregateError).errors).toHaveLength(32);
+
+    // Consuming the failures via waitForIdle() clears the buffer, so a
+    // later idle wait isn't poisoned by stale retries.
+    await expect(loader.waitForIdle()).resolves.toBeUndefined();
+  });
+
   test("waitForIdle re-checks so a load started while waiting is also awaited", async () => {
     const loadedNames: string[] = [];
     const loader = createImageLoader({

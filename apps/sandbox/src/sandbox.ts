@@ -346,7 +346,10 @@ async function readProjectFileResponse(
   repository: ProjectRepository,
   route: RouteMatch,
 ): Promise<Response> {
-  return json(await repository.readCodeFile(route.project, route.path));
+  return json({
+    ...(await repository.readCodeFile(route.project, route.path)),
+    bootId: repository.bootId,
+  });
 }
 
 async function writeProjectFileResponse(
@@ -380,6 +383,7 @@ async function writeProjectFileResponse(
     path: result.path,
     version: result.version,
     stale: result.status === "stale",
+    bootId: repository.bootId,
   });
 }
 
@@ -580,9 +584,48 @@ function isMutationRequest(request: Request): boolean {
   return request.method !== "GET" && request.method !== "HEAD";
 }
 
+function allowedOriginHosts(): readonly string[] {
+  const raw = process.env.JGZ_ALLOWED_ORIGINS;
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+/**
+ * Determines whether a mutation request originates from a different site.
+ *
+ * Behind a TLS-terminating proxy or port-forward (Codespaces, ngrok, VS Code
+ * forwarded ports) the browser-sent `Origin` scheme can legitimately differ
+ * from the scheme Bun observes on `request.url` — that must not be treated
+ * as cross-origin. `Sec-Fetch-Site`, when present, is scheme-independent, so
+ * it is consulted first: `cross-site` is rejected and `same-origin`/`none`
+ * accepted outright. `same-site` is NOT accepted on its own — the isolated
+ * learner preview runs on the same host at a different port, which browsers
+ * classify as `same-site` — so it falls through to the host comparison, as
+ * does a missing header. The `Origin` fallback compares host (hostname +
+ * port) only, never scheme.
+ */
 function isCrossOrigin(request: Request): boolean {
+  const secFetchSite = request.headers.get("sec-fetch-site");
+  if (secFetchSite === "cross-site") return true;
+  if (secFetchSite === "same-origin" || secFetchSite === "none") return false;
+
   const origin = request.headers.get("origin");
-  return origin !== null && origin !== new URL(request.url).origin;
+  if (origin === null) return false;
+
+  let originUrl: URL;
+  try {
+    originUrl = new URL(origin);
+  } catch {
+    return true;
+  }
+
+  const requestUrl = new URL(request.url);
+  if (originUrl.host === requestUrl.host) return false;
+
+  return !allowedOriginHosts().includes(originUrl.host);
 }
 
 function apiError(

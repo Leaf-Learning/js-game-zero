@@ -71,6 +71,18 @@ export class DocumentSession {
   }
 
   /**
+   * Drops every unsaved local revision, e.g. after the user chooses to reload
+   * the server's copy of a conflicted file. The next flush is a no-op instead
+   * of retrying the discarded content.
+   */
+  discard(): void {
+    this.#clearTimer();
+    this.#queued = null;
+    this.#latestUnacknowledged = null;
+    this.#setState("saved");
+  }
+
+  /**
    * Sends the newest dirty revision with unload-safe transport. Normal writes
    * remain serialized; the server's base-version/revision protocol makes this
    * terminal request authoritative if it races the active write.

@@ -336,7 +336,12 @@ export function assetUrl(
   return `${base}/${encodedProjectId}/${directory}/${encodedName}`;
 }
 
-const defaultAssetLoaders: AssetLoaders = createAssetLoaders();
+// Package-level singleton loaders backing the ambient `images`/`sounds`/
+// `musicAssets`/`fonts` exports whenever no run is currently active (e.g.
+// module-top-level `images.load("bg")` or `new Actor("player")` before
+// `run()` executes). Exported so the runtime can adopt any pending loads
+// into a starting run's preload gate.
+export const defaultAssetLoaders: AssetLoaders = createAssetLoaders();
 let activeAssetLoaders: AssetLoaders | null = null;
 
 export function setActiveAssetLoaders(
@@ -360,12 +365,20 @@ export const fonts = createActiveServiceProxy(
   () => activeAssetLoaders?.fonts ?? defaultAssetLoaders.fonts,
 );
 
+// Cap on the per-loader failure ring buffer; see `settledFailures` below.
+const MAX_SETTLED_FAILURES = 32;
+
 function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
   const projectId = validateProjectId(options.projectId ?? "default");
   const assetBaseUrl = options.assetBaseUrl ?? "/assets";
   const cache = new Map<string, T>();
   const aliases = new Map<string, string>();
   const pending = new Map<string, Promise<T>>();
+  // Bounded ring buffer: a game that keeps retrying a permanently-missing
+  // asset (e.g. `music.play` on a timer) must not grow this without limit —
+  // each failure retains an `Error` with a stack. Only the most recent
+  // `MAX_SETTLED_FAILURES` are kept; `waitForIdle()` also clears it whenever
+  // it is consumed, so a drained loader starts fresh.
   const settledFailures: unknown[] = [];
   const lazyProperties = new Map<string, T>();
   const target: AssetLoader<T> = {
@@ -409,6 +422,12 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
                   cause: error,
                 });
           settledFailures.push(failure);
+          if (settledFailures.length > MAX_SETTLED_FAILURES) {
+            settledFailures.splice(
+              0,
+              settledFailures.length - MAX_SETTLED_FAILURES,
+            );
+          }
           throw failure;
         });
       pending.set(requested, loadPromise);

@@ -112,6 +112,30 @@ export function createDiagnosticEmitter(
   };
 }
 
+let activeDiagnosticEmit: ((diagnostic: RuntimeDiagnostic) => void) | null =
+  null;
+
+/**
+ * Ambient diagnostic sink for whichever run is active at call time, mirroring
+ * the active-service pattern used for loaders/storage/clock. Only valid for
+ * the duration of the synchronous call that reads it — callers whose work
+ * continues asynchronously (e.g. a loader promise that may reject later)
+ * must capture the returned function and close over it rather than reading
+ * the ambient value again once the run may have moved on.
+ */
+export function setActiveDiagnosticEmit(
+  emit: ((diagnostic: RuntimeDiagnostic) => void) | null,
+): ((diagnostic: RuntimeDiagnostic) => void) | null {
+  const previous = activeDiagnosticEmit;
+  activeDiagnosticEmit = emit;
+  return previous;
+}
+
+export function getActiveDiagnosticEmit():
+  ((diagnostic: RuntimeDiagnostic) => void) | null {
+  return activeDiagnosticEmit;
+}
+
 export function describeRuntimeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

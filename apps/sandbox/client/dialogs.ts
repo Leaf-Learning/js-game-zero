@@ -73,6 +73,68 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   });
 }
 
+export type ChoiceDialogOption = {
+  readonly id: string;
+  readonly label: string;
+  readonly danger?: boolean;
+};
+
+export type ChoiceOptions = {
+  readonly title: string;
+  readonly body: string;
+  readonly choices: readonly ChoiceDialogOption[];
+};
+
+/** Like confirmDialog, but with one button per named choice. Resolves to the
+ * chosen id, or null when cancelled. */
+export function choiceDialog(options: ChoiceOptions): Promise<string | null> {
+  return new Promise((resolve) => {
+    const container = ensureHost();
+    const finish = (result: string | null): void => {
+      closeActive();
+      resolve(result);
+    };
+    const dialog = h(
+      "div",
+      {
+        className: "dialog",
+        attrs: {
+          role: "alertdialog",
+          "aria-modal": "true",
+          "data-jgz-choice-dialog": "",
+        },
+      },
+      [
+        h("h2", { text: options.title }),
+        h("p", { text: options.body }),
+        h("div", { className: "dialog-actions" }, [
+          h("button", {
+            className: "btn btn-ghost",
+            text: "Cancel",
+            attrs: { type: "button", "data-jgz-dialog-cancel": "" },
+            onClick: () => finish(null),
+          }),
+          ...options.choices.map((choice) =>
+            h("button", {
+              className: choice.danger ? "btn btn-danger" : "btn btn-primary",
+              text: choice.label,
+              attrs: { type: "button", "data-jgz-dialog-choice": choice.id },
+              onClick: () => finish(choice.id),
+            }),
+          ),
+        ]),
+      ],
+    );
+    const backdrop = h("div", { className: "dialog-backdrop" });
+    backdrop.addEventListener("click", () => finish(null));
+    container.replaceChildren(backdrop, dialog);
+    qs<HTMLButtonElement>(dialog, "[data-jgz-dialog-choice]").focus();
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") finish(null);
+    });
+  });
+}
+
 export type PromptOptions = {
   readonly title: string;
   readonly body?: string;

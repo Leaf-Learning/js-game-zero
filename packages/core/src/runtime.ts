@@ -1,8 +1,10 @@
 import { Actor, type ActorOptions } from "./actor";
+import { isActiveServiceProxy } from "./active-service";
 import { Animation, animate, withAnimationClock } from "./animation";
 import {
   assetUrl,
   createAssetLoaders,
+  defaultAssetLoaders,
   setActiveAssetLoaders,
   validateAssetName,
   type AssetLoaders,
@@ -49,6 +51,7 @@ import {
   diagnoseGameModule,
   isValidRuntimeDimension as validDimension,
   RUNTIME_MODULE_OPTION_NAMES as moduleOptionNames,
+  setActiveDiagnosticEmit,
 } from "./runtime-diagnostics";
 import { executeZeroBoilerplateSource } from "./runtime-source";
 import type {
@@ -303,6 +306,10 @@ export function run(
       failRuntime("startup", error);
       throw error;
     });
+  // failRuntime already reports the failure; hosts that never await `ready`
+  // (the common case) must not see an unhandled promise rejection. Awaiting
+  // hosts still observe the original rejection via `handle.ready` below.
+  void ready.catch(() => {});
 
   handle = {
     mode,
@@ -402,9 +409,19 @@ type RuntimeContext = {
   readonly storageReady: Promise<void>;
   readonly autosave: Autosave;
   readonly tone: ReturnType<typeof createToneGenerator>;
+  readonly emit: (diagnostic: RuntimeDiagnostic) => void;
+  /**
+   * True when no other run was active as this one started, so any pending
+   * loads on the package-level singleton loaders (module-top-level
+   * `images.load(...)`, `new Actor(...)` before `run()` executes) can only
+   * belong to this run. Such loads are adopted into this run's preload gate.
+   */
+  readonly adoptsDefaultLoaders: boolean;
   stop: (() => void) | null;
   /** The one active late image/font completion boundary, if any. */
   assetGate: Promise<void> | null;
+  /** The one active sound/music failure-draining boundary, if any. */
+  audioAssetGate: Promise<void> | null;
 };
 
 function createRuntimeContext(
@@ -415,6 +432,9 @@ function createRuntimeContext(
 ): RuntimeContext {
   const ownsCanvas = options.canvas === undefined;
   const canvas = options.canvas ?? createCanvas(options.container);
+  // Captured before this run's handle is registered: if no other run is
+  // active yet, any pending default-loader activity can only be this run's.
+  const adoptsDefaultLoaders = activeHandles.length === 0;
   try {
     const scheduler = options.scheduler ?? createDefaultScheduler();
     const defaultLoaders = createAssetLoaders({
@@ -484,7 +504,10 @@ function createRuntimeContext(
       storageReadyState,
       storageReady,
       autosave,
+      emit,
+      adoptsDefaultLoaders,
       assetGate: null,
+      audioAssetGate: null,
       stop: null,
     };
   } catch (error) {
@@ -637,6 +660,10 @@ function runFrame(
           return;
         }
       }
+      // Drain sound/music failures every frame, independent of drawing:
+      // audio loads never gate frames, but their failures still need to be
+      // consumed so `settledFailures` doesn't sit at its cap forever.
+      monitorAudioAssetGate(context);
       // A late render asset request may have just started a new load. Hold
       // drawing until it settles, but never freeze gameplay for audio loads.
       if (isRuntimeGated(context)) {
@@ -657,29 +684,45 @@ function runFrame(
 /**
  * True while the runtime should hold frames: storage hasn't finished its
  * initial load, or a render-critical image/font owned by this run has an
- * in-flight load. Audio loading never freezes gameplay, and package-level
- * singleton activity cannot stall an unrelated handle.
+ * in-flight load. Audio loading never freezes gameplay. Package-level
+ * singleton loader activity is included too, but only for the run that
+ * started with no other run active (see `adoptsDefaultLoaders`) — that
+ * covers plain `import { Actor, images }` code whose top-level loads landed
+ * on the singleton before this run's own loaders existed, without letting
+ * an unrelated concurrent handle stall on it.
  */
 function isRuntimeGated(context: RuntimeContext): boolean {
   if (!context.storageReadyState.current) return true;
-  return (
+  let pending =
     context.loaders.images.pendingCount() +
-      context.loaders.fonts.pendingCount() >
-    0
-  );
+    context.loaders.fonts.pendingCount();
+  if (context.adoptsDefaultLoaders) {
+    pending +=
+      defaultAssetLoaders.images.pendingCount() +
+      defaultAssetLoaders.fonts.pendingCount();
+  }
+  return pending > 0;
 }
 
 /**
  * One-shot promise resolving once this run's preload gate is satisfied.
  * Loads triggered while waiting (chained loads) are also awaited via each
- * context-owned loader's `waitForIdle()`.
+ * context-owned loader's `waitForIdle()`, plus the package-level singleton
+ * loaders when this run adopts them (see `isRuntimeGated`).
  */
 function waitForPreloadGate(context: RuntimeContext): Promise<void> {
-  return Promise.all([
+  const waits: Promise<unknown>[] = [
     context.storageReady,
     context.loaders.images.waitForIdle(),
     context.loaders.fonts.waitForIdle(),
-  ]).then(() => undefined);
+  ];
+  if (context.adoptsDefaultLoaders) {
+    waits.push(
+      defaultAssetLoaders.images.waitForIdle(),
+      defaultAssetLoaders.fonts.waitForIdle(),
+    );
+  }
+  return Promise.all(waits).then(() => undefined);
 }
 
 function monitorLateAssetGate(
@@ -687,15 +730,61 @@ function monitorLateAssetGate(
   onFailure: (phase: RuntimeFailurePhase, error: unknown) => void,
 ): void {
   if (context.assetGate) return;
-  const gate = Promise.all([
+  const waits: Promise<unknown>[] = [
     context.loaders.images.waitForIdle(),
     context.loaders.fonts.waitForIdle(),
-  ]).then(() => undefined);
+  ];
+  if (context.adoptsDefaultLoaders) {
+    waits.push(
+      defaultAssetLoaders.images.waitForIdle(),
+      defaultAssetLoaders.fonts.waitForIdle(),
+    );
+  }
+  const gate = Promise.all(waits).then(() => undefined);
   context.assetGate = gate;
   void gate
     .catch((error: unknown) => onFailure("asset", error))
     .finally(() => {
       if (context.assetGate === gate) context.assetGate = null;
+    });
+}
+
+/**
+ * Drains sound/music failures the same way `monitorLateAssetGate` drains
+ * image/font failures — consuming each loader's capped `settledFailures`
+ * buffer via `waitForIdle()` so it never sits at its cap indefinitely —
+ * but never gates drawing on it and never fails the run: audio loads must
+ * not freeze or crash gameplay, only images/fonts do that. Called every
+ * frame; each loader's `waitForIdle()` resolves immediately whenever it has
+ * no in-flight loads, so this is a cheap no-op frame after frame except
+ * right after an audio load settles.
+ */
+function monitorAudioAssetGate(context: RuntimeContext): void {
+  if (context.audioAssetGate) return;
+  const waits: Promise<unknown>[] = [
+    context.loaders.sounds.waitForIdle(),
+    context.loaders.music.waitForIdle(),
+  ];
+  if (context.adoptsDefaultLoaders) {
+    waits.push(
+      defaultAssetLoaders.sounds.waitForIdle(),
+      defaultAssetLoaders.music.waitForIdle(),
+    );
+  }
+  const gate = Promise.all(waits).then(() => undefined);
+  context.audioAssetGate = gate;
+  void gate
+    .catch((error: unknown) => {
+      context.emit({
+        code: "runtime-error",
+        severity: "warning",
+        phase: "asset",
+        recoverable: true,
+        message: `Sound/music asset failed to load: ${describeError(error)}`,
+      });
+    })
+    .finally(() => {
+      if (context.audioAssetGate === gate) context.audioAssetGate = null;
     });
 }
 
@@ -814,13 +903,30 @@ function attachDispatcher(
       clearKeyboard();
     }
   };
-  const mouseReleaseTarget = keyboardTarget;
+  // mouseup must reach us even when a custom keyboardTarget never receives
+  // the release (e.g. it's an unrelated, unfocused element). window covers
+  // both in-canvas and out-of-canvas releases; fall back to canvas plus
+  // keyboardTarget (deduped) only when window isn't available at all.
+  const mouseReleaseTargets = new Set<EventTarget>();
+  if (
+    typeof window !== "undefined" &&
+    typeof window.addEventListener === "function"
+  ) {
+    mouseReleaseTargets.add(window);
+  } else {
+    mouseReleaseTargets.add(canvas);
+    if (typeof keyboardTarget.addEventListener === "function") {
+      mouseReleaseTargets.add(keyboardTarget);
+    }
+  }
 
   keyboardTarget.addEventListener("keydown", keyDown);
   keyboardTarget.addEventListener("keyup", keyUp);
   keyboardTarget.addEventListener("blur", clearKeyboard);
   canvas.addEventListener("mousedown", mouseDown);
-  mouseReleaseTarget.addEventListener("mouseup", mouseUp);
+  for (const target of mouseReleaseTargets) {
+    target.addEventListener("mouseup", mouseUp);
+  }
   canvas.addEventListener("mousemove", mouseMove);
   canvas.addEventListener("wheel", wheel, { passive: true });
   if (typeof document !== "undefined") {
@@ -832,7 +938,9 @@ function attachDispatcher(
     keyboardTarget.removeEventListener("keyup", keyUp);
     keyboardTarget.removeEventListener("blur", clearKeyboard);
     canvas.removeEventListener("mousedown", mouseDown);
-    mouseReleaseTarget.removeEventListener("mouseup", mouseUp);
+    for (const target of mouseReleaseTargets) {
+      target.removeEventListener("mouseup", mouseUp);
+    }
     canvas.removeEventListener("mousemove", mouseMove);
     canvas.removeEventListener("wheel", wheel);
     if (typeof document !== "undefined") {
@@ -848,9 +956,11 @@ function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
   const previousMusic = setActiveMusicPlayer(context.music);
   const previousStorage = setActiveStorage(context.storage);
   const previousScreen = setScreen(context.screen);
+  const previousDiagnosticEmit = setActiveDiagnosticEmit(context.emit);
   try {
     return withAnimationClock(context.clock, callback);
   } finally {
+    setActiveDiagnosticEmit(previousDiagnosticEmit);
     setScreen(previousScreen);
     setActiveStorage(previousStorage);
     setActiveMusicPlayer(previousMusic);
@@ -861,7 +971,14 @@ function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
 }
 
 function resolveStorage(options: RunOptions): Storage {
-  if (!options.storage) {
+  // The ambient `storage` singleton export is an active-service proxy: if it
+  // were installed as its own backing target, resolving it inside the run
+  // would recurse into itself. Treat passing it back in the same as
+  // omitting the option and fall through to the ambient default.
+  const requestedStorage = isActiveServiceProxy(options.storage)
+    ? undefined
+    : options.storage;
+  if (!requestedStorage) {
     try {
       return createStorage({
         adapter: createLocalStorageAdapter({
@@ -872,15 +989,15 @@ function resolveStorage(options: RunOptions): Storage {
       return createStorage();
     }
   }
-  if (options.storage instanceof Storage) return options.storage;
+  if (requestedStorage instanceof Storage) return requestedStorage;
   if (
-    "load" in options.storage &&
-    "save" in options.storage &&
-    "path" in options.storage
+    "load" in requestedStorage &&
+    "save" in requestedStorage &&
+    "path" in requestedStorage
   ) {
-    return createStorage({ adapter: options.storage as StorageAdapter });
+    return createStorage({ adapter: requestedStorage as StorageAdapter });
   }
-  return options.storage as Storage;
+  return requestedStorage as Storage;
 }
 
 function preloadAssets(

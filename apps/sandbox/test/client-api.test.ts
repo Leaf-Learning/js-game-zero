@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   ApiError,
+  WriteConflictError,
   assetSourceUrl,
   createFile,
   createProject,
@@ -300,6 +301,151 @@ describe("sandbox client API contracts", () => {
       baseVersion: 0,
       revision: 7,
       sessionId: expect.any(String),
+    });
+  });
+
+  test("a version cache ahead of a restarted server rebases and retries the write once", async () => {
+    const puts: Array<{ baseVersion: number; sessionId: string }> = [];
+    let bootId = "boot-alpha";
+    let serverVersion = 3;
+    stubFetch((_input, init) => {
+      if (!init?.method || init.method === "GET") {
+        return Response.json({
+          project: "restart-race",
+          path: "main.js",
+          content: "SERVER",
+          version: serverVersion,
+          bootId,
+        });
+      }
+      const body = JSON.parse(String(init.body)) as {
+        baseVersion: number;
+        sessionId: string;
+      };
+      puts.push(body);
+      if (body.baseVersion !== serverVersion) {
+        return Response.json(
+          {
+            error: "The file changed after this edit was loaded.",
+            code: "conflict",
+          },
+          { status: 409 },
+        );
+      }
+      serverVersion += 1;
+      return Response.json({
+        ok: true,
+        project: "restart-race",
+        path: "main.js",
+        version: serverVersion,
+        stale: false,
+        bootId,
+      });
+    });
+
+    // The editor loads the file while the first server process is running.
+    expect(await readFile("restart-race", "main.js")).toBe("SERVER");
+
+    // The server restarts: fresh boot id, in-memory version state gone.
+    bootId = "boot-beta";
+    serverVersion = 0;
+
+    const outcome = writeFile("restart-race", "main.js", "EDIT", {
+      revision: 4,
+    });
+    await expect(outcome).resolves.toBe("written");
+    // First attempt carries the stale cached base version; after the boot-id
+    // resync the retry adopts the server's version verbatim (0, not max(3,0))
+    // with a fresh write session.
+    expect(puts.map((body) => body.baseVersion)).toEqual([3, 0]);
+    expect(puts[0]!.sessionId).not.toBe(puts[1]!.sessionId);
+  });
+
+  test("a genuine conflict on the same boot is surfaced for recovery, not auto-retried", async () => {
+    const puts: Array<{ baseVersion: number; content: string }> = [];
+    let serverVersion = 1;
+    stubFetch((_input, init) => {
+      if (!init?.method || init.method === "GET") {
+        return Response.json({
+          project: "conflict-ui",
+          path: "main.js",
+          content: "THEIRS",
+          version: serverVersion,
+          bootId: "boot-conflict",
+        });
+      }
+      const body = JSON.parse(String(init.body)) as {
+        baseVersion: number;
+        content: string;
+      };
+      puts.push(body);
+      if (body.baseVersion !== serverVersion) {
+        return Response.json(
+          {
+            error: "The file changed after this edit was loaded.",
+            code: "conflict",
+          },
+          { status: 409 },
+        );
+      }
+      serverVersion += 1;
+      return Response.json({
+        ok: true,
+        project: "conflict-ui",
+        path: "main.js",
+        version: serverVersion,
+        stale: false,
+        bootId: "boot-conflict",
+      });
+    });
+
+    await readFile("conflict-ui", "main.js");
+    // Another client bumps the server version behind our back.
+    serverVersion = 2;
+
+    const conflicted = writeFile("conflict-ui", "main.js", "MINE", {
+      revision: 1,
+    });
+    await expect(conflicted).rejects.toBeInstanceOf(WriteConflictError);
+    await expect(conflicted).rejects.toMatchObject({
+      project: "conflict-ui",
+      path: "main.js",
+      code: "conflict",
+      status: 409,
+    });
+    expect(puts.map((body) => body.baseVersion)).toEqual([1]);
+
+    // "Overwrite with my copy": the conflict re-read already rebased the
+    // cached version, so a plain retry now succeeds.
+    expect(
+      await writeFile("conflict-ui", "main.js", "MINE", { revision: 2 }),
+    ).toBe("written");
+    expect(puts.map((body) => body.baseVersion)).toEqual([1, 2]);
+  });
+
+  test("createFile is exclusive: an existing file is a conflict with no rebase retry", async () => {
+    const requests: Array<{ method: string; body?: unknown }> = [];
+    stubFetch((_input, init) => {
+      requests.push({
+        method: init?.method ?? "GET",
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+      });
+      return Response.json(
+        { error: "File already exists: main.js", code: "conflict" },
+        { status: 409 },
+      );
+    });
+
+    await expect(createFile("exclusive", "main.js")).rejects.toMatchObject({
+      name: "ApiError",
+      message: "File already exists: main.js",
+      code: "conflict",
+      status: 409,
+    });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      method: "PUT",
+      body: expect.objectContaining({ content: "", createOnly: true }),
     });
   });
 });

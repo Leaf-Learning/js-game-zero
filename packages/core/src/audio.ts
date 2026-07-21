@@ -437,19 +437,27 @@ export class MusicPlayer {
     return this.loaderValue;
   }
 
+  /**
+   * Starts loading and playing a track, reporting (but never throwing past
+   * `play`/`play_once`) load failures. Returns whether the track actually
+   * started, so callers that need to react to a failure — like queue
+   * advancement — can do so without relying on a rejected promise.
+   */
   private async beginTrackStart(
     name: string,
     mode: MusicMode,
     generation: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const pending = this.startTrack(name, mode, generation);
     this.pendingStart = pending;
     try {
       await pending;
+      return true;
     } catch (error) {
       if (generation === this.operationGeneration) {
         this.reportError(error);
       }
+      return false;
     } finally {
       if (this.pendingStart === pending) this.pendingStart = null;
     }
@@ -501,11 +509,12 @@ export class MusicPlayer {
       if (generation === this.operationGeneration) this.onEnd?.();
       return;
     }
-    try {
-      await this.beginTrackStart(next, "once", generation);
-    } catch (error) {
-      if (generation === this.operationGeneration) this.queuedNames = [];
-      throw error;
+    const started = await this.beginTrackStart(next, "once", generation);
+    if (!started) {
+      // A failed queued track shouldn't stall the whole queue: skip it and
+      // try the next one, so playback keeps progressing and on_music_end
+      // still fires once the queue is exhausted.
+      await this.playNextQueuedTrack(generation);
     }
   }
 

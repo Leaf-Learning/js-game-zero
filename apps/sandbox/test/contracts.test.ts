@@ -139,6 +139,44 @@ describe("shared sandbox contracts", () => {
     ).toBeNull();
   });
 
+  test("decodes boot ids and exclusive-create flags", () => {
+    const write = {
+      content: "source",
+      baseVersion: 0,
+      revision: 1,
+      sessionId: "session-a",
+    };
+    expect(decodeWriteFileRequest({ ...write, createOnly: true })).toEqual({
+      ...write,
+      createOnly: true,
+    });
+    expect(decodeWriteFileRequest({ ...write, createOnly: "yes" })).toBeNull();
+
+    const file = {
+      project: "demo",
+      path: "main.js",
+      content: "draw()",
+      version: 4,
+    };
+    expect(decodeFileResponse({ ...file, bootId: "boot-1" })).toEqual({
+      ...file,
+      bootId: "boot-1",
+    });
+    expect(decodeFileResponse({ ...file, bootId: 7 })).toBeNull();
+
+    expect(
+      decodeMutationResponse({
+        ok: true,
+        project: "demo",
+        version: 1,
+        bootId: "boot-1",
+      }),
+    ).toEqual({ ok: true, project: "demo", version: 1, bootId: "boot-1" });
+    expect(
+      decodeMutationResponse({ ok: true, project: "demo", bootId: 7 }),
+    ).toBeNull();
+  });
+
   test("decodes stable errors and every preview message variant", () => {
     expect(
       decodeApiErrorResponse({ error: "Missing", code: "not_found" }),

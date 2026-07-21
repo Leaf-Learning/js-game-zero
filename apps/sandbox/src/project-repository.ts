@@ -96,12 +96,20 @@ function draw() {
 export class ProjectRepository {
   readonly #projectsRoot: string;
   readonly #repoRoot: string;
+  readonly #bootId = crypto.randomUUID();
   readonly #versions = new Map<string, FileVersionState>();
   readonly #writeQueues = new Map<string, Promise<unknown>>();
 
   constructor(projectsRoot: string, repoRoot: string) {
     this.#projectsRoot = projectsRoot;
     this.#repoRoot = repoRoot;
+  }
+
+  /** Identifies this repository's in-memory version state. `#versions` does
+   * not survive a server restart, so clients compare this against the boot ID
+   * they last saw and discard their cached file versions when it changes. */
+  get bootId(): string {
+    return this.#bootId;
   }
 
   isReservedAssetProjectId(name: string): boolean {
@@ -269,6 +277,12 @@ export class ProjectRepository {
       requireExisting: false,
     });
     return this.#withFileLocks([resolved.path], async () => {
+      // Exclusive create is checked against the filesystem, not `#versions`:
+      // files never written through this process (example clones, anything
+      // after a restart) have no version state but must not be truncated.
+      if (write.createOnly && (await this.#pathExists(resolved.path))) {
+        throw new SandboxConflictError(`File already exists: ${safePath}`);
+      }
       const current = this.#versions.get(resolved.path) ?? {
         version: 0,
         sessionId: "",
