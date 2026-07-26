@@ -10,6 +10,18 @@ export type ExampleSummary = {
   readonly expectsInput: "keyboard" | "mouse" | "none";
 };
 
+export type DocumentationSummary = {
+  readonly id: string;
+  readonly title: string;
+  readonly section: string;
+  readonly sourcePath: string;
+  readonly navigation: boolean;
+};
+
+export type DocumentationDocument = DocumentationSummary & {
+  readonly markdown: string;
+};
+
 export type DiagnosticSeverity = "warning" | "error";
 
 export type Diagnostic = {
@@ -89,6 +101,12 @@ export type RenameFileRequest = {
 export type ProjectResponse = { readonly project: ProjectSummary };
 export type ProjectsResponse = { readonly projects: readonly ProjectSummary[] };
 export type ExamplesResponse = { readonly examples: readonly ExampleSummary[] };
+export type DocumentationManifestResponse = {
+  readonly documents: readonly DocumentationSummary[];
+};
+export type DocumentationResponse = {
+  readonly document: DocumentationDocument;
+};
 export type FileResponse = {
   readonly project: string;
   readonly path: string;
@@ -188,6 +206,24 @@ export function decodeExamplesResponse(
   if (!isRecord(value) || !Array.isArray(value.examples)) return null;
   const examples = value.examples.map(decodeExampleSummary);
   return examples.every(isPresent) ? { examples } : null;
+}
+
+export function decodeDocumentationManifestResponse(
+  value: unknown,
+): DocumentationManifestResponse | null {
+  if (!isRecord(value) || !Array.isArray(value.documents)) return null;
+  const documents = value.documents.map(decodeDocumentationSummary);
+  return documents.every(isPresent) ? { documents } : null;
+}
+
+export function decodeDocumentationResponse(
+  value: unknown,
+): DocumentationResponse | null {
+  if (!isRecord(value) || !isRecord(value.document)) return null;
+  const summary = decodeDocumentationSummary(value.document);
+  return summary && typeof value.document.markdown === "string"
+    ? { document: { ...summary, markdown: value.document.markdown } }
+    : null;
 }
 
 export function decodeFileResponse(value: unknown): FileResponse | null {
@@ -306,6 +342,25 @@ function decodeExampleSummary(value: unknown): ExampleSummary | null {
         title: value.title,
         description: value.description,
         expectsInput: value.expectsInput,
+      }
+    : null;
+}
+
+function decodeDocumentationSummary(
+  value: unknown,
+): DocumentationSummary | null {
+  return isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.section === "string" &&
+    typeof value.sourcePath === "string" &&
+    typeof value.navigation === "boolean"
+    ? {
+        id: value.id,
+        title: value.title,
+        section: value.section,
+        sourcePath: value.sourcePath,
+        navigation: value.navigation,
       }
     : null;
 }

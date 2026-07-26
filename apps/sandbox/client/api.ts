@@ -1,5 +1,7 @@
 import {
   decodeApiErrorResponse,
+  decodeDocumentationManifestResponse,
+  decodeDocumentationResponse,
   decodeExamplesResponse,
   decodeFileResponse,
   decodeMutationResponse,
@@ -7,6 +9,8 @@ import {
   decodeProjectsResponse,
   type ApiClientErrorCode,
   type Decoder,
+  type DocumentationDocument,
+  type DocumentationSummary,
   type ExampleSummary,
   type ProjectSummary,
 } from "../shared/contracts";
@@ -356,4 +360,22 @@ export async function listExamples(): Promise<ExampleSummary[]> {
   return Array.from(
     (await requestJson("/api/examples", decodeExamplesResponse)).examples,
   );
+}
+
+export async function listDocumentation(): Promise<DocumentationSummary[]> {
+  return Array.from(
+    (await requestJson("/api/docs", decodeDocumentationManifestResponse))
+      .documents,
+  );
+}
+
+export async function readDocumentation(
+  id: string,
+): Promise<DocumentationDocument> {
+  return (
+    await requestJson(
+      `/api/docs/${encodePath(id)}`,
+      decodeDocumentationResponse,
+    )
+  ).document;
 }

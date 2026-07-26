@@ -6,6 +6,7 @@ import { DocumentSession } from "./document-session";
 import { choiceDialog, toast } from "./dialogs";
 import { h, qs } from "./dom";
 import { createEditor } from "./editor";
+import { createDocumentationBrowser } from "./documentation-browser";
 import { initPanelResizers } from "./layout";
 import {
   chooseNewProjectFlow,
@@ -15,6 +16,7 @@ import {
 } from "./onboarding";
 import { createPreview } from "./preview";
 import { createSidebar } from "./sidebar";
+import { initThemeToggle } from "./theme";
 import {
   isAssetPath,
   type AssetDirectory,
@@ -43,6 +45,10 @@ const openExamplesButton = qs<HTMLButtonElement>(
   document,
   "[data-jgz-open-examples]",
 );
+const openDocsButton = qs<HTMLButtonElement>(document, "[data-jgz-open-docs]");
+const themeToggle = qs<HTMLButtonElement>(document, "[data-jgz-theme-toggle]");
+
+const theme = initThemeToggle(themeToggle);
 
 let projects: ProjectSummary[] = [];
 let examples: ExampleSummary[] = [];
@@ -139,6 +145,7 @@ const selection = new SandboxController({
 });
 
 const editor = createEditor(editorMount, {
+  theme: theme.current(),
   onChange: (content) => {
     if (!selection.selectedProject || !selection.selectedFile) return;
     documentSession.edit(
@@ -151,6 +158,7 @@ const editor = createEditor(editorMount, {
     void flushSave();
   },
 });
+theme.subscribe((nextTheme) => editor.setTheme(nextTheme));
 saveButton.addEventListener("click", () => void flushSave());
 
 initPanelResizers(root);
@@ -470,6 +478,9 @@ openExamplesButton.addEventListener("click", () => {
     if (choice) await createAndSelectProject(choice.name, choice.slug);
   })();
 });
+
+const documentationBrowser = createDocumentationBrowser(root);
+openDocsButton.addEventListener("click", () => documentationBrowser.open());
 
 window.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {

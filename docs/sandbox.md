@@ -24,6 +24,18 @@ The window is three columns:
 - **Preview** (right) — the Play/Stop/Restart controls, the live game
   preview, and a Console/Problems panel underneath it.
 
+The top bar also keeps three tools within reach:
+
+- **Docs** opens the project documentation inside the sandbox. Use the
+  grouped navigation to move between the tutorial, cookbook, sandbox guide,
+  examples, migration guide, and API reference. Documentation links and
+  images stay in the browser; external website links open in a new tab.
+- **Examples** opens the cloneable example gallery described below.
+- The sun/moon button switches between light and dark mode. The sandbox
+  follows your operating system on first use, then remembers whichever mode
+  you choose. Changing the sandbox theme does not change the colors drawn by
+  your game.
+
 ## Projects
 
 Click **+** next to "Projects" to create a new one. You're asked how to
@@ -161,6 +173,8 @@ against it or building your own tooling on top:
 | `PUT`    | `/api/projects/:project/assets/:path` | Upload an asset (raw bytes).               |
 | `DELETE` | `/api/projects/:project/assets/:path` | Delete an asset.                           |
 | `GET`    | `/api/examples`                       | List cloneable example games.              |
+| `GET`    | `/api/docs`                           | List documentation pages.                  |
+| `GET`    | `/api/docs/:id`                       | Read an allowlisted documentation page.    |
 | `GET`    | `/play/:project`                      | The preview page for a project.            |
 
 Every project/file/asset route rejects path traversal, absolute paths,

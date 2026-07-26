@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>js-game-zero Sandbox</title>
     <link rel="icon" href="data:," />
+    <script>
+      try {
+        const theme = localStorage.getItem("jgz-sandbox:theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.dataset.jgzTheme = theme;
+        }
+      } catch {}
+    </script>
     <link rel="stylesheet" href="/client/app.css" />
   </head>
   <body data-jgz-dirty="false">
@@ -14,9 +22,21 @@
           <span class="topbar-mark" aria-hidden="true">🕹️</span>
           <span class="topbar-title">js-game-zero</span>
         </div>
-        <button type="button" class="btn btn-ghost" data-jgz-open-examples>
-          Examples
-        </button>
+        <div class="topbar-actions">
+          <button type="button" class="btn btn-ghost" data-jgz-open-docs>
+            Docs
+          </button>
+          <button type="button" class="btn btn-ghost" data-jgz-open-examples>
+            Examples
+          </button>
+          <button
+            type="button"
+            class="icon-button theme-toggle"
+            data-jgz-theme-toggle
+            aria-label="Switch color mode"
+            title="Switch color mode"
+          ></button>
+        </div>
       </header>
       <div class="app-shell" data-jgz-app-shell>
         <aside class="sidebar" aria-label="Projects and files" data-jgz-sidebar>
@@ -206,6 +226,45 @@
           </div>
         </aside>
       </div>
+    </div>
+    <div class="docs-host" data-jgz-docs-host hidden>
+      <div class="docs-backdrop" data-jgz-docs-backdrop></div>
+      <section
+        class="docs-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="jgz-docs-title"
+        data-jgz-docs-drawer
+      >
+        <header class="docs-header">
+          <div>
+            <p class="docs-kicker">Learn js-game-zero</p>
+            <h2 id="jgz-docs-title">Documentation</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button"
+            data-jgz-close-docs
+            aria-label="Close documentation"
+            title="Close documentation"
+          >
+            ✕
+          </button>
+        </header>
+        <div class="docs-layout">
+          <nav
+            class="docs-navigation"
+            aria-label="Documentation"
+            data-jgz-docs-navigation
+          ></nav>
+          <main
+            class="docs-content"
+            aria-live="polite"
+            tabindex="-1"
+            data-jgz-docs-content
+          ></main>
+        </div>
+      </section>
     </div>
     <div class="toast-host" data-jgz-toast-host></div>
     <script type="module" src="/client/app.js"></script>

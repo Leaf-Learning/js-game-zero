@@ -119,6 +119,245 @@ test("create project, starter code runs on Play", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("theme follows the system, toggles without losing editor state, and persists", async ({
+  page,
+}) => {
+  const name = uniqueName("theme");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+
+  const toggle = page.locator("[data-jgz-theme-toggle]");
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to light mode");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => getComputedStyle(document.documentElement).colorScheme,
+      ),
+    )
+    .toBe("dark");
+  await createBlankProject(page, name);
+
+  const content = page.locator("[data-jgz-editor-mount] .cm-content");
+  const editor = page.locator("[data-jgz-editor-mount] .cm-editor");
+  const darkEditorClasses = await editor.getAttribute("class");
+  await content.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await toggle.click();
+
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to dark mode");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("html")).toHaveAttribute("data-jgz-theme", "light");
+  // CodeMirror marks its light and dark facets with generated class names.
+  // A compartment reconfiguration must therefore change the actual editor
+  // theme classes, not only the surrounding sandbox palette.
+  await expect
+    .poll(() => editor.getAttribute("class"))
+    .not.toBe(darkEditorClasses);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("jgz-sandbox:theme")))
+    .toBe("light");
+
+  // Reconfiguring CodeMirror must preserve its selection as well as the
+  // document. Refocusing and typing replaces the selection made above.
+  await content.focus();
+  await page.keyboard.type("THEME_STATE_PRESERVED");
+  await expect(content).toHaveText("THEME_STATE_PRESERVED");
+
+  // The explicit light choice wins over the still-dark system preference.
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-jgz-theme", "light");
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to dark mode");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(content).toContainText("THEME_STATE_PRESERVED");
+});
+
+test("documentation browses locally without disturbing the editor or preview", async ({
+  page,
+}) => {
+  const name = uniqueName("docs");
+  await page.goto("/");
+  await createBlankProject(page, name);
+  await setEditorContent(
+    page,
+    'function draw() { screen.fill("#345678"); }\n// DOCS_STATE_MARKER',
+  );
+  await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved", {
+    timeout: 4_000,
+  });
+  await page.locator("[data-jgz-play]").click();
+  await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
+
+  const docsButton = page.locator("[data-jgz-open-docs]");
+  await docsButton.click();
+  const host = page.locator("[data-jgz-docs-host]");
+  const drawer = page.locator("[data-jgz-docs-drawer]");
+  const content = page.locator("[data-jgz-docs-content]");
+  await expect(host).toBeVisible();
+  await expect(drawer).toHaveAttribute("aria-modal", "true");
+  await expect(
+    content.getByRole("heading", { name: "Getting Started" }),
+  ).toBeVisible();
+
+  await expect(page.locator('[data-jgz-doc="reference/actor"]')).toBeVisible();
+  const examplesDocButton = page.locator('[data-jgz-doc="examples"]');
+  await examplesDocButton.click();
+  await expect(
+    content.getByRole("heading", { name: "Examples", exact: true }),
+  ).toBeVisible();
+  await expect(examplesDocButton).toBeFocused();
+
+  // The existing credit link uses README.md#credits. The in-app browser keeps
+  // that legacy anchor working even though the rendered heading ID is derived
+  // from the full "License and credits" text.
+  const readmeLink = content.getByRole("link", { name: "README" });
+  await readmeLink.focus();
+  await page.keyboard.press("Enter");
+  const creditsHeading = content.getByRole("heading", {
+    name: "License and credits",
+  });
+  await expect(creditsHeading).toBeVisible();
+  await expect(creditsHeading).toBeFocused();
+
+  await examplesDocButton.click();
+  await expect(
+    content.getByRole("heading", { name: "Examples", exact: true }),
+  ).toBeVisible();
+
+  // A relative documentation link stays inside the drawer and lands on its
+  // heading anchor rather than navigating the sandbox page.
+  const sandboxGuideLink = content.getByRole("link", {
+    name: /docs\/sandbox\.md#example-gallery/,
+  });
+  await sandboxGuideLink.focus();
+  await page.keyboard.press("Enter");
+  const exampleGalleryHeading = content.getByRole("heading", {
+    name: "Example gallery",
+  });
+  await expect(exampleGalleryHeading).toBeVisible();
+  await expect(exampleGalleryHeading).toBeFocused();
+  await expect
+    .poll(() =>
+      drawer.evaluate((element) => element.contains(document.activeElement)),
+    )
+    .toBe(true);
+  await expect
+    .poll(async () => {
+      const headingBox = await exampleGalleryHeading.boundingBox();
+      const contentBox = await content.boundingBox();
+      return headingBox && contentBox
+        ? Math.abs(headingBox.y - contentBox.y)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThan(90);
+
+  const screenshot = content.locator('img[alt*="sandbox running a game"]');
+  await expect(screenshot).toBeVisible();
+  await expect(screenshot).toHaveAttribute(
+    "src",
+    "/docs/media/main-view-running-game.png",
+  );
+
+  await page.locator('[data-jgz-doc="getting-started"]').click();
+  await content.getByRole("link", { name: "docs/reference/" }).click();
+  await expect(
+    content.getByRole("heading", { name: "Hooks And Input Constants" }),
+  ).toBeVisible();
+  await page.locator('[data-jgz-doc="getting-started"]').click();
+  const external = content.getByRole("link", { name: "Bun" }).first();
+  await expect(external).toHaveAttribute("target", "_blank");
+  await expect(external).toHaveAttribute("rel", "noopener noreferrer");
+
+  // Focus wraps in both directions at the dialog boundaries instead of
+  // entering the inert sandbox workspace.
+  const closeButton = page.locator("[data-jgz-close-docs]");
+  await closeButton.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect
+    .poll(() =>
+      drawer.evaluate((element) => {
+        const selector = [
+          "a[href]",
+          "button:not([disabled])",
+          "input:not([disabled])",
+          "select:not([disabled])",
+          "textarea:not([disabled])",
+          '[tabindex]:not([tabindex="-1"])',
+        ].join(",");
+        const focusable = Array.from(
+          element.querySelectorAll<HTMLElement>(selector),
+        ).filter((candidate) => !candidate.hidden && candidate.offsetParent);
+        return document.activeElement === focusable.at(-1);
+      }),
+    )
+    .toBe(true);
+  await page.keyboard.press("Tab");
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(host).toBeHidden();
+  await expect(docsButton).toBeFocused();
+  await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
+  await expect(
+    page.locator("[data-jgz-editor-mount] .cm-content"),
+  ).toContainText("DOCS_STATE_MARKER");
+  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  // Exercise the explicit close control independently from Escape and prove
+  // it restores focus without disturbing the same live workspace.
+  await docsButton.click();
+  await expect(host).toBeVisible();
+  await page.locator("[data-jgz-close-docs]").click();
+  await expect(host).toBeHidden();
+  await expect(docsButton).toBeFocused();
+  await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
+  await expect(
+    page.locator("[data-jgz-editor-mount] .cm-content"),
+  ).toContainText("DOCS_STATE_MARKER");
+  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
+
+test("documentation load failures offer a working retry", async ({ page }) => {
+  let failManifest = true;
+  await page.route("**/api/docs", async (route) => {
+    if (failManifest) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Temporary documentation failure.",
+          code: "internal_error",
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await page.locator("[data-jgz-open-docs]").click();
+  const content = page.locator("[data-jgz-docs-content]");
+  await expect(
+    content.getByRole("heading", {
+      name: "Documentation couldn't be loaded",
+    }),
+  ).toBeVisible();
+  const retry = content.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+
+  failManifest = false;
+  await retry.click();
+  await expect(
+    content.getByRole("heading", { name: "Getting Started" }),
+  ).toBeVisible();
+});
+
 test("learner preview origin cannot mutate editor projects", async ({
   page,
 }) => {
@@ -500,6 +739,43 @@ test("viewport 1024x700 shows Play with no clipped controls", async ({
     () => document.documentElement.scrollWidth,
   );
   expect(scrollWidth).toBeLessThanOrEqual(1024);
+
+  for (const control of [
+    page.locator("[data-jgz-open-docs]"),
+    page.locator("[data-jgz-open-examples]"),
+    page.locator("[data-jgz-theme-toggle]"),
+  ]) {
+    await expect(control).toBeVisible();
+    const controlBox = await control.boundingBox();
+    expect(controlBox).not.toBeNull();
+    if (controlBox) {
+      expect(controlBox.x + controlBox.width).toBeLessThanOrEqual(1024);
+    }
+  }
+
+  await page.locator("[data-jgz-open-docs]").click();
+  const docsDrawer = page.locator("[data-jgz-docs-drawer]");
+  await expect(docsDrawer).toBeVisible();
+  const docsBox = await docsDrawer.boundingBox();
+  expect(docsBox).not.toBeNull();
+  if (docsBox) {
+    expect(docsBox.x).toBeGreaterThanOrEqual(0);
+    expect(docsBox.x + docsBox.width).toBeLessThanOrEqual(1024);
+    expect(docsBox.y).toBeGreaterThanOrEqual(0);
+    expect(docsBox.y + docsBox.height).toBeLessThanOrEqual(700);
+  }
+
+  await page.setViewportSize({ width: 760, height: 560 });
+  const compactDocsBox = await docsDrawer.boundingBox();
+  expect(compactDocsBox).not.toBeNull();
+  if (compactDocsBox) {
+    expect(compactDocsBox.x).toBeCloseTo(0, 0);
+    expect(compactDocsBox.y).toBeCloseTo(0, 0);
+    expect(compactDocsBox.width).toBeCloseTo(760, 0);
+    expect(compactDocsBox.height).toBeCloseTo(560, 0);
+  }
+  await expect(page.locator("[data-jgz-docs-navigation]")).toBeVisible();
+  await expect(page.locator("[data-jgz-docs-content]")).toBeVisible();
 });
 
 async function dragHandle(

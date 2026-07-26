@@ -16,6 +16,11 @@ import {
   validateProjectName,
 } from "./path-policy";
 import { ProjectRepository } from "./project-repository";
+import {
+  documentationManifest,
+  documentationMediaResponse,
+  readDocumentation,
+} from "./documentation";
 
 export { normalizeSandboxRelativePath, SandboxPathError } from "./path-policy";
 
@@ -106,6 +111,13 @@ export function createSandboxHandler(
         );
       }
 
+      if (editorEnabled && url.pathname.startsWith("/docs/media/")) {
+        if (request.method !== "GET") return methodNotAllowed();
+        return await documentationMediaResponse(
+          url.pathname.slice("/docs/media/".length),
+        );
+      }
+
       if (editorEnabled && url.pathname === "/" && request.method === "GET") {
         const source = await Bun.file(join(CLIENT_DIR, "index.html")).text();
         return new Response(clientShellPage(source, options.previewOrigin), {
@@ -158,6 +170,25 @@ export function createSandboxHandler(
       if (editorEnabled && url.pathname === "/api/examples") {
         if (request.method !== "GET") return methodNotAllowed();
         return json({ examples: cloneableExamples() });
+      }
+
+      if (editorEnabled && url.pathname === "/api/docs") {
+        if (request.method !== "GET") return methodNotAllowed();
+        return json({ documents: documentationManifest() });
+      }
+
+      if (editorEnabled && url.pathname.startsWith("/api/docs/")) {
+        if (request.method !== "GET") return methodNotAllowed();
+        let id: string;
+        try {
+          id = decodeURIComponent(url.pathname.slice("/api/docs/".length));
+        } catch {
+          return apiError("Documentation page not found.", "not_found", 404);
+        }
+        const document = await readDocumentation(id);
+        return document
+          ? json({ document })
+          : apiError("Documentation page not found.", "not_found", 404);
       }
 
       if (editorEnabled && url.pathname === "/api/projects") {

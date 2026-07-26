@@ -55,6 +55,104 @@ describe("sandbox routes", () => {
     expect(await initial.json()).toEqual({ projects: [] });
   });
 
+  test("documentation routes expose only allowlisted pages and confined media", async () => {
+    const manifest = await request("/api/docs");
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers.get("content-type")).toContain("application/json");
+    const manifestBody = (await manifest.json()) as {
+      documents: Array<{
+        id: string;
+        navigation: boolean;
+        sourcePath: string;
+      }>;
+    };
+    expect(manifestBody.documents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "getting-started",
+          navigation: true,
+          sourcePath: "docs/getting-started.md",
+        }),
+        expect.objectContaining({
+          id: "reference/actor",
+          navigation: true,
+          sourcePath: "docs/reference/actor.md",
+        }),
+        expect.objectContaining({
+          id: "readme",
+          navigation: false,
+          sourcePath: "README.md",
+        }),
+      ]),
+    );
+    expect(
+      manifestBody.documents
+        .filter((document) => document.navigation)
+        .map((document) => document.id),
+    ).toEqual([
+      "getting-started",
+      "tutorial",
+      "cookbook",
+      "sandbox",
+      "examples",
+      "migrating-from-pgzero",
+      "reference/hooks",
+      "reference/screen",
+      "reference/actor",
+      "reference/rect",
+      "reference/clock",
+      "reference/audio",
+      "reference/storage",
+      "reference/loaders",
+      "reference/runtime",
+    ]);
+    for (const document of manifestBody.documents) {
+      const response = await request(
+        `/api/docs/${document.id.split("/").map(encodeURIComponent).join("/")}`,
+      );
+      expect(response.status).toBe(200);
+    }
+
+    const actor = await request("/api/docs/reference/actor");
+    expect(actor.status).toBe(200);
+    expect(actor.headers.get("content-type")).toContain("application/json");
+    expect(await actor.json()).toMatchObject({
+      document: {
+        id: "reference/actor",
+        markdown: expect.stringContaining("# Actor"),
+      },
+    });
+
+    const media = await request("/docs/media/main-view-running-game.png");
+    expect(media.status).toBe(200);
+    expect(media.headers.get("content-type")).toBe("image/png");
+
+    for (const path of [
+      "/api/docs/not-allowlisted",
+      "/api/docs/%2e%2e%2fpackage.json",
+      "/api/docs/%252e%252e%252fpackage.json",
+      "/docs/media/%2e%2e%2fgetting-started.md",
+      "/docs/media/%252e%252e%252fgetting-started.md",
+      "/docs/media/not-found.png",
+    ]) {
+      expect((await request(path)).status).toBe(404);
+    }
+    expect(
+      (
+        await request("/api/docs", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(405);
+    expect(
+      (
+        await request("/docs/media/main-view-running-game.png", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(405);
+  });
+
   test("creating a project lists it with its starter main.js", async () => {
     await createProject();
 

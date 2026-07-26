@@ -10,7 +10,9 @@ import {
   deleteProject,
   getProject,
   listProjects,
+  listDocumentation,
   listExamples,
+  readDocumentation,
   readFile,
   renameFile,
   renameProject,
@@ -239,6 +241,31 @@ describe("sandbox client API contracts", () => {
           ],
         });
       }
+      if (url === "/api/docs") {
+        return Response.json({
+          documents: [
+            {
+              id: "getting-started",
+              title: "Getting Started",
+              section: "Learn",
+              sourcePath: "docs/getting-started.md",
+              navigation: true,
+            },
+          ],
+        });
+      }
+      if (url === "/api/docs/reference/actor") {
+        return Response.json({
+          document: {
+            id: "reference/actor",
+            title: "Actor",
+            section: "API Reference",
+            sourcePath: "docs/reference/actor.md",
+            navigation: true,
+            markdown: "# Actor",
+          },
+        });
+      }
       if (url.endsWith("/rename") && !url.endsWith("/files/rename")) {
         return Response.json({ project: { name: "next", files: ["main.js"] } });
       }
@@ -283,6 +310,11 @@ describe("sandbox client API contracts", () => {
     await uploadAsset("demo", "images/a b.png", new File(["x"], "a b.png"));
     await deleteAsset("demo", "images/a b.png");
     expect(await listExamples()).toHaveLength(1);
+    expect(await listDocumentation()).toHaveLength(1);
+    expect(await readDocumentation("reference/actor")).toMatchObject({
+      id: "reference/actor",
+      markdown: "# Actor",
+    });
 
     expect(requests.some(({ url }) => url.includes("my%20game"))).toBe(true);
     expect(requests.some(({ url }) => url.includes("images/a%20b.png"))).toBe(

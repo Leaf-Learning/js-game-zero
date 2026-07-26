@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   decodeApiErrorResponse,
   decodeCreateProjectRequest,
+  decodeDocumentationManifestResponse,
+  decodeDocumentationResponse,
   decodeExamplesResponse,
   decodeFileResponse,
   decodeMutationResponse,
@@ -87,6 +89,34 @@ describe("shared sandbox contracts", () => {
       }),
     ).toBeNull();
     expect(decodeExamplesResponse({})).toBeNull();
+
+    const documentation = {
+      id: "reference/actor",
+      title: "Actor",
+      section: "API Reference",
+      sourcePath: "docs/reference/actor.md",
+      navigation: true,
+    };
+    expect(
+      decodeDocumentationManifestResponse({ documents: [documentation] }),
+    ).toEqual({ documents: [documentation] });
+    expect(
+      decodeDocumentationManifestResponse({
+        documents: [{ ...documentation, navigation: "yes" }],
+      }),
+    ).toBeNull();
+    expect(
+      decodeDocumentationResponse({
+        document: { ...documentation, markdown: "# Actor" },
+      }),
+    ).toEqual({
+      document: { ...documentation, markdown: "# Actor" },
+    });
+    expect(
+      decodeDocumentationResponse({
+        document: { ...documentation, markdown: 42 },
+      }),
+    ).toBeNull();
 
     expect(
       decodeFileResponse({
