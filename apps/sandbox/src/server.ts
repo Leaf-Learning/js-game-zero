@@ -466,7 +466,6 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
     }),
   });
   console.log(`js-game-zero sandbox listening on ${editorOrigin}`);
-  console.log(`js-game-zero preview isolated at ${previewOrigin}`);
 }
 
 if (import.meta.main) startSandboxServer();
