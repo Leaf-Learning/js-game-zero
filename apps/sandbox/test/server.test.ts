@@ -830,6 +830,18 @@ describe("sandbox routes", () => {
     expect(appBundle.headers.get("content-type")).toContain("text/javascript");
     expect((await appBundle.text()).length).toBeGreaterThan(0);
 
+    const docs = await request("/docs");
+    expect(docs.status).toBe(200);
+    expect(docs.headers.get("content-type")).toContain("text/html");
+    expect(await docs.text()).toContain('src="/client/docs.js"');
+    expect((await request("/docs/")).status).toBe(200);
+    expect((await request("/docs", { method: "POST" })).status).toBe(405);
+
+    const docsBundle = await request("/client/docs.js");
+    expect(docsBundle.status).toBe(200);
+    expect(docsBundle.headers.get("content-type")).toContain("text/javascript");
+    expect((await docsBundle.text()).length).toBeGreaterThan(0);
+
     const styles = await request("/client/app.css");
     expect(styles.status).toBe(200);
     expect(styles.headers.get("content-type")).toContain("text/css");

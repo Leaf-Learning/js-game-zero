@@ -172,7 +172,7 @@ test("theme follows the system, toggles without losing editor state, and persist
   await expect(content).toContainText("THEME_STATE_PRESERVED");
 });
 
-test("documentation browses locally without disturbing the editor or preview", async ({
+test("documentation opens in a separate tab without disturbing the editor or preview", async ({
   page,
 }) => {
   const name = uniqueName("docs");
@@ -189,30 +189,40 @@ test("documentation browses locally without disturbing the editor or preview", a
   await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
 
   const docsButton = page.locator("[data-jgz-open-docs]");
-  await docsButton.click();
-  const host = page.locator("[data-jgz-docs-host]");
-  const drawer = page.locator("[data-jgz-docs-drawer]");
-  const content = page.locator("[data-jgz-docs-content]");
-  await expect(host).toBeVisible();
-  await expect(drawer).toHaveAttribute("aria-modal", "true");
+  await expect(docsButton).toHaveAttribute("target", "_blank");
+  await expect(docsButton).toHaveAttribute("rel", "noopener");
+  const [docsPage] = await Promise.all([
+    page.waitForEvent("popup"),
+    docsButton.click(),
+  ]);
+  await expect(docsPage).toHaveURL(/\/docs$/);
+  await expect
+    .poll(() => docsPage.evaluate(() => window.opener === null))
+    .toBe(true);
+
+  const docsShell = docsPage.locator("[data-jgz-docs-page]");
+  const content = docsPage.locator("[data-jgz-docs-content]");
+  await expect(docsShell).toBeVisible();
   await expect(
     content.getByRole("heading", { name: "Getting Started" }),
   ).toBeVisible();
 
-  await expect(page.locator('[data-jgz-doc="reference/actor"]')).toBeVisible();
-  const examplesDocButton = page.locator('[data-jgz-doc="examples"]');
+  await expect(
+    docsPage.locator('[data-jgz-doc="reference/actor"]'),
+  ).toBeVisible();
+  const examplesDocButton = docsPage.locator('[data-jgz-doc="examples"]');
   await examplesDocButton.click();
   await expect(
     content.getByRole("heading", { name: "Examples", exact: true }),
   ).toBeVisible();
   await expect(examplesDocButton).toBeFocused();
 
-  // The existing credit link uses README.md#credits. The in-app browser keeps
-  // that legacy anchor working even though the rendered heading ID is derived
-  // from the full "License and credits" text.
+  // The existing credit link uses README.md#credits. The documentation browser
+  // keeps that legacy anchor working even though the rendered heading ID is
+  // derived from the full "License and credits" text.
   const readmeLink = content.getByRole("link", { name: "README" });
   await readmeLink.focus();
-  await page.keyboard.press("Enter");
+  await docsPage.keyboard.press("Enter");
   const creditsHeading = content.getByRole("heading", {
     name: "License and credits",
   });
@@ -224,13 +234,13 @@ test("documentation browses locally without disturbing the editor or preview", a
     content.getByRole("heading", { name: "Examples", exact: true }),
   ).toBeVisible();
 
-  // A relative documentation link stays inside the drawer and lands on its
-  // heading anchor rather than navigating the sandbox page.
+  // A relative documentation link stays in the documentation tab and lands
+  // on its heading anchor rather than navigating the sandbox page.
   const sandboxGuideLink = content.getByRole("link", {
     name: /docs\/sandbox\.md#example-gallery/,
   });
   await sandboxGuideLink.focus();
-  await page.keyboard.press("Enter");
+  await docsPage.keyboard.press("Enter");
   const exampleGalleryHeading = content.getByRole("heading", {
     name: "Example gallery",
   });
@@ -238,7 +248,7 @@ test("documentation browses locally without disturbing the editor or preview", a
   await expect(exampleGalleryHeading).toBeFocused();
   await expect
     .poll(() =>
-      drawer.evaluate((element) => element.contains(document.activeElement)),
+      docsShell.evaluate((element) => element.contains(document.activeElement)),
     )
     .toBe(true);
   await expect
@@ -258,74 +268,43 @@ test("documentation browses locally without disturbing the editor or preview", a
     "/docs/media/main-view-running-game.png",
   );
 
-  await page.locator('[data-jgz-doc="getting-started"]').click();
+  await docsPage.locator('[data-jgz-doc="getting-started"]').click();
   await content.getByRole("link", { name: "docs/reference/" }).click();
   await expect(
     content.getByRole("heading", { name: "Hooks And Input Constants" }),
   ).toBeVisible();
-  await page.locator('[data-jgz-doc="getting-started"]').click();
+  await docsPage.locator('[data-jgz-doc="getting-started"]').click();
   const external = content.getByRole("link", { name: "Bun" }).first();
   await expect(external).toHaveAttribute("target", "_blank");
   await expect(external).toHaveAttribute("rel", "noopener noreferrer");
 
-  // Focus wraps in both directions at the dialog boundaries instead of
-  // entering the inert sandbox workspace.
-  const closeButton = page.locator("[data-jgz-close-docs]");
-  await closeButton.focus();
-  await page.keyboard.press("Shift+Tab");
-  await expect
-    .poll(() =>
-      drawer.evaluate((element) => {
-        const selector = [
-          "a[href]",
-          "button:not([disabled])",
-          "input:not([disabled])",
-          "select:not([disabled])",
-          "textarea:not([disabled])",
-          '[tabindex]:not([tabindex="-1"])',
-        ].join(",");
-        const focusable = Array.from(
-          element.querySelectorAll<HTMLElement>(selector),
-        ).filter((candidate) => !candidate.hidden && candidate.offsetParent);
-        return document.activeElement === focusable.at(-1);
-      }),
-    )
-    .toBe(true);
-  await page.keyboard.press("Tab");
-  await expect(closeButton).toBeFocused();
-
-  await page.keyboard.press("Escape");
-  await expect(host).toBeHidden();
-  await expect(docsButton).toBeFocused();
+  // The original tab remains fully interactive while the reference stays
+  // open. Editing and autosaving there must not stop its running preview.
+  await page.bringToFront();
+  await setEditorContent(
+    page,
+    'function draw() { screen.fill("#345678"); }\n// EDITED_WITH_DOCS_OPEN',
+  );
+  await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved", {
+    timeout: 4_000,
+  });
   await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
   await expect(
     page.locator("[data-jgz-editor-mount] .cm-content"),
-  ).toContainText("DOCS_STATE_MARKER");
+  ).toContainText("EDITED_WITH_DOCS_OPEN");
   await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-
-  // Exercise the explicit close control independently from Escape and prove
-  // it restores focus without disturbing the same live workspace.
-  await docsButton.click();
-  await expect(host).toBeVisible();
-  await page.locator("[data-jgz-close-docs]").click();
-  await expect(host).toBeHidden();
-  await expect(docsButton).toBeFocused();
-  await expect(page.locator("[data-jgz-preview-status]")).toHaveText("Running");
-  await expect(
-    page.locator("[data-jgz-editor-mount] .cm-content"),
-  ).toContainText("DOCS_STATE_MARKER");
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(docsPage).toHaveURL(/\/docs$/);
 });
 
-test("documentation load failures offer a working retry", async ({ page }) => {
+test("documentation load failures offer a working retry", async ({
+  page,
+  context,
+}) => {
   let failManifest = true;
-  await page.route("**/api/docs", async (route) => {
+  await context.route("**/api/docs", async (route) => {
     if (failManifest) {
       await route.fulfill({
         status: 500,
@@ -341,8 +320,11 @@ test("documentation load failures offer a working retry", async ({ page }) => {
   });
 
   await page.goto("/");
-  await page.locator("[data-jgz-open-docs]").click();
-  const content = page.locator("[data-jgz-docs-content]");
+  const [docsPage] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.locator("[data-jgz-open-docs]").click(),
+  ]);
+  const content = docsPage.locator("[data-jgz-docs-content]");
   await expect(
     content.getByRole("heading", {
       name: "Documentation couldn't be loaded",
@@ -753,20 +735,24 @@ test("viewport 1024x700 shows Play with no clipped controls", async ({
     }
   }
 
-  await page.locator("[data-jgz-open-docs]").click();
-  const docsDrawer = page.locator("[data-jgz-docs-drawer]");
-  await expect(docsDrawer).toBeVisible();
-  const docsBox = await docsDrawer.boundingBox();
+  const [docsPage] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.locator("[data-jgz-open-docs]").click(),
+  ]);
+  await docsPage.setViewportSize({ width: 1024, height: 700 });
+  const docsShell = docsPage.locator("[data-jgz-docs-page]");
+  await expect(docsShell).toBeVisible();
+  const docsBox = await docsShell.boundingBox();
   expect(docsBox).not.toBeNull();
   if (docsBox) {
-    expect(docsBox.x).toBeGreaterThanOrEqual(0);
-    expect(docsBox.x + docsBox.width).toBeLessThanOrEqual(1024);
-    expect(docsBox.y).toBeGreaterThanOrEqual(0);
-    expect(docsBox.y + docsBox.height).toBeLessThanOrEqual(700);
+    expect(docsBox.x).toBeCloseTo(0, 0);
+    expect(docsBox.y).toBeCloseTo(0, 0);
+    expect(docsBox.width).toBeCloseTo(1024, 0);
+    expect(docsBox.height).toBeCloseTo(700, 0);
   }
 
-  await page.setViewportSize({ width: 760, height: 560 });
-  const compactDocsBox = await docsDrawer.boundingBox();
+  await docsPage.setViewportSize({ width: 760, height: 560 });
+  const compactDocsBox = await docsShell.boundingBox();
   expect(compactDocsBox).not.toBeNull();
   if (compactDocsBox) {
     expect(compactDocsBox.x).toBeCloseTo(0, 0);
@@ -774,8 +760,8 @@ test("viewport 1024x700 shows Play with no clipped controls", async ({
     expect(compactDocsBox.width).toBeCloseTo(760, 0);
     expect(compactDocsBox.height).toBeCloseTo(560, 0);
   }
-  await expect(page.locator("[data-jgz-docs-navigation]")).toBeVisible();
-  await expect(page.locator("[data-jgz-docs-content]")).toBeVisible();
+  await expect(docsPage.locator("[data-jgz-docs-navigation]")).toBeVisible();
+  await expect(docsPage.locator("[data-jgz-docs-content]")).toBeVisible();
 });
 
 async function dragHandle(

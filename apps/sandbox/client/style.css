@@ -152,10 +152,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.docs-open {
-  overflow: hidden;
-}
-
 button,
 input,
 select,
@@ -840,6 +836,9 @@ p {
 /* ---------- Buttons & inputs ---------- */
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--bg-raised);
@@ -847,6 +846,7 @@ p {
   padding: 7px 14px;
   font-size: 13px;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
   transition:
     transform 0.08s ease,
@@ -1056,36 +1056,22 @@ p {
 
 /* ---------- Documentation browser ---------- */
 
-.docs-host {
-  position: fixed;
-  inset: 0;
-  z-index: 65;
+.docs-page {
+  min-height: 100%;
+  overflow: hidden;
 }
 
-.docs-backdrop {
-  position: absolute;
-  inset: 0;
-  background: var(--backdrop);
-  backdrop-filter: blur(2px);
-}
-
-.docs-drawer {
-  position: relative;
-  z-index: 1;
-  width: min(920px, calc(100vw - 40px));
-  height: calc(100vh - 40px);
-  margin: 20px 20px 20px auto;
+.docs-page-shell {
+  width: 100%;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   color: var(--text);
   background: var(--bg-panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px var(--dialog-shadow);
 }
 
-.docs-header {
+.docs-page-header {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1095,8 +1081,14 @@ p {
   border-bottom: 1px solid var(--line);
 }
 
-.docs-header h2 {
+.docs-page-header h1 {
   font-size: 20px;
+}
+
+.docs-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .docs-kicker {
@@ -1318,14 +1310,6 @@ p {
 }
 
 @media (max-width: 800px), (max-height: 560px) {
-  .docs-drawer {
-    width: 100vw;
-    height: 100vh;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-  }
-
   .docs-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);

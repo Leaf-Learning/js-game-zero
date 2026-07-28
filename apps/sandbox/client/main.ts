@@ -6,7 +6,6 @@ import { DocumentSession } from "./document-session";
 import { choiceDialog, toast } from "./dialogs";
 import { h, qs } from "./dom";
 import { createEditor } from "./editor";
-import { createDocumentationBrowser } from "./documentation-browser";
 import { initPanelResizers } from "./layout";
 import {
   chooseNewProjectFlow,
@@ -45,7 +44,6 @@ const openExamplesButton = qs<HTMLButtonElement>(
   document,
   "[data-jgz-open-examples]",
 );
-const openDocsButton = qs<HTMLButtonElement>(document, "[data-jgz-open-docs]");
 const themeToggle = qs<HTMLButtonElement>(document, "[data-jgz-theme-toggle]");
 
 const theme = initThemeToggle(themeToggle);
@@ -478,9 +476,6 @@ openExamplesButton.addEventListener("click", () => {
     if (choice) await createAndSelectProject(choice.name, choice.slug);
   })();
 });
-
-const documentationBrowser = createDocumentationBrowser(root);
-openDocsButton.addEventListener("click", () => documentationBrowser.open());
 
 window.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {

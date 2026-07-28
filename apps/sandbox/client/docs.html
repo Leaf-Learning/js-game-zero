@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>js-game-zero Documentation</title>
+    <link rel="icon" href="data:," />
+    <script>
+      try {
+        const theme = localStorage.getItem("jgz-sandbox:theme");
+        if (theme === "light" || theme === "dark") {
+          document.documentElement.dataset.jgzTheme = theme;
+        }
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="/client/app.css" />
+  </head>
+  <body class="docs-page">
+    <div class="docs-page-shell" data-jgz-docs-page>
+      <header class="docs-page-header">
+        <div>
+          <p class="docs-kicker">Learn js-game-zero</p>
+          <h1>Documentation</h1>
+        </div>
+        <div class="docs-page-actions">
+          <a class="btn btn-ghost" href="/">Sandbox</a>
+          <button
+            type="button"
+            class="icon-button theme-toggle"
+            data-jgz-theme-toggle
+            aria-label="Switch color mode"
+            title="Switch color mode"
+          ></button>
+        </div>
+      </header>
+      <div class="docs-layout">
+        <nav
+          class="docs-navigation"
+          aria-label="Documentation"
+          data-jgz-docs-navigation
+        ></nav>
+        <main
+          class="docs-content"
+          aria-live="polite"
+          tabindex="-1"
+          data-jgz-docs-content
+        ></main>
+      </div>
+    </div>
+    <script type="module" src="/client/docs.js"></script>
+  </body>
+</html>

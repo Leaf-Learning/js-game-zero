@@ -9,18 +9,9 @@ import type {
 
 const DEFAULT_DOCUMENT = "getting-started";
 const DOCS_ORIGIN = "https://jgz-docs.invalid";
-const focusableSelector = [
-  "a[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  '[tabindex]:not([tabindex="-1"])',
-].join(",");
 
 export type DocumentationBrowser = {
-  open(): void;
-  close(): void;
+  load(): Promise<void>;
 };
 
 function errorMessage(error: unknown): string {
@@ -123,29 +114,13 @@ function scrollToHash(
   });
 }
 
-export function createDocumentationBrowser(
-  appRoot: HTMLElement,
-): DocumentationBrowser {
-  const host = qs<HTMLDivElement>(document, "[data-jgz-docs-host]");
-  const drawer = qs<HTMLElement>(host, "[data-jgz-docs-drawer]");
-  const backdrop = qs<HTMLDivElement>(host, "[data-jgz-docs-backdrop]");
-  const closeButton = qs<HTMLButtonElement>(host, "[data-jgz-close-docs]");
-  const navigation = qs<HTMLElement>(host, "[data-jgz-docs-navigation]");
-  const content = qs<HTMLElement>(host, "[data-jgz-docs-content]");
+export function createDocumentationBrowser(): DocumentationBrowser {
+  const navigation = qs<HTMLElement>(document, "[data-jgz-docs-navigation]");
+  const content = qs<HTMLElement>(document, "[data-jgz-docs-content]");
 
   let documents: DocumentationSummary[] | null = null;
   let currentDocument = DEFAULT_DOCUMENT;
-  let previousFocus: HTMLElement | null = null;
   let requestSequence = 0;
-
-  function close(): void {
-    if (host.hidden) return;
-    host.hidden = true;
-    appRoot.inert = false;
-    document.body.classList.remove("docs-open");
-    previousFocus?.focus();
-    previousFocus = null;
-  }
 
   function renderStatus(
     title: string,
@@ -355,43 +330,5 @@ export function createDocumentationBrowser(
     }
   }
 
-  function open(): void {
-    if (!host.hidden) return;
-    previousFocus =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    host.hidden = false;
-    appRoot.inert = true;
-    document.body.classList.add("docs-open");
-    closeButton.focus();
-    void load();
-  }
-
-  closeButton.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
-  document.addEventListener("keydown", (event) => {
-    if (host.hidden) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const focusable = Array.from(
-      drawer.querySelectorAll<HTMLElement>(focusableSelector),
-    ).filter((element) => !element.hidden && element.offsetParent !== null);
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (!first || !last) return;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
-
-  return { open, close };
+  return { load };
 }

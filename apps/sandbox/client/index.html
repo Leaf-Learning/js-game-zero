@@ -23,9 +23,16 @@
           <span class="topbar-title">js-game-zero</span>
         </div>
         <div class="topbar-actions">
-          <button type="button" class="btn btn-ghost" data-jgz-open-docs>
+          <a
+            class="btn btn-ghost"
+            href="/docs"
+            target="_blank"
+            rel="noopener"
+            data-jgz-open-docs
+          >
             Docs
-          </button>
+            <span class="visually-hidden">(opens in a new tab)</span>
+          </a>
           <button type="button" class="btn btn-ghost" data-jgz-open-examples>
             Examples
           </button>
@@ -226,45 +233,6 @@
           </div>
         </aside>
       </div>
-    </div>
-    <div class="docs-host" data-jgz-docs-host hidden>
-      <div class="docs-backdrop" data-jgz-docs-backdrop></div>
-      <section
-        class="docs-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="jgz-docs-title"
-        data-jgz-docs-drawer
-      >
-        <header class="docs-header">
-          <div>
-            <p class="docs-kicker">Learn js-game-zero</p>
-            <h2 id="jgz-docs-title">Documentation</h2>
-          </div>
-          <button
-            type="button"
-            class="icon-button"
-            data-jgz-close-docs
-            aria-label="Close documentation"
-            title="Close documentation"
-          >
-            ✕
-          </button>
-        </header>
-        <div class="docs-layout">
-          <nav
-            class="docs-navigation"
-            aria-label="Documentation"
-            data-jgz-docs-navigation
-          ></nav>
-          <main
-            class="docs-content"
-            aria-live="polite"
-            tabindex="-1"
-            data-jgz-docs-content
-          ></main>
-        </div>
-      </section>
     </div>
     <div class="toast-host" data-jgz-toast-host></div>
     <script type="module" src="/client/app.js"></script>

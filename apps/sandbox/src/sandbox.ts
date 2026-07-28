@@ -118,6 +118,16 @@ export function createSandboxHandler(
         );
       }
 
+      if (
+        editorEnabled &&
+        (url.pathname === "/docs" || url.pathname === "/docs/")
+      ) {
+        if (request.method !== "GET") return methodNotAllowed();
+        return new Response(Bun.file(join(CLIENT_DIR, "docs.html")), {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+
       if (editorEnabled && url.pathname === "/" && request.method === "GET") {
         const source = await Bun.file(join(CLIENT_DIR, "index.html")).text();
         return new Response(clientShellPage(source, options.previewOrigin), {
@@ -143,6 +153,20 @@ export function createSandboxHandler(
         const build = await cachedBrowserBuild(
           "client-app",
           join(CLIENT_DIR, "main.ts"),
+        );
+        return new Response(build.text, {
+          headers: { "content-type": build.contentType },
+        });
+      }
+
+      if (
+        editorEnabled &&
+        url.pathname === "/client/docs.js" &&
+        request.method === "GET"
+      ) {
+        const build = await cachedBrowserBuild(
+          "client-docs",
+          join(CLIENT_DIR, "docs-main.ts"),
         );
         return new Response(build.text, {
           headers: { "content-type": build.contentType },
