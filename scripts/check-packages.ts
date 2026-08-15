@@ -67,6 +67,9 @@ async function checkPackedConsumer(): Promise<void> {
       packDir,
     );
 
+    assertLicenseInTarball(coreTarball, "packages/core");
+    assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
+
     const consumerDir = join(root, "consumer");
     await Bun.write(
       join(consumerDir, "package.json"),
@@ -209,6 +212,31 @@ async function packPackage(
     throw new Error(`Expected one tarball from ${packageDir}.`);
   }
   return join(destination, added[0]);
+}
+
+async function assertLicenseInTarball(
+  tarball: string,
+  packageLabel: string,
+): Promise<void> {
+  const process = Bun.spawn(["tar", "-tzf", tarball], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const listing = await new Response(process.stdout).text();
+  const exitCode = await process.exited;
+  if (exitCode !== 0) {
+    throw new Error(`tar listing ${tarball} exited with ${exitCode}.`);
+  }
+  const files = new Set(
+    listing
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+  for (const expected of ["package/LICENSE", "package/COPYING"]) {
+    if (!files.has(expected)) {
+      throw new Error(`${packageLabel} tarball must include ${expected}.`);
+    }
+  }
 }
 
 async function checkBrowserArtifacts(): Promise<void> {

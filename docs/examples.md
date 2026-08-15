@@ -126,5 +126,5 @@ Example route: `/examples/platformer`
 
 The example games' art and sound (where not generated in code, like
 `sound-tone`'s inline tone/click effects) use free [CC0-licensed assets from
-kenney.nl](https://kenney.nl/) — see the [README](../README.md#credits) for
+kenney.nl](https://kenney.nl/) — see the [README](../README.md#license-and-credits) for
 the full credit.

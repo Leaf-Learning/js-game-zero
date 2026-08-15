@@ -52,8 +52,9 @@ function compatibleDocumentHash(
   document: DocumentationSummary,
   hash: string,
 ): string {
-  // docs/examples.md historically links to README.md#credits, while the
-  // rendered heading's deterministic ID is "license-and-credits".
+  // README.md#credits was retired in favor of the heading-derived
+  // #license-and-credits anchor; keep remapping the old link for
+  // backward compatibility with links that predate the rename.
   if (document.sourcePath === "README.md" && hash === "#credits") {
     return "#license-and-credits";
   }
