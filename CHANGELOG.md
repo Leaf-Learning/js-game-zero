@@ -2,7 +2,14 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
+## 0.1.1 — 2026-09-06
+
+### Diagnostics
+
+- `runtime-error` diagnostics and `handle.failure` now carry `line`, the
+  1-based source line the game threw from (calibrated against the source
+  wrapper, so it holds across engines). Hosts can point straight at the
+  failing line instead of showing "update failed: …" with no location.
 
 ### Reliability
 

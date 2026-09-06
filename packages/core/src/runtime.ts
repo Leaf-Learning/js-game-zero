@@ -53,7 +53,7 @@ import {
   RUNTIME_MODULE_OPTION_NAMES as moduleOptionNames,
   setActiveDiagnosticEmit,
 } from "./runtime-diagnostics";
-import { executeZeroBoilerplateSource } from "./runtime-source";
+import { executeZeroBoilerplateSource, sourceLineOf } from "./runtime-source";
 import type {
   DefinedGameModule,
   GameHandleState,
@@ -200,12 +200,14 @@ export function run(
     configureDocumentTitle(game);
     applyFavicon(context, game.ICON, emit);
   } catch (error) {
+    const line = sourceLineOf(error);
     emit({
       code: "runtime-error",
       severity: "error",
       phase: "startup",
       recoverable: false,
       message: `startup failed: ${describeError(error)}`,
+      ...(line !== undefined ? { line } : {}),
     });
     cleanupFailedStartup(context, emit);
     throw error;
@@ -263,7 +265,13 @@ export function run(
 
   const failRuntime = (phase: RuntimeFailurePhase, error: unknown): void => {
     if (state === "failed" || state === "stopped") return;
-    failure = { phase, message: describeError(error), cause: error };
+    const line = sourceLineOf(error);
+    failure = {
+      phase,
+      message: describeError(error),
+      cause: error,
+      ...(line !== undefined ? { line } : {}),
+    };
     state = "failed";
     emit({
       code: "runtime-error",
@@ -271,6 +279,7 @@ export function run(
       phase,
       recoverable: false,
       message: `${phase} failed: ${describeError(error)}`,
+      ...(line !== undefined ? { line } : {}),
     });
     void dispose();
   };

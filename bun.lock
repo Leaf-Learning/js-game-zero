@@ -27,14 +27,14 @@
     },
     "packages/browser-runtime": {
       "name": "@js-game-zero/browser-runtime",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@js-game-zero/core": "workspace:*",
       },
     },
     "packages/core": {
       "name": "@js-game-zero/core",
-      "version": "0.1.0",
+      "version": "0.1.1",
     },
   },
   "packages": {

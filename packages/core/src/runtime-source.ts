@@ -126,12 +126,76 @@ export function executeZeroBoilerplateSource(
 
   const factory = new Function(
     "scope",
-    `return (function() {
+    wrapSource(source, String(sourceResultFields)),
+  );
+  return factory(scope) as GameModule;
+}
+
+/**
+ * The wrapper every zero-boilerplate source is compiled in. It lives in one
+ * place so the line calibration below sees exactly what the game sees.
+ */
+function wrapSource(source: string, resultFields: string): string {
+  return `return (function() {
       with (scope) {
         ${source}
       }
-      return { ${sourceResultFields} };
-    })();`,
-  );
-  return factory(scope) as GameModule;
+      return { ${resultFields} };
+    })();`;
+}
+
+type FrameCalibration = { readonly marker: string; readonly offset: number };
+let calibration: FrameCalibration | null | undefined;
+
+/** `file:line:col` at the end of a stack frame, with or without a closing paren. */
+const FRAME_RE = /([^\s()]+):(\d+):(\d+)\)?\s*$/;
+
+function frames(stack: string): { file: string; line: number }[] {
+  const out: { file: string; line: number }[] = [];
+  for (const raw of stack.split("\n")) {
+    const match = FRAME_RE.exec(raw);
+    if (match) out.push({ file: match[1]!, line: Number(match[2]) });
+  }
+  return out;
+}
+
+/**
+ * Learns how this engine numbers lines inside `new Function` code by throwing
+ * from a one-line source through the real wrapper: the frame's file token
+ * (`<anonymous>` on V8) identifies game frames, and its line number minus one
+ * is the wrapper's offset.
+ */
+function calibrateFrames(): FrameCalibration | null {
+  try {
+    const factory = new Function(
+      "scope",
+      wrapSource('throw new Error("calibrate");', ""),
+    );
+    factory({});
+  } catch (error) {
+    const first =
+      error instanceof Error && error.stack
+        ? frames(error.stack)[0]
+        : undefined;
+    if (first && first.line >= 1)
+      return { marker: first.file, offset: first.line - 1 };
+  }
+  return null;
+}
+
+/**
+ * The 1-based line in the game source where `error` was thrown, or undefined
+ * when the stack has no game frame (the error came from the library, or the
+ * engine gives no usable stack).
+ */
+export function sourceLineOf(error: unknown): number | undefined {
+  const stack = error instanceof Error ? error.stack : undefined;
+  if (!stack) return undefined;
+  calibration ??= calibrateFrames();
+  if (!calibration) return undefined;
+  const { marker, offset } = calibration;
+  const frame = frames(stack).find((candidate) => candidate.file === marker);
+  if (!frame) return undefined;
+  const line = frame.line - offset;
+  return line >= 1 ? line : undefined;
 }

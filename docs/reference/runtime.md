@@ -182,5 +182,11 @@ Everything else is a warning:
 | `asset-name`                                | A quoted string that looks like an asset filename doesn't match the naming grammar. |
 | `runtime-error`                             | An uncaught error, or a failure loading/saving storage.                             |
 
+A `runtime-error` raised by the game's own code (a hook that threw, or a
+top-level statement at startup) also carries `line`: the 1-based line in the
+game source where the error was thrown, when the engine's stack trace names it.
+`handle.failure.line` is the same number. Errors thrown inside the library have
+no `line`.
+
 The sandbox surfaces these in its Problems panel; import-mode hosts can pass
 a `diagnostics` callback to log or display them however they like.

@@ -1671,3 +1671,61 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
     await handle.dispose();
   });
 });
+
+describe("runtime error lines", () => {
+  test("a hook that throws reports the source line it threw from", () => {
+    const target = canvas();
+    const diagnostics: RuntimeDiagnostic[] = [];
+    const handle = run(
+      `WIDTH = 320;
+HEIGHT = 180;
+let cars = [];
+function update(dt) {
+  cars.splice(0, 1);
+  cars[0].x += dt;
+}
+function draw() {}
+`,
+      {
+        autostart: false,
+        canvas: target,
+        diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+        storage: new MemoryAdapter(),
+      },
+    );
+    handle.step(0.1);
+    const failure = diagnostics.find(
+      (diagnostic) =>
+        diagnostic.code === "runtime-error" && diagnostic.phase === "update",
+    );
+    expect(failure?.message).toContain("update failed");
+    expect(failure?.line).toBe(6);
+    expect(handle.failure?.line).toBe(6);
+  });
+
+  test("an error thrown at the top level reports its line at startup", () => {
+    const target = canvas();
+    const diagnostics: RuntimeDiagnostic[] = [];
+    expect(() =>
+      run(
+        `WIDTH = 320;
+const lanes = [];
+lanes[3].x = 1;
+function draw() {}
+`,
+        {
+          autostart: false,
+          canvas: target,
+          diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+          storage: new MemoryAdapter(),
+        },
+      ),
+    ).toThrow();
+    const failure = diagnostics.find(
+      (diagnostic) =>
+        diagnostic.code === "runtime-error" && diagnostic.phase === "startup",
+    );
+    expect(failure?.message).toContain("startup failed");
+    expect(failure?.line).toBe(3);
+  });
+});

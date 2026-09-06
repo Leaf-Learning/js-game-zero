@@ -39,6 +39,8 @@ export type RuntimeDiagnostic = {
   readonly name?: string;
   readonly suggestion?: string;
   readonly phase?: RuntimeFailurePhase;
+  /** For `runtime-error`: the 1-based line in the game source where the error was thrown, when the engine reports one. */
+  readonly line?: number;
   readonly recoverable?: boolean;
 };
 
@@ -56,6 +58,8 @@ export type RuntimeFailure = {
   readonly phase: RuntimeFailurePhase;
   readonly message: string;
   readonly cause: unknown;
+  /** 1-based line in the game source where the error was thrown, when the engine reports one. */
+  readonly line?: number;
 };
 
 export type GameHandleState =
