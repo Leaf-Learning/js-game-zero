@@ -50,16 +50,17 @@ new Actor("player.svg", { topleft: [0, 0], anchor: ["left", "top"] });
 
 ## Properties
 
-| Property                                                                                                   | Type           | Notes                                                          |
-| ---------------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------- |
-| `image`                                                                                                    | `string`       | Reassigning starts loading the new image.                      |
-| `pos`, `x`, `y`                                                                                            | point / number | The anchor point's position.                                   |
-| `angle`                                                                                                    | `number`       | Degrees, counterclockwise, around the anchor.                  |
-| `opacity`                                                                                                  | `number`       | `0`–`1`; out-of-range values are clamped, not rejected.        |
-| `anchor`                                                                                                   | `[h, v]`       | See above.                                                     |
-| `width`, `height`                                                                                          | `number`       | The current (possibly rotated) bounding box size.              |
-| `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `center` | point          | Read or move the actor by any edge/corner of its bounding box. |
-| `left`, `top`, `right`, `bottom`                                                                           | `number`       | Same idea, one axis at a time.                                 |
+| Property                                                                                                   | Type           | Notes                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `image`                                                                                                    | `string`       | Reassigning starts loading the new image.                                                                               |
+| `pos`, `x`, `y`                                                                                            | point / number | The anchor point's position.                                                                                            |
+| `angle`                                                                                                    | `number`       | Degrees, counterclockwise, around the anchor.                                                                           |
+| `opacity`                                                                                                  | `number`       | `0`–`1`; out-of-range values are clamped, not rejected.                                                                 |
+| `anchor`                                                                                                   | `[h, v]`       | See above.                                                                                                              |
+| `scale`                                                                                                    | `number`       | Drawn size as a multiple of the image's native size; default `1`.                                                       |
+| `width`, `height`                                                                                          | `number`       | The current (possibly rotated) bounding box size. Setting one resizes the sprite to that size, keeping its proportions. |
+| `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `center` | point          | Read or move the actor by any edge/corner of its bounding box.                                                          |
+| `left`, `top`, `right`, `bottom`                                                                           | `number`       | Same idea, one axis at a time.                                                                                          |
 
 Setting `angle` rotates the sprite around its anchor and changes the
 axis-aligned bounding box returned by `rect()`/`width`/`height` — useful when
@@ -72,6 +73,24 @@ function update(dt) {
   player.angle += 90 * dt; // spin
 }
 ```
+
+## Sizing
+
+Sprites draw at their native pixel size by default. To fit a picture to
+your game, give it a `scale`, or a `width` or `height` (at most one of the
+three; the other axis follows so the picture keeps its proportions):
+
+```js
+let cow = new Actor("cow.png", { midbottom: [240, 620], width: 80 }); // 80px wide
+let car = new Actor("car.png", { scale: 3 }); // three times its native size
+cow.height = 60; // resize later; the midbottom stays on the floor
+```
+
+The hitbox, `rect()`, and every edge/corner property follow the drawn size,
+and the position you gave (a `midbottom` on the floor, a `center`) stays
+put when the size changes. A size set before the image has loaded is
+applied as soon as it arrives. `inflate_ip` still grows only the hitbox,
+never the picture.
 
 ## Methods
 

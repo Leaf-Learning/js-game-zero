@@ -2,6 +2,17 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## 0.1.2 — 2026-09-07
+
+### Actor
+
+- `Actor.scale`, and `width`/`height` as setters (and as constructor
+  options), draw a sprite at a chosen size while keeping its proportions.
+  The hitbox and every position property follow the drawn size, the
+  anchored position stays put when the size changes, and a size requested
+  before the image loads is applied when it arrives. `inflate_ip` still
+  changes only the hitbox.
+
 ## 0.1.1 — 2026-09-06
 
 ### Diagnostics

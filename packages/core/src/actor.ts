@@ -45,6 +45,12 @@ export type ActorOptions = Partial<Record<ActorPositionKey, Point>> & {
   readonly anchor?: ActorAnchor;
   readonly angle?: number;
   readonly opacity?: number;
+  /** Draw the image at this multiple of its native size (hitbox follows). */
+  readonly scale?: number;
+  /** Draw the image this many pixels wide, keeping its proportions. */
+  readonly width?: number;
+  /** Draw the image this many pixels tall, keeping its proportions. */
+  readonly height?: number;
   readonly screen?: Screen;
   readonly loader?: Pick<AssetLoader<SurfaceLike>, "load" | "get" | "unload">;
   readonly imageLoader?: Pick<
@@ -60,8 +66,15 @@ type ActorPositionSource = {
 
 const positionKeys = ["pos", ...rectPositionKeys] as const;
 
+const sizeKeys = ["scale", "width", "height"] as const;
+type ActorSizeSource = {
+  readonly key: (typeof sizeKeys)[number];
+  readonly value: number;
+};
+
 const allowedOptionKeys = new Set<string>([
   ...positionKeys,
+  ...sizeKeys,
   "anchor",
   "angle",
   "opacity",
@@ -110,6 +123,10 @@ export class Actor {
   private _anchor: ActorAnchor = ["center", "center"];
   private _angle = 0;
   private _opacity = 1;
+  private _scale = 1;
+  /** The native image, before inflate_ip/normalize wrap the hitbox size. */
+  private _native: SurfaceLike | null = null;
+  private sizeSource: ActorSizeSource = { key: "scale", value: 1 };
   private positionSource: ActorPositionSource;
   private imageLoadPromise: Promise<SurfaceLike> | null = null;
 
@@ -131,6 +148,7 @@ export class Actor {
     if (resolvedOptions.angle !== undefined) this.angle = resolvedOptions.angle;
     if (resolvedOptions.opacity !== undefined)
       this.opacity = resolvedOptions.opacity;
+    this.sizeSource = resolveSizeSource(resolvedOptions);
     this.positionSource = resolvePositionSource(
       hasExplicitPos ? (pos as Point) : undefined,
       resolvedOptions,
@@ -150,16 +168,12 @@ export class Actor {
     this._image = value;
     const cached = this.loader.get(value);
     if (cached) {
-      this._surface = cached;
-      this.applyPositionSource();
+      this.adoptSurface(cached);
       this.imageLoadPromise = Promise.resolve(cached);
       return;
     }
     const loadPromise = this.loader.load(value).then((surface) => {
-      if (this._image === value) {
-        this._surface = surface;
-        this.applyPositionSource();
-      }
+      if (this._image === value) this.adoptSurface(surface);
       return surface;
     });
     this.imageLoadPromise = loadPromise;
@@ -234,12 +248,38 @@ export class Actor {
     this._opacity = clamp(requireFiniteNumber(value, "opacity"), 0, 1);
   }
 
+  /**
+   * Size multiplier applied when drawing: `2` doubles the sprite, `0.5`
+   * halves it. The hitbox and every position property follow the drawn
+   * size, and the anchored position (a `midbottom` on the floor) stays put.
+   */
+  get scale(): number {
+    return this._scale;
+  }
+
+  set scale(value: number) {
+    this.sizeSource = { key: "scale", value: requireScale(value, "scale") };
+    this.applySizeSource();
+  }
+
+  /** The current (possibly rotated) bounding-box width. Setting it resizes
+   * the sprite to that width, keeping its proportions (like `scale`). */
   get width(): number {
     return this.rect().width;
   }
 
+  set width(value: number) {
+    this.sizeSource = { key: "width", value: requireScale(value, "width") };
+    this.applySizeSource();
+  }
+
   get height(): number {
     return this.rect().height;
+  }
+
+  set height(value: number) {
+    this.sizeSource = { key: "height", value: requireScale(value, "height") };
+    this.applySizeSource();
   }
 
   get topleft(): Point {
@@ -397,10 +437,13 @@ export class Actor {
       if (this.angle !== 0) {
         target.context.rotate((-this.angle * Math.PI) / 180);
       }
+      const native = this._native ?? this._surface;
       target.context.drawImage(
         this._surface.source as CanvasImageSource,
         -anchorX,
         -anchorY,
+        native.get_width() * this._scale,
+        native.get_height() * this._scale,
       );
     } finally {
       target.context.restore();
@@ -410,6 +453,7 @@ export class Actor {
   unload_image(): void {
     this.loader.unload(this.image);
     this._surface = null;
+    this._native = null;
     this.imageLoadPromise = null;
   }
 
@@ -517,11 +561,31 @@ export class Actor {
   }
 
   private surfaceWidth(): number {
-    return this._surface?.get_width() ?? 0;
+    return (this._surface?.get_width() ?? 0) * this._scale;
   }
 
   private surfaceHeight(): number {
-    return this._surface?.get_height() ?? 0;
+    return (this._surface?.get_height() ?? 0) * this._scale;
+  }
+
+  private adoptSurface(surface: SurfaceLike): void {
+    this._surface = surface;
+    this._native = surface;
+    this.applySizeSource();
+  }
+
+  /** Turns the requested size (scale, width or height) into `_scale` once
+   * the native image size is known, then re-applies the anchored position
+   * so the actor stays where the learner put it. */
+  private applySizeSource(): void {
+    const native = this._native;
+    const { key, value } = this.sizeSource;
+    if (key === "scale") this._scale = value;
+    else if (native) {
+      const basis = key === "width" ? native.get_width() : native.get_height();
+      this._scale = basis > 0 ? value / basis : 1;
+    }
+    this.applyPositionSource();
   }
 
   private setRectPosition(
@@ -543,7 +607,12 @@ export class Actor {
 
   private applyBaseRectGeometry(rect: Rect): void {
     if (this._surface) {
-      this._surface = new SizedSurface(this._surface, rect.width, rect.height);
+      // The rect is in drawn (scaled) pixels; the wrapped size is unscaled.
+      this._surface = new SizedSurface(
+        this._surface,
+        rect.width / this._scale,
+        rect.height / this._scale,
+      );
     }
     const [anchorX, anchorY] = this.anchorOffset();
     this._pos = [rect.left + anchorX, rect.top + anchorY];
@@ -591,6 +660,24 @@ function resolvePositionSource(
     return { key: source, value: requirePoint(options[source], source) };
   }
   return { key: "topleft", value: [0, 0] };
+}
+
+function resolveSizeSource(options: ActorOptions): ActorSizeSource {
+  const given = sizeKeys.filter((key) => options[key] !== undefined);
+  if (given.length > 1) {
+    throw new TypeError(
+      "Actor accepts at most one of scale, width and height.",
+    );
+  }
+  const key = given[0];
+  if (!key) return { key: "scale", value: 1 };
+  return { key, value: requireScale(options[key] as number, key) };
+}
+
+function requireScale(value: number, name: string): number {
+  const n = requireFiniteNumber(value, name);
+  if (n <= 0) throw new TypeError(`Actor ${name} must be greater than 0.`);
+  return n;
 }
 
 function validateActorOptions(options: ActorOptions): void {

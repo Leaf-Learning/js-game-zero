@@ -459,7 +459,7 @@ describe("Actor behavior", () => {
     expect(context.operations.map((op) => op.name)).toContain("rotate");
     expect(context.operations).toContainEqual({
       name: "drawImage",
-      args: [expect.anything(), -10, -5],
+      args: [expect.anything(), -10, -5, 20, 10],
     });
   });
 
@@ -482,5 +482,108 @@ describe("Actor behavior", () => {
       "restore",
     ]);
     expect(context.globalAlpha).toBe(1);
+  });
+});
+
+describe("Actor sizing", () => {
+  function drawWith(
+    actor: Actor,
+    loader: ReturnType<typeof loaderWithSprites>,
+  ) {
+    const context = new MockContext();
+    const screen = new Screen(
+      { width: 200, height: 200 },
+      context as unknown as CanvasRenderingContext2D,
+      { imageLoader: loader },
+    );
+    actor.draw(screen);
+    return context.operations.find((op) => op.name === "drawImage")?.args;
+  }
+
+  test("scale multiplies the drawn size and the hitbox, keeping the anchored position", () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { midbottom: [50, 100], loader });
+    actor.scale = 2;
+    expect(actor.scale).toBe(2);
+    expect(actor.rect()).toMatchObject({ width: 40, height: 20 });
+    expect(actor.midbottom).toEqual([50, 100]);
+    expect(drawWith(actor, loader)).toEqual([
+      expect.anything(),
+      -20,
+      -10,
+      40,
+      20,
+    ]);
+    actor.scale = 0.5;
+    expect(actor.rect()).toMatchObject({ width: 10, height: 5 });
+    expect(actor.midbottom).toEqual([50, 100]);
+  });
+
+  test("width and height set the drawn size keeping proportions, as options or later", () => {
+    const loader = loaderWithSprites();
+    const byWidth = new Actor("hero.svg", {
+      center: [40, 40],
+      width: 80,
+      loader,
+    });
+    expect(byWidth.scale).toBe(4);
+    expect(byWidth.rect()).toMatchObject({
+      left: 0,
+      top: 20,
+      width: 80,
+      height: 40,
+    });
+    expect(byWidth.center).toEqual([40, 40]);
+    const byHeight = new Actor("hero.svg", { loader });
+    byHeight.height = 5;
+    expect(byHeight.scale).toBe(0.5);
+    expect(byHeight.width).toBe(10);
+    expect(drawWith(byHeight, loader)).toEqual([
+      expect.anything(),
+      -5,
+      -2.5,
+      10,
+      5,
+    ]);
+  });
+
+  test("a width requested before the image loads is honoured once it arrives", async () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("later.svg", {
+      midbottom: [50, 100],
+      width: 60,
+      loader,
+    });
+    expect(actor.width).toBe(0); // nothing loaded yet
+    await actor.ready();
+    expect(actor.scale).toBe(3);
+    expect(actor.rect()).toMatchObject({ width: 60, height: 30 });
+    expect(actor.midbottom).toEqual([50, 100]);
+  });
+
+  test("inflate_ip grows the hitbox in drawn pixels without stretching the picture", () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { center: [50, 50], scale: 2, loader });
+    actor.inflate_ip(10, 10);
+    expect(actor.rect()).toMatchObject({ width: 50, height: 30 });
+    expect(actor.center).toEqual([50, 50]);
+    expect(drawWith(actor, loader)?.slice(3)).toEqual([40, 20]);
+  });
+
+  test("rejects non-positive sizes and more than one size source", () => {
+    const loader = loaderWithSprites();
+    expect(() => new Actor("hero.svg", { scale: 0, loader })).toThrow(
+      TypeError,
+    );
+    expect(() => new Actor("hero.svg", { width: -4, loader })).toThrow(
+      TypeError,
+    );
+    expect(
+      () => new Actor("hero.svg", { scale: 2, width: 40, loader }),
+    ).toThrow("at most one of scale, width and height");
+    const actor = new Actor("hero.svg", { loader });
+    expect(() => {
+      actor.scale = Number.NaN;
+    }).toThrow(TypeError);
   });
 });
