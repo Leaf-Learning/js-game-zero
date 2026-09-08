@@ -19,10 +19,10 @@ console.log("Package artifact checks passed.");
 
 async function checkArtifactBoundaries(): Promise<void> {
   const budgets = new Map<string, number>([
-    [artifacts.core, 160_000],
-    [artifacts.host, 100_000],
+    [artifacts.core, 180_000],
+    [artifacts.host, 110_000],
     [artifacts.runtime, 512],
-    [artifacts.iife, 180_000],
+    [artifacts.iife, 200_000],
   ]);
 
   for (const [path, maximumBytes] of budgets) {

@@ -27,6 +27,31 @@ export function levenshtein(a: string, b: string): number {
   return previous[b.length] ?? 0;
 }
 
+/**
+ * Optimal string alignment distance: Levenshtein where swapping two adjacent
+ * characters (`widht` for `width`) costs one edit instead of two.
+ */
+export function editDistance(a: string, b: string): number {
+  const rows = Array.from({ length: a.length + 1 }, (_value, i) =>
+    Array.from({ length: b.length + 1 }, (_cell, j) => (i === 0 ? j : i)),
+  );
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let best = Math.min(
+        (rows[i - 1]?.[j] ?? 0) + 1,
+        (rows[i]?.[j - 1] ?? 0) + 1,
+        (rows[i - 1]?.[j - 1] ?? 0) + cost,
+      );
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        best = Math.min(best, (rows[i - 2]?.[j - 2] ?? 0) + 1);
+      }
+      (rows[i] as number[])[j] = best;
+    }
+  }
+  return rows[a.length]?.[b.length] ?? 0;
+}
+
 /** True when `value` is a thenable (a Promise or Promise-like object). */
 export function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
   return (

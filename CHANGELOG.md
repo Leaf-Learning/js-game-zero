@@ -2,6 +2,20 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## 0.1.3 — 2026-09-07
+
+### Diagnostics
+
+- Hook/constant typo diagnostics only consider top-level definitions and use
+  a length-aware distance, so ordinary names like `row` or `dogW` are never
+  flagged. Only a top-level function (`function drow()`, `const udpate = () =>
+{}`) is checked against hook names, only a top-level assignment against
+  `WIDTH`/`HEIGHT`/`TITLE`/`ICON`, names shorter than six characters get one
+  edit of slack instead of two (a transposition counts as one), and a name
+  whose correct spelling is also defined (`draw` alongside `drawn`) is left
+  alone. Strings, comments, template literals and regex literals are skipped
+  by a small tokenizer instead of a regex strip.
+
 ## 0.1.2 — 2026-09-07
 
 ### Actor

@@ -174,13 +174,18 @@ Everything else is a warning:
 
 | `code`                                      | Meaning                                                                             |
 | ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `hook-typo`                                 | A defined function name is close to a real hook name (e.g. `on_key_dwon`).          |
-| `constant-typo`                             | A top-level name is close to `WIDTH`/`HEIGHT`/`TITLE`/`ICON`.                       |
+| `hook-typo`                                 | A top-level function is named nearly like a hook (e.g. `on_key_dwon`).              |
+| `constant-typo`                             | A top-level assignment is named nearly like `WIDTH`/`HEIGHT`/`TITLE`/`ICON`.        |
 | `duplicate-config` / `duplicate-hook-alias` | The same setting or hook was given two ways.                                        |
 | `hook-arity`                                | `update` declares more than one parameter.                                          |
 | `invalid-config`                            | `WIDTH`/`HEIGHT`/`ICON` isn't usable.                                               |
 | `asset-name`                                | A quoted string that looks like an asset filename doesn't match the naming grammar. |
 | `runtime-error`                             | An uncaught error, or a failure loading/saving storage.                             |
+
+The two typo checks only look at names the script _defines_ at top level
+(`function drow()`, `const udpate = () => {}`, `WIDHT = 800`), never at names
+it merely uses (`row`, `col`, `rows[y]`), and they stay quiet when the real
+name is also defined. Short names get one edit of slack and longer ones two.
 
 A `runtime-error` raised by the game's own code (a hook that threw, or a
 top-level statement at startup) also carries `line`: the 1-based line in the

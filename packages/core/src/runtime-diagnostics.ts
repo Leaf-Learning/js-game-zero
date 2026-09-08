@@ -6,7 +6,8 @@ import type {
   RuntimeDiagnostic,
   RuntimeMode,
 } from "./runtime-contracts";
-import { imageExtensions, levenshtein, soundExtensions } from "./util";
+import { scanSource } from "./source-scan";
+import { editDistance, imageExtensions, soundExtensions } from "./util";
 
 export const RUNTIME_CONFIGURATION_NAMES = [
   "WIDTH",
@@ -52,7 +53,9 @@ export function diagnoseGameModule(
   emit: (diagnostic: RuntimeDiagnostic) => void,
   mode: RuntimeMode,
 ): void {
-  for (const key of Object.keys(module)) diagnoseIdentifier(key, emit);
+  const keys = Object.keys(module);
+  const defined = new Set(keys);
+  for (const key of keys) diagnoseIdentifier(key, "function", defined, emit);
   for (const key of RUNTIME_MODULE_OPTION_NAMES) {
     if (module[key] !== undefined && options[key] !== undefined) {
       emit({
@@ -84,17 +87,31 @@ export function diagnoseGameModule(
   }
 }
 
+/**
+ * Static checks on zero-boilerplate source. Typo checks only look at what the
+ * script defines at top level — a top-level function whose name is nearly a
+ * hook name, or a top-level assignment whose name is nearly a configuration
+ * constant — never at identifiers the script merely uses (`row`, `col`,
+ * `rows[y]`), and never when the real name is also defined (`draw` plus a
+ * `drawn` helper is not a typo). Asset-name checks scan every quoted string.
+ */
 export function diagnoseSource(
   source: string,
   emit: (diagnostic: RuntimeDiagnostic) => void,
 ): void {
-  const stripped = stripCommentsAndStrings(source);
-  const seen = new Set<string>();
-  for (const match of stripped.matchAll(/\b[A-Za-z_][A-Za-z0-9_]*\b/g)) {
-    const name = match[0];
-    if (seen.has(name)) continue;
-    seen.add(name);
-    diagnoseIdentifier(name, emit);
+  const scan = scanSource(source);
+  if (scan.complete) {
+    const defined = new Set([
+      ...scan.topLevelFunctions,
+      ...scan.topLevelAssignments,
+    ]);
+    const functions = new Set(scan.topLevelFunctions);
+    for (const name of functions)
+      diagnoseIdentifier(name, "function", defined, emit);
+    for (const name of scan.topLevelAssignments) {
+      if (!functions.has(name))
+        diagnoseIdentifier(name, "assignment", defined, emit);
+    }
   }
   for (const match of source.matchAll(/["'`]([^"'`]+)["'`]/g)) {
     const name = match[1];
@@ -146,6 +163,8 @@ export function isValidRuntimeDimension(value: unknown): value is number {
 
 function diagnoseIdentifier(
   name: string,
+  kind: "function" | "assignment",
+  defined: ReadonlySet<string>,
   emit: (diagnostic: RuntimeDiagnostic) => void,
 ): void {
   if (constantNames.has(name) || hookNameSet.has(name)) return;
@@ -153,7 +172,7 @@ function diagnoseIdentifier(
     name !== name.toLowerCase()
       ? closestName(name, RUNTIME_CONFIGURATION_NAMES)
       : undefined;
-  if (constantSuggestion) {
+  if (constantSuggestion && !defined.has(constantSuggestion)) {
     emit({
       code: "constant-typo",
       severity: "warning",
@@ -163,8 +182,9 @@ function diagnoseIdentifier(
     });
     return;
   }
+  if (kind !== "function") return;
   const hookSuggestion = closestName(name, hookNames);
-  if (hookSuggestion) {
+  if (hookSuggestion && !defined.has(hookSuggestion)) {
     emit({
       code: "hook-typo",
       severity: "warning",
@@ -238,23 +258,26 @@ function warnHookArity(
   }
 }
 
+/**
+ * The candidate `name` most plausibly misspells, if any. Short names get one
+ * edit of slack and longer ones two (so `drow` and `on_key_dwon` match while
+ * `row` and `dow` do not), a transposition counts as one edit, comparison is
+ * case-insensitive, and a name that contains a candidate whole (`redraw`,
+ * `updates`) is taken as deliberately derived from it rather than mistyped.
+ */
 function closestName(
   name: string,
   candidates: readonly string[],
 ): string | undefined {
   const lower = name.toLowerCase();
+  const threshold = lower.length < 6 ? 1 : 2;
   let best: { name: string; distance: number } | null = null;
   for (const candidate of candidates) {
-    const distance = levenshtein(lower, candidate.toLowerCase());
-    if (distance > 2) continue;
+    const candidateLower = candidate.toLowerCase();
+    if (lower !== candidateLower && lower.includes(candidateLower)) continue;
+    const distance = editDistance(lower, candidateLower);
+    if (distance > threshold) continue;
     if (!best || distance < best.distance) best = { name: candidate, distance };
   }
   return best?.name;
-}
-
-function stripCommentsAndStrings(source: string): string {
-  return source.replaceAll(
-    /\/\*[\s\S]*?\*\/|\/\/.*$|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1/gm,
-    " ",
-  );
 }
