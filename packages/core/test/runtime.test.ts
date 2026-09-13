@@ -244,6 +244,25 @@ function on_key_down() {
     expect(getGameInspector(handle)).toBeNull();
   });
 
+  test("keeps the inspector of a failed game for post-mortem reads", () => {
+    const target = canvas();
+    const handle = run(
+      `
+let t = 0;
+function update(dt) {
+  t += dt;
+  missing.x = 1;
+}
+`,
+      { autostart: false, canvas: target, diagnostics: () => {} },
+    );
+    handle.step(0.25);
+    expect(handle.state).toBe("failed");
+    expect(getGameInspector(handle)?.read("t")).toBe(0.25);
+    handle.stop();
+    expect(getGameInspector(handle)?.read("t")).toBe(0.25);
+  });
+
   test("executes assignment-style globals and hooks without leaking globals", () => {
     const target = canvas();
     const adapter = new MemoryAdapter();

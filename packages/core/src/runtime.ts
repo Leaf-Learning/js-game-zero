@@ -261,7 +261,8 @@ export function run(
     context.music.stop();
     context.stop = null;
     context.autosave.detach();
-    gameInspectors.delete(handle);
+    // A failed game keeps its inspector so a host can read the state at the crash.
+    if (state !== "failed") gameInspectors.delete(handle);
     removeActiveHandle();
     if (context.ownsCanvas) context.canvas.remove?.();
     cleanupPromise = Promise.resolve(context.autosave.flush())

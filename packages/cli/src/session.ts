@@ -487,7 +487,10 @@ function pushBounded<T>(values: T[], value: T): void {
   if (values.length > 100) values.shift();
 }
 
+/** A plain integer seed is used as-is, so a seed chosen for one harness
+ * reproduces the same Math.random sequence here; other strings are hashed. */
 function hashSeed(value: string): number {
+  if (/^\d{1,9}$/.test(value)) return Number(value) >>> 0;
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
