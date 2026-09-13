@@ -46,6 +46,7 @@ mouse click <left|middle|right> <x> <y>
 wheel <up|down> [x y]
 inspect [binding.property[index]]
 state
+call <binding>
 screenshot [path]
 restart
 help
@@ -94,6 +95,34 @@ event records report readiness, restarts, diagnostics, console output, and
 runtime errors. In JSON mode every stdout line is JSON; operational failures
 do not inject plain text into the stream.
 
+### Batched play
+
+Agents drive a whole scenario in one round trip with `play` (JSON mode only).
+`actions` holds any sequence of `step`, `key`, `mouse` and `wheel` requests,
+which run in order; the response carries the final status with a `pixels`
+summary, plus an `inspect` result (a state path, or `true` for everything) and
+an inline `screenshot` when asked:
+
+```json
+{
+  "id": 8,
+  "command": "play",
+  "actions": [
+    { "command": "key", "action": "down", "key": "right" },
+    { "command": "step", "count": 30 },
+    { "command": "key", "action": "up", "key": "right" }
+  ],
+  "inspect": "player.x",
+  "screenshot": true
+}
+```
+
+`status` accepts `"pixels": true` to include the same summary on its own: the
+number of distinct colours over a sparse sample of the canvas and a hash of
+that sample, so a caller can tell a blank canvas from a painted one and one
+frame from the next without decoding the PNG. `screenshot` accepts
+`"inline": true` to return the PNG as base64 `data` instead of writing a file.
+
 ## State inspection
 
 `state` (or `inspect` with no path) returns every non-function top-level
@@ -107,6 +136,12 @@ size, angle, opacity, anchor, rectangle, and learner-added properties. Other
 framework objects, sets, maps, undefined or special numeric values, circular
 references, and truncated collections use explicit `$type` tags so the output
 always remains valid JSON.
+
+`call <binding>` invokes a zero-argument top-level function of the game and
+returns its result with the same serialization, so a game or a test harness
+can expose a probe such as `const __probe = () => ({ score, lives })` and read
+several values consistently in one request. Function bindings are listed
+separately from state and are never included in `state` output.
 
 Only plain identifier declarations are captured automatically. Destructured
 declarations and games using the typed `defineGame()` import style are not

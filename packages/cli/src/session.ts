@@ -34,15 +34,22 @@ type DriverStatus = {
   readonly diagnostics: readonly unknown[];
   readonly failure: unknown;
   readonly startupError: string | null;
+  readonly pixels?: PixelSummary;
+};
+
+type PixelSummary = {
+  readonly distinctColors: number;
+  readonly frameHash: string;
 };
 
 type DriverWindow = Window & {
   __jgzDriver?: {
     initialized: boolean;
-    status(): DriverStatus;
+    status(options?: { pixels?: boolean }): DriverStatus;
     step(dt: number, count: number): DriverStatus;
     inspect(path?: StatePath): unknown;
-    screenshot(): string;
+    call(binding: string): unknown;
+    screenshot(): { dataUrl: string; pixels: PixelSummary };
   };
 };
 
@@ -124,7 +131,7 @@ export class GameSession {
       throw new ProtocolError("command_failed", "Session is closed.");
     switch (command.command) {
       case "status":
-        return this.status();
+        return this.status(command.pixels === true);
       case "step": {
         const status = await this.#page.evaluate(
           ({ dt, count }) =>
@@ -141,8 +148,12 @@ export class GameSession {
         return this.#wheel(command.direction, command.x, command.y);
       case "inspect":
         return this.#inspect(command.path);
+      case "call":
+        return this.#call(command.binding);
+      case "play":
+        return this.#play(command);
       case "screenshot":
-        return this.#screenshot(command.path);
+        return this.#screenshot(command.path, command.inline === true);
       case "restart":
         return this.restart("command");
       case "help":
@@ -152,9 +163,10 @@ export class GameSession {
     }
   }
 
-  async status(): Promise<unknown> {
-    const status = await this.#page.evaluate(() =>
-      (window as DriverWindow).__jgzDriver?.status(),
+  async status(pixels = false): Promise<unknown> {
+    const status = await this.#page.evaluate(
+      (options) => (window as DriverWindow).__jgzDriver?.status(options),
+      { pixels },
     );
     return this.#decorateStatus(requireResult(status));
   }
@@ -324,7 +336,50 @@ export class GameSession {
     );
   }
 
-  async #screenshot(requestedPath?: string): Promise<unknown> {
+  async #call(binding: string): Promise<unknown> {
+    try {
+      return await this.#page.evaluate(
+        (name) => (window as DriverWindow).__jgzDriver?.call(name),
+        binding,
+      );
+    } catch (error) {
+      throw new ProtocolError("command_failed", firstLine(error));
+    }
+  }
+
+  /** Runs a batch of input and time actions, then reports once: the status
+   * with pixel summary, plus an inspection and an inline screenshot on
+   * request. One round trip per scenario instead of one per keystroke. */
+  async #play(
+    command: Extract<ProtocolCommand, { command: "play" }>,
+  ): Promise<unknown> {
+    for (const action of command.actions) await this.execute(action);
+    const status = await this.status(true);
+    return {
+      status,
+      ...(command.inspect === undefined
+        ? {}
+        : {
+            inspect: await this.#inspect(
+              command.inspect === true ? undefined : command.inspect,
+            ),
+          }),
+      ...(command.screenshot
+        ? { screenshot: await this.#screenshot(undefined, true) }
+        : {}),
+    };
+  }
+
+  async #screenshot(requestedPath?: string, inline = false): Promise<unknown> {
+    const shot = await this.#page.evaluate(() =>
+      (window as DriverWindow).__jgzDriver?.screenshot(),
+    );
+    if (!shot) throw new Error("Game canvas is unavailable.");
+    const comma = shot.dataUrl.indexOf(",");
+    if (comma === -1) throw new Error("Browser returned an invalid PNG.");
+    const data = shot.dataUrl.slice(comma + 1);
+    const status = (await this.status()) as { canvas: DriverStatus["canvas"] };
+    if (inline) return { data, ...status.canvas, pixels: shot.pixels };
     this.#screenshotNumber += 1;
     const path = resolveScreenshotPath(
       requestedPath,
@@ -333,15 +388,8 @@ export class GameSession {
       this.#screenshotNumber,
     );
     await mkdir(dirname(path), { recursive: true });
-    const dataUrl = await this.#page.evaluate(() =>
-      (window as DriverWindow).__jgzDriver?.screenshot(),
-    );
-    if (!dataUrl) throw new Error("Game canvas is unavailable.");
-    const comma = dataUrl.indexOf(",");
-    if (comma === -1) throw new Error("Browser returned an invalid PNG.");
-    await Bun.write(path, Buffer.from(dataUrl.slice(comma + 1), "base64"));
-    const status = (await this.status()) as { canvas: DriverStatus["canvas"] };
-    return { path, ...status.canvas };
+    await Bun.write(path, Buffer.from(data, "base64"));
+    return { path, ...status.canvas, pixels: shot.pixels };
   }
 
   async #releaseHeldInput(): Promise<void> {
@@ -381,6 +429,8 @@ export const HELP_COMMANDS = [
   "wheel <up|down> [x y]",
   "inspect [binding.property[index]]",
   "state",
+  "call <binding>",
+  "play (JSON only: actions[], inspect, screenshot)",
   "screenshot [path]",
   "restart",
   "help",
@@ -415,6 +465,16 @@ export function normalizeKey(input: string): string {
   if (/^[a-z0-9]$/i.test(input)) return input.toUpperCase();
   if (/^f(?:[1-9]|1[0-5])$/i.test(input)) return input.toUpperCase();
   throw new ProtocolError("invalid_request", `Unsupported key: ${input}`);
+}
+
+/** Playwright prefixes evaluate errors with "evaluate:" and appends the
+ * in-page stack; the game's own message is the only useful part. */
+function firstLine(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return (message.split("\n")[0] ?? message).replace(
+    /^(evaluate: )?(Error: )?/,
+    "",
+  );
 }
 
 function requireResult<T>(value: T | undefined): T {

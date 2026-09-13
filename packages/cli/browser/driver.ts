@@ -31,14 +31,22 @@ type DriverStatus = {
     readonly line?: number;
   } | null;
   readonly startupError: string | null;
+  /** Sampled pixel summary of the current frame, when requested. */
+  readonly pixels?: PixelSummary;
+};
+
+type PixelSummary = {
+  readonly distinctColors: number;
+  readonly frameHash: string;
 };
 
 type JgzDriver = {
   initialized: boolean;
-  status(): DriverStatus;
+  status(options?: { pixels?: boolean }): DriverStatus;
   step(dt: number, count: number): DriverStatus;
   inspect(path?: InspectionPath): unknown;
-  screenshot(): string;
+  call(binding: string): unknown;
+  screenshot(): { dataUrl: string; pixels: PixelSummary };
 };
 
 declare global {
@@ -105,8 +113,18 @@ const driver: JgzDriver = {
     }
     return serializeGameValue(value);
   },
+  call(binding) {
+    const active = requireHandle();
+    const inspector = getGameInspector(active);
+    if (!inspector) throw new Error("Game state inspection is unavailable.");
+    const value = inspector.read(binding);
+    if (typeof value !== "function") {
+      throw new Error(`${binding} is not a function.`);
+    }
+    return serializeGameValue(value());
+  },
   screenshot() {
-    return canvas.toDataURL("image/png");
+    return { dataUrl: canvas.toDataURL("image/png"), pixels: pixelSummary() };
   },
 };
 window.__jgzDriver = driver;
@@ -157,9 +175,47 @@ async function boot(): Promise<void> {
   }
 }
 
-function status(): DriverStatus {
+const PIXEL_SAMPLE_STEP = 6;
+const sampler = document.createElement("canvas");
+const samplerContext = sampler.getContext("2d", { willReadFrequently: true });
+
+/** Distinct colours and a hash over a sparse pixel grid: enough to tell a
+ * blank canvas from a painted one and one frame from the next. The game
+ * canvas is copied unsmoothed onto a small sampler canvas, which keeps one
+ * pixel per grid cell and keeps readback off the game's own context. */
+function pixelSummary(): PixelSummary {
+  const width = Math.ceil(canvas.width / PIXEL_SAMPLE_STEP);
+  const height = Math.ceil(canvas.height / PIXEL_SAMPLE_STEP);
+  if (!samplerContext || width === 0 || height === 0) {
+    return { distinctColors: 0, frameHash: "" };
+  }
+  let data: Uint8ClampedArray;
+  try {
+    sampler.width = width;
+    sampler.height = height;
+    samplerContext.imageSmoothingEnabled = false;
+    samplerContext.drawImage(canvas, 0, 0, width, height);
+    data = samplerContext.getImageData(0, 0, width, height).data;
+  } catch {
+    return { distinctColors: 0, frameHash: "" };
+  }
+  const seen = new Set<number>();
+  let hash = 2166136261;
+  for (let index = 0; index < data.length; index += 4) {
+    const rgb =
+      ((data[index] ?? 0) << 16) |
+      ((data[index + 1] ?? 0) << 8) |
+      (data[index + 2] ?? 0);
+    seen.add(rgb);
+    hash = Math.imul(hash ^ rgb, 16777619);
+  }
+  return { distinctColors: seen.size, frameHash: (hash >>> 0).toString(16) };
+}
+
+function status(options?: { pixels?: boolean }): DriverStatus {
   const failure = handle?.failure;
   return {
+    ...(options?.pixels ? { pixels: pixelSummary() } : {}),
     state: handle?.state ?? (startupError ? "failed" : "starting"),
     elapsed,
     frames,

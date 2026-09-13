@@ -118,3 +118,85 @@ test("resolves supplied screenshots from the invocation directory", () => {
     "/tmp/session/screenshot-0007.png",
   );
 });
+
+describe("agent batch commands", () => {
+  test("decodes call for a plain top-level identifier only", () => {
+    expect(decodeTextLine("call __probe")).toEqual({
+      value: { command: "call", binding: "__probe" },
+    });
+    expect(decodeJsonLine('{"command":"call","binding":"probe"}')).toEqual({
+      value: { command: "call", binding: "probe" },
+    });
+    expect(() => decodeTextLine("call player.pos")).toThrow(ProtocolError);
+    expect(() => decodeTextLine("call __proto__")).toThrow(ProtocolError);
+  });
+
+  test("decodes play batches of input and time actions", () => {
+    expect(
+      decodeJsonLine(
+        JSON.stringify({
+          id: 7,
+          command: "play",
+          actions: [
+            { command: "key", action: "down", key: "right" },
+            { command: "step", count: 30 },
+            { command: "key", action: "up", key: "right" },
+          ],
+          inspect: "player.x",
+          screenshot: true,
+        }),
+      ),
+    ).toEqual({
+      id: 7,
+      value: {
+        command: "play",
+        actions: [
+          { command: "key", action: "down", key: "right" },
+          { command: "step", dt: DEFAULT_STEP, count: 30 },
+          { command: "key", action: "up", key: "right" },
+        ],
+        inspect: parseStatePath("player.x"),
+        screenshot: true,
+      },
+    });
+    expect(
+      decodeJsonLine(
+        '{"command":"play","actions":[{"command":"step"}],"inspect":true}',
+      ).value,
+    ).toEqual({
+      command: "play",
+      actions: [{ command: "step", dt: DEFAULT_STEP, count: 1 }],
+      inspect: true,
+    });
+  });
+
+  test("rejects play batches that nest anything but input and time", () => {
+    for (const nested of ["quit", "restart", "screenshot", "play"]) {
+      expect(() =>
+        decodeJsonLine(
+          `{"command":"play","actions":[{"command":"${nested}"}]}`,
+        ),
+      ).toThrow(ProtocolError);
+    }
+    expect(() => decodeJsonLine('{"command":"play","actions":[]}')).toThrow(
+      ProtocolError,
+    );
+    expect(() => decodeTextLine("play")).toThrow(ProtocolError);
+  });
+
+  test("decodes pixel and inline options", () => {
+    expect(decodeJsonLine('{"command":"status","pixels":true}').value).toEqual({
+      command: "status",
+      pixels: true,
+    });
+    expect(decodeJsonLine('{"command":"status"}').value).toEqual({
+      command: "status",
+    });
+    expect(
+      decodeJsonLine('{"command":"screenshot","inline":true}').value,
+    ).toEqual({ command: "screenshot", inline: true });
+    expect(() =>
+      decodeJsonLine('{"command":"screenshot","inline":"yes"}'),
+    ).toThrow(ProtocolError);
+  });
+});

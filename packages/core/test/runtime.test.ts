@@ -227,7 +227,10 @@ function on_key_down() {
     ]);
     expect(inspector?.read("score")).toBe(1);
     expect(inspector?.read("player")).toEqual({ x: 4 });
-    expect(() => inspector?.read("helper")).toThrow(
+    expect(inspector?.functions()).toEqual(["helper", "update", "on_key_down"]);
+    expect(typeof inspector?.read("helper")).toBe("function");
+    expect((inspector?.read("helper") as () => string)()).toBe("hidden");
+    expect(() => inspector?.read("missing")).toThrow(
       "Unknown game-state binding",
     );
 

@@ -59,7 +59,10 @@ const sourceResultFields = [
 ].join(",\n");
 
 export type SourceInspector = {
+  /** Non-function top-level declarations and assignments. */
   bindings(): readonly string[];
+  /** Top-level function declarations and function-valued bindings. */
+  functions(): readonly string[];
   read(name: string): unknown;
 };
 
@@ -86,6 +89,7 @@ export function executeZeroBoilerplateSource(
   const bindingNames = scan.complete
     ? scan.topLevelAssignments.filter((name) => !functionNames.has(name))
     : [];
+  const callableNames = scan.complete ? [...functionNames] : [];
 
   class RuntimeActor extends Actor {
     constructor(
@@ -146,16 +150,21 @@ export function executeZeroBoilerplateSource(
 
   const factory = new Function(
     "scope",
-    wrapSource(source, String(sourceResultFields), bindingNames),
+    wrapSource(source, String(sourceResultFields), [
+      ...bindingNames,
+      ...callableNames,
+    ]),
   );
   const evaluated = factory(scope) as EvaluatedSource;
   const bindings = Object.freeze([...bindingNames]);
+  const callables = Object.freeze(callableNames);
   return {
     module: evaluated.module,
     inspector: {
       bindings: () => bindings,
+      functions: () => callables,
       read(name: string): unknown {
-        if (!bindings.includes(name)) {
+        if (!bindings.includes(name) && !callables.includes(name)) {
           throw new TypeError(`Unknown game-state binding: ${name}`);
         }
         return evaluated.readers[name]?.();

@@ -10,8 +10,16 @@ export type StatePath = {
   readonly segments: readonly (string | number)[];
 };
 
+export const MAX_PLAY_ACTIONS = 200;
+
+/** Input and time commands a `play` request may batch. */
+export type PlayAction = Extract<
+  ProtocolCommand,
+  { command: "step" | "key" | "mouse" | "wheel" }
+>;
+
 export type ProtocolCommand =
-  | { readonly command: "status" }
+  | { readonly command: "status"; readonly pixels?: boolean }
   | { readonly command: "step"; readonly dt: number; readonly count: number }
   | {
       readonly command: "key";
@@ -32,7 +40,18 @@ export type ProtocolCommand =
       readonly y?: number;
     }
   | { readonly command: "inspect"; readonly path?: StatePath }
-  | { readonly command: "screenshot"; readonly path?: string }
+  | { readonly command: "call"; readonly binding: string }
+  | {
+      readonly command: "play";
+      readonly actions: readonly PlayAction[];
+      readonly inspect?: StatePath | true;
+      readonly screenshot?: boolean;
+    }
+  | {
+      readonly command: "screenshot";
+      readonly path?: string;
+      readonly inline?: boolean;
+    }
   | { readonly command: "restart" }
   | { readonly command: "help" }
   | { readonly command: "quit" };
@@ -143,6 +162,16 @@ export function decodeTextLine(line: string): DecodedCommand {
           ...(words[1] ? { path: parseStatePath(words[1]) } : {}),
         },
       };
+    case "call":
+      if (words.length !== 2) usage("call <binding>");
+      return {
+        value: { command: "call", binding: bindingName(words[1]) },
+      };
+    case "play":
+      throw new ProtocolError(
+        "invalid_request",
+        "play is only available in --json mode.",
+      );
     case "screenshot":
       if (words.length > 2) usage("screenshot [path]");
       return {
@@ -165,6 +194,10 @@ function decodeCommandRecord(input: Record<string, unknown>): ProtocolCommand {
   const command = requiredString(input.command, "command").toLowerCase();
   switch (command) {
     case "status":
+      return {
+        command,
+        ...(optionalBoolean(input.pixels, "pixels") ? { pixels: true } : {}),
+      };
     case "restart":
     case "help":
     case "quit":
@@ -224,6 +257,13 @@ function decodeCommandRecord(input: Record<string, unknown>): ProtocolCommand {
     }
     case "state":
       return { command: "inspect" };
+    case "call":
+      return {
+        command,
+        binding: bindingName(requiredString(input.binding, "binding")),
+      };
+    case "play":
+      return decodePlay(input);
     case "screenshot": {
       if (input.path !== undefined && typeof input.path !== "string") {
         throw new ProtocolError("invalid_request", "path must be a string.");
@@ -234,11 +274,83 @@ function decodeCommandRecord(input: Record<string, unknown>): ProtocolCommand {
       return {
         command,
         ...(typeof input.path === "string" ? { path: input.path } : {}),
+        ...(optionalBoolean(input.inline, "inline") ? { inline: true } : {}),
       };
     }
     default:
       throw new ProtocolError("unknown_command", `Unknown command: ${command}`);
   }
+}
+
+const playActions = new Set(["step", "key", "mouse", "wheel"]);
+
+function decodePlay(input: Record<string, unknown>): ProtocolCommand {
+  if (!Array.isArray(input.actions) || input.actions.length === 0) {
+    throw new ProtocolError(
+      "invalid_request",
+      "actions must be a non-empty array.",
+    );
+  }
+  if (input.actions.length > MAX_PLAY_ACTIONS) {
+    throw new ProtocolError(
+      "invalid_request",
+      `actions may hold at most ${MAX_PLAY_ACTIONS} entries.`,
+    );
+  }
+  const actions = input.actions.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new ProtocolError(
+        "invalid_request",
+        `actions[${index}] must be an object.`,
+      );
+    }
+    const action = decodeCommandRecord(entry);
+    if (!playActions.has(action.command)) {
+      throw new ProtocolError(
+        "invalid_request",
+        `actions[${index}]: play accepts step, key, mouse and wheel only.`,
+      );
+    }
+    return action as PlayAction;
+  });
+  let inspect: StatePath | true | undefined;
+  if (input.inspect === true) inspect = true;
+  else if (typeof input.inspect === "string" && input.inspect.length > 0) {
+    inspect = parseStatePath(input.inspect);
+  } else if (input.inspect !== undefined && input.inspect !== false) {
+    throw new ProtocolError(
+      "invalid_request",
+      "inspect must be true or a state path.",
+    );
+  }
+  return {
+    command: "play",
+    actions,
+    ...(inspect === undefined ? {} : { inspect }),
+    ...(optionalBoolean(input.screenshot, "screenshot")
+      ? { screenshot: true }
+      : {}),
+  };
+}
+
+function bindingName(value: unknown): string {
+  const name = requiredString(value, "binding");
+  if (!/^[A-Za-z_$][\w$]*$/.test(name)) {
+    throw new ProtocolError(
+      "invalid_request",
+      `binding must be a plain identifier: ${name}`,
+    );
+  }
+  assertSafeProperty(name, name);
+  return name;
+}
+
+function optionalBoolean(value: unknown, name: string): boolean {
+  if (value === undefined) return false;
+  if (typeof value !== "boolean") {
+    throw new ProtocolError("invalid_request", `${name} must be a boolean.`);
+  }
+  return value;
 }
 
 function decodeTextMouse(words: readonly string[]): ProtocolCommand {
