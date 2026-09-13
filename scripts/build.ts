@@ -1,27 +1,36 @@
-import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 process.chdir(repoRoot);
 
-type BuildTarget = "core" | "browser-runtime";
+type BuildTarget = "core" | "browser-runtime" | "cli";
 
 const requested = process.argv[2];
 if (
   requested !== undefined &&
   requested !== "core" &&
-  requested !== "browser-runtime"
+  requested !== "browser-runtime" &&
+  requested !== "cli"
 ) {
   throw new TypeError(`Unknown package build target: ${requested}`);
 }
 
 const targets: readonly BuildTarget[] = requested
   ? [requested]
-  : ["core", "browser-runtime"];
+  : ["core", "browser-runtime", "cli"];
 
 if (targets.includes("core")) await buildCore();
 if (targets.includes("browser-runtime")) await buildBrowserRuntime();
+if (targets.includes("cli")) await buildCli();
 
 console.log(
   `Built ${targets.join(" and ")} package${targets.length > 1 ? "s" : ""}.`,
@@ -74,6 +83,24 @@ async function buildBrowserRuntime(): Promise<void> {
   });
   await emitDeclarations("packages/browser-runtime/tsconfig.build.json");
   await normalizeDeclarationSpecifiers("packages/browser-runtime/dist");
+}
+
+async function buildCli(): Promise<void> {
+  await rm("packages/cli/dist", { force: true, recursive: true });
+  await runBuild({
+    entrypoints: ["packages/cli/src/cli.ts"],
+    outdir: "packages/cli/dist",
+    target: "bun",
+    format: "esm",
+    external: ["playwright"],
+  });
+  await runBuild({
+    entrypoints: ["packages/cli/browser/driver.ts"],
+    outdir: "packages/cli/dist/browser",
+    target: "browser",
+    format: "esm",
+  });
+  await chmod("packages/cli/dist/cli.js", 0o755);
 }
 
 async function runBuild(options: Bun.BuildConfig): Promise<void> {

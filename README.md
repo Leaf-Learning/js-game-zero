@@ -57,6 +57,8 @@ required after install.
 - [**API reference**](docs/reference/) — every symbol, with a signature,
   explanation, and example.
 - [**Sandbox guide**](docs/sandbox.md) — a tour of the editor UI.
+- [**Game verification CLI**](docs/cli.md) — drive input and ticks, inspect
+  state, and capture screenshots from agents or the terminal.
 - [**Examples**](docs/examples.md) — every shipped example game, including
   two complete arcade games.
 - [**Migrating from Pygame Zero**](docs/migrating-from-pgzero.md) — a
@@ -73,6 +75,7 @@ required after install.
 
 ```sh
 bun run dev:sandbox
+bun run jgz -- test examples/snake
 bun run format
 bun run check
 bun run build
@@ -90,6 +93,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development workflow.
   and storage: the framework itself.
 - `packages/browser-runtime` — the zero-boilerplate wrapper that injects
   globals and runs learner code.
+- `packages/cli` — the browser-backed `jgz` verification and automation CLI.
 - `apps/sandbox` — the Bun-backed local project editor and preview server.
 - `examples` — playable example games and their assets.
 

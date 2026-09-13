@@ -12,6 +12,7 @@ import {
   RUNTIME_SOURCE_HOOK_NAMES,
 } from "./runtime-diagnostics";
 import type { GameModule, RuntimeDiagnostic } from "./runtime-contracts";
+import { scanSource } from "./source-scan";
 import { Storage } from "./storage";
 import type { ToneGenerator } from "./tone";
 
@@ -51,12 +52,26 @@ const builtinGlobals: Record<string, unknown> = {
 };
 
 const sourceResultFields = [
-  ...RUNTIME_CONFIGURATION_NAMES.map((name) => `${name}: scope.${name}`),
+  ...RUNTIME_CONFIGURATION_NAMES.map((name) => `${name}: ${name}`),
   ...RUNTIME_SOURCE_HOOK_NAMES.map(
-    (name) =>
-      `${name}: typeof ${name} === "function" ? ${name} : (typeof scope.${name} === "function" ? scope.${name} : undefined)`,
+    (name) => `${name}: typeof ${name} === "function" ? ${name} : undefined`,
   ),
 ].join(",\n");
+
+export type SourceInspector = {
+  bindings(): readonly string[];
+  read(name: string): unknown;
+};
+
+type SourceEvaluation = {
+  readonly module: GameModule;
+  readonly inspector: SourceInspector;
+};
+
+type EvaluatedSource = {
+  readonly module: GameModule;
+  readonly readers: Record<string, () => unknown>;
+};
 
 /** Evaluates one zero-boilerplate script inside its run-owned service scope. */
 export function executeZeroBoilerplateSource(
@@ -64,8 +79,13 @@ export function executeZeroBoilerplateSource(
   context: SourceEvaluationContext,
   runFunction: unknown,
   emit: (diagnostic: RuntimeDiagnostic) => void,
-): GameModule {
+): SourceEvaluation {
   diagnoseSource(source, emit);
+  const scan = scanSource(source);
+  const functionNames = new Set(scan.topLevelFunctions);
+  const bindingNames = scan.complete
+    ? scan.topLevelAssignments.filter((name) => !functionNames.has(name))
+    : [];
 
   class RuntimeActor extends Actor {
     constructor(
@@ -126,21 +146,44 @@ export function executeZeroBoilerplateSource(
 
   const factory = new Function(
     "scope",
-    wrapSource(source, String(sourceResultFields)),
+    wrapSource(source, String(sourceResultFields), bindingNames),
   );
-  return factory(scope) as GameModule;
+  const evaluated = factory(scope) as EvaluatedSource;
+  const bindings = Object.freeze([...bindingNames]);
+  return {
+    module: evaluated.module,
+    inspector: {
+      bindings: () => bindings,
+      read(name: string): unknown {
+        if (!bindings.includes(name)) {
+          throw new TypeError(`Unknown game-state binding: ${name}`);
+        }
+        return evaluated.readers[name]?.();
+      },
+    },
+  };
 }
 
 /**
  * The wrapper every zero-boilerplate source is compiled in. It lives in one
  * place so the line calibration below sees exactly what the game sees.
  */
-function wrapSource(source: string, resultFields: string): string {
+function wrapSource(
+  source: string,
+  resultFields: string,
+  bindingNames: readonly string[] = [],
+): string {
+  const readerFields = bindingNames
+    .map((name) => `${JSON.stringify(name)}: () => ${name}`)
+    .join(",\n");
   return `return (function() {
       with (scope) {
         ${source}
-      }
-      return { ${resultFields} };
+        return {
+          module: { ${resultFields} },
+          readers: { ${readerFields} }
+        };
+      };
     })();`;
 }
 
@@ -169,7 +212,7 @@ function calibrateFrames(): FrameCalibration | null {
   try {
     const factory = new Function(
       "scope",
-      wrapSource('throw new Error("calibrate");', ""),
+      wrapSource('throw new Error("calibrate");', "", []),
     );
     factory({});
   } catch (error) {

@@ -162,6 +162,14 @@ other integration APIs from `@js-game-zero/core/host`; Node filesystem storage
 lives at `@js-game-zero/core/node`. Browser-safe advanced root imports remain
 as deprecated compatibility aliases through 0.2.
 
+Host tooling can also import `getGameInspector(handle)` from
+`@js-game-zero/core/host`. It returns a live, read-only binding inspector for a
+running zero-boilerplate source game, or `null` for import-mode and disposed
+handles. `bindings()` lists captured non-function top-level identifiers and
+`read(name)` returns the current value of an allowlisted binding. This is the
+inspection seam used by the browser-backed `jgz` verification CLI; it does not
+add globals or learner-facing runtime methods.
+
 ## Diagnostics
 
 `run()` performs lightweight static checks and reports them through the

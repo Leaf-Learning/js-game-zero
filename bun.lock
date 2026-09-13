@@ -32,6 +32,16 @@
         "@js-game-zero/core": "workspace:*",
       },
     },
+    "packages/cli": {
+      "name": "@js-game-zero/cli",
+      "version": "0.1.3",
+      "bin": {
+        "jgz": "./dist/cli.js",
+      },
+      "dependencies": {
+        "playwright": "^1.57.0",
+      },
+    },
     "packages/core": {
       "name": "@js-game-zero/core",
       "version": "0.1.3",
@@ -55,6 +65,8 @@
     "@codemirror/view": ["@codemirror/view@6.43.4", "", { "dependencies": { "@codemirror/state": "^6.7.0", "crelt": "^1.0.6", "style-mod": "^4.1.0", "w3c-keyname": "^2.2.4" } }, "sha512-YImu23iyKfncJzT7sRy+rEqEhSc8RhOHqDxwy4WzXRKJwYm6iwf/9OJk5ctCAdZ6yi2ZqaGEvmf55fSVqMDrgg=="],
 
     "@js-game-zero/browser-runtime": ["@js-game-zero/browser-runtime@workspace:packages/browser-runtime"],
+
+    "@js-game-zero/cli": ["@js-game-zero/cli@workspace:packages/cli"],
 
     "@js-game-zero/core": ["@js-game-zero/core@workspace:packages/core"],
 

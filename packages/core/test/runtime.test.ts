@@ -20,6 +20,7 @@ import {
   collectRuntimeDiagnostics,
   createImageLoader,
   createSoundLoader,
+  getGameInspector,
   type RuntimeDiagnostic,
   type RuntimeScheduler,
 } from "@js-game-zero/core/host";
@@ -197,6 +198,49 @@ function fakeScheduler(): {
 }
 
 describe("runtime zero-boilerplate mode", () => {
+  test("exposes live non-function top-level bindings to host inspectors", () => {
+    const target = canvas();
+    const handle = run(
+      `
+let score = 1, player = { x: 4 };
+const label = "ready", helper = () => "hidden";
+bonus = 2;
+
+function update(dt) {
+  score += dt;
+  player.x += 1;
+}
+
+function on_key_down() {
+  bonus += 3;
+}
+`,
+      { autostart: false, canvas: target },
+    );
+    const inspector = getGameInspector(handle);
+
+    expect(inspector?.bindings()).toEqual([
+      "score",
+      "player",
+      "label",
+      "bonus",
+    ]);
+    expect(inspector?.read("score")).toBe(1);
+    expect(inspector?.read("player")).toEqual({ x: 4 });
+    expect(() => inspector?.read("helper")).toThrow(
+      "Unknown game-state binding",
+    );
+
+    handle.step(0.5);
+    target.dispatchEvent(keyEvent("keydown", "Space", " "));
+    expect(inspector?.read("score")).toBe(1.5);
+    expect(inspector?.read("player")).toEqual({ x: 5 });
+    expect(inspector?.read("bonus")).toBe(5);
+
+    handle.stop();
+    expect(getGameInspector(handle)).toBeNull();
+  });
+
   test("executes assignment-style globals and hooks without leaking globals", () => {
     const target = canvas();
     const adapter = new MemoryAdapter();
@@ -296,6 +340,8 @@ describe("runtime explicit import mode", () => {
       },
       { autostart: false, canvas: target },
     );
+
+    expect(getGameInspector(handle)).toBeNull();
 
     handle.step(0.1);
     target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));

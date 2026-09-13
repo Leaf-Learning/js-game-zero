@@ -16,6 +16,7 @@
     "docs:check": "bun scripts/check-docs.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "jgz": "bun packages/cli/src/cli.ts",
     "lint": "bun run typecheck && bun run format:check",
     "package:check": "bun scripts/check-packages.ts",
     "test": "bun test packages apps scripts",

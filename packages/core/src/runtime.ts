@@ -53,7 +53,11 @@ import {
   RUNTIME_MODULE_OPTION_NAMES as moduleOptionNames,
   setActiveDiagnosticEmit,
 } from "./runtime-diagnostics";
-import { executeZeroBoilerplateSource, sourceLineOf } from "./runtime-source";
+import {
+  executeZeroBoilerplateSource,
+  sourceLineOf,
+  type SourceInspector,
+} from "./runtime-source";
 import type {
   DefinedGameModule,
   GameHandleState,
@@ -158,7 +162,16 @@ export type GameHandle = {
   reload(source?: GameModule | string | DefinedGame): GameHandle;
 };
 
+/** Host-only access to live top-level bindings in zero-boilerplate games. */
+export type GameInspector = SourceInspector;
+
 const activeHandles: GameHandle[] = [];
+const gameInspectors = new WeakMap<GameHandle, GameInspector>();
+
+/** Returns an inspector only for a live zero-boilerplate source handle. */
+export function getGameInspector(handle: GameHandle): GameInspector | null {
+  return gameInspectors.get(handle) ?? null;
+}
 
 export function run(
   moduleOrSource: GameModule | string | DefinedGame,
@@ -170,12 +183,13 @@ export function run(
     typeof moduleOrSource === "string" ? "global" : "import";
 
   let module!: GameModule;
+  let inspector: GameInspector | null = null;
   let context!: RuntimeContext;
   let game!: GameModule;
   try {
     if (mode === "global") {
       context = createRuntimeContext(options, diagnostics, emit, undefined);
-      module = withRuntimeContext(context, () =>
+      const evaluated = withRuntimeContext(context, () =>
         executeZeroBoilerplateSource(
           String(moduleOrSource),
           context,
@@ -183,6 +197,8 @@ export function run(
           emit,
         ),
       );
+      module = evaluated.module;
+      inspector = evaluated.inspector;
     } else if (isDefinedGame(moduleOrSource)) {
       context = createRuntimeContext(options, diagnostics, emit, undefined);
       module = withRuntimeContext(context, () =>
@@ -245,6 +261,7 @@ export function run(
     context.music.stop();
     context.stop = null;
     context.autosave.detach();
+    gameInspectors.delete(handle);
     removeActiveHandle();
     if (context.ownsCanvas) context.canvas.remove?.();
     cleanupPromise = Promise.resolve(context.autosave.flush())
@@ -371,6 +388,7 @@ export function run(
   };
 
   context.stop = () => handle.stop();
+  if (inspector) gameInspectors.set(handle, inspector);
   activeHandles.push(handle);
   setScreen(context.screen);
 

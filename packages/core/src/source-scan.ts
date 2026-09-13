@@ -20,6 +20,8 @@ export type SourceToken = {
   readonly depth: number;
   /** Parenthesis depth at the token: 0 means outside every `(…)`. */
   readonly parens: number;
+  /** Square-bracket depth at the token: 0 means outside every `[…]`. */
+  readonly brackets: number;
 };
 
 export type SourceScan = {
@@ -144,10 +146,11 @@ export function tokenizeSource(source: string): SourceToken[] | null {
   const templateDepths: number[] = [];
   let depth = 0;
   let parens = 0;
+  let brackets = 0;
   let index = 0;
 
   const push = (type: SourceTokenType, value: string): void => {
-    tokens.push({ type, value, depth, parens });
+    tokens.push({ type, value, depth, parens, brackets });
   };
   const previous = (): SourceToken | undefined => tokens.at(-1);
 
@@ -266,6 +269,21 @@ export function tokenizeSource(source: string): SourceToken[] | null {
       continue;
     }
 
+    if (char === "[") {
+      push("punctuator", "[");
+      brackets += 1;
+      index += 1;
+      continue;
+    }
+
+    if (char === "]") {
+      if (brackets === 0) return null;
+      brackets -= 1;
+      push("punctuator", "]");
+      index += 1;
+      continue;
+    }
+
     if (identifierStart.test(char)) {
       const start = index;
       index += 1;
@@ -334,7 +352,13 @@ export function tokenizeSource(source: string): SourceToken[] | null {
     index += 1;
   }
 
-  if (templateDepths.length > 0 || depth !== 0 || parens !== 0) return null;
+  if (
+    templateDepths.length > 0 ||
+    depth !== 0 ||
+    parens !== 0 ||
+    brackets !== 0
+  )
+    return null;
   return tokens;
 }
 
@@ -385,9 +409,41 @@ export function scanSource(source: string): SourceScan {
     return false;
   };
 
+  const collectDeclaration = (start: number): void => {
+    let expectsName = true;
+    for (let cursor = start; cursor < tokens.length; cursor += 1) {
+      const current = at(cursor);
+      if (!current) return;
+      if (
+        current.depth !== 0 ||
+        current.parens !== 0 ||
+        current.brackets !== 0
+      ) {
+        continue;
+      }
+      if (isPunctuator(current, ";")) return;
+      if (expectsName) {
+        if (!isIdentifier(current)) return;
+        assignments.add(current.value);
+        if (isPunctuator(at(cursor + 1), "=") && isFunctionValue(cursor + 2)) {
+          functions.add(current.value);
+        }
+        expectsName = false;
+        continue;
+      }
+      if (isPunctuator(current, ",")) expectsName = true;
+    }
+  };
+
   for (let index = 0; index < tokens.length; index += 1) {
     const token = at(index);
-    if (!token || token.depth !== 0 || token.parens !== 0) continue;
+    if (
+      !token ||
+      token.depth !== 0 ||
+      token.parens !== 0 ||
+      token.brackets !== 0
+    )
+      continue;
     if (token.type !== "identifier") continue;
     const before = at(index - 1);
     const after = at(index + 1);
@@ -408,7 +464,7 @@ export function scanSource(source: string): SourceScan {
         token.value === "var") &&
       isIdentifier(after)
     ) {
-      assignments.add((after as SourceToken).value);
+      collectDeclaration(index + 1);
       continue;
     }
 

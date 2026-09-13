@@ -9,6 +9,8 @@ const artifacts = {
   host: resolve(repoRoot, "packages/core/dist/host.js"),
   runtime: resolve(repoRoot, "packages/browser-runtime/dist/index.js"),
   iife: resolve(repoRoot, "packages/browser-runtime/dist/browser/browser.js"),
+  cli: resolve(repoRoot, "packages/cli/dist/cli.js"),
+  cliDriver: resolve(repoRoot, "packages/cli/dist/browser/driver.js"),
 } as const;
 
 await checkArtifactBoundaries();
@@ -23,6 +25,8 @@ async function checkArtifactBoundaries(): Promise<void> {
     [artifacts.host, 110_000],
     [artifacts.runtime, 512],
     [artifacts.iife, 200_000],
+    [artifacts.cli, 80_000],
+    [artifacts.cliDriver, 220_000],
   ]);
 
   for (const [path, maximumBytes] of budgets) {
@@ -34,7 +38,12 @@ async function checkArtifactBoundaries(): Promise<void> {
     }
   }
 
-  for (const path of Object.values(artifacts)) {
+  for (const path of [
+    artifacts.core,
+    artifacts.host,
+    artifacts.runtime,
+    artifacts.iife,
+  ]) {
     const source = await readFile(path, "utf8");
     const builtIn =
       /\bnode:(?:assert|buffer|child_process|cluster|crypto|dgram|diagnostics_channel|dns|events|fs|http|https|module|net|os|path|perf_hooks|process|querystring|readline|repl|stream|string_decoder|sys|timers|tls|trace_events|tty|url|util|v8|vm|wasi|worker_threads|zlib)\b/.exec(
@@ -66,9 +75,16 @@ async function checkPackedConsumer(): Promise<void> {
       resolve(repoRoot, "packages/browser-runtime"),
       packDir,
     );
+    const cliTarball = await packPackage(
+      resolve(repoRoot, "packages/cli"),
+      packDir,
+    );
 
     assertLicenseInTarball(coreTarball, "packages/core");
     assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
+    assertLicenseInTarball(cliTarball, "packages/cli");
+    await assertFileInTarball(cliTarball, "package/dist/cli.js");
+    await assertFileInTarball(cliTarball, "package/dist/browser/driver.js");
 
     const consumerDir = join(root, "consumer");
     await Bun.write(
@@ -80,6 +96,7 @@ async function checkPackedConsumer(): Promise<void> {
           dependencies: {
             "@js-game-zero/core": `file:${coreTarball}`,
             "@js-game-zero/browser-runtime": `file:${runtimeTarball}`,
+            "@js-game-zero/cli": `file:${cliTarball}`,
           },
         },
         null,
@@ -175,9 +192,13 @@ if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node
 `,
     );
 
-    // npm resolves the two local tarballs as a publish-style consumer would,
-    // including browser-runtime's packed dependency on core.
+    // npm resolves the local tarballs as a publish-style consumer would,
+    // including browser-runtime's packed dependency on core and the CLI bin.
     await runCommand(["npm", "install", "--ignore-scripts"], consumerDir);
+    await runCommand(
+      [resolve(consumerDir, "node_modules/.bin/jgz"), "--help"],
+      consumerDir,
+    );
     await runCommand(
       [resolve(repoRoot, "node_modules/.bin/tsc"), "-p", "tsconfig.json"],
       consumerDir,
@@ -236,6 +257,20 @@ async function assertLicenseInTarball(
     if (!files.has(expected)) {
       throw new Error(`${packageLabel} tarball must include ${expected}.`);
     }
+  }
+}
+
+async function assertFileInTarball(
+  tarball: string,
+  expected: string,
+): Promise<void> {
+  const process = Bun.spawn(["tar", "-tzf", tarball], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const listing = await new Response(process.stdout).text();
+  const exitCode = await process.exited;
+  if (exitCode !== 0 || !listing.split(/\n/).includes(expected)) {
+    throw new Error(`${tarball} must include ${expected}.`);
   }
 }
 

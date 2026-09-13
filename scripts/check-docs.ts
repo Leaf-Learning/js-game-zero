@@ -13,6 +13,7 @@ const topLevelDocs = [
 
 const userFacingDocs = [
   "docs/getting-started.md",
+  "docs/cli.md",
   "docs/tutorial.md",
   "docs/cookbook.md",
   "docs/sandbox.md",
@@ -58,6 +59,7 @@ const packageManifests = [
   "packages/core/package.json",
   "packages/browser-runtime/package.json",
   "apps/sandbox/package.json",
+  "packages/cli/package.json",
 ];
 
 async function main(): Promise<void> {
@@ -231,6 +233,8 @@ async function checkBuildMetadata(): Promise<void> {
     "packages/core/dist",
     "packages/browser-runtime/dist",
     "packages/browser-runtime/dist/browser",
+    "packages/cli/dist",
+    "packages/cli/dist/browser",
   ]) {
     if (!buildScript.includes(outdir)) {
       fail(`scripts/build.ts must emit ${outdir}.`);
@@ -240,6 +244,7 @@ async function checkBuildMetadata(): Promise<void> {
   for (const packagePath of [
     "packages/core/package.json",
     "packages/browser-runtime/package.json",
+    "packages/cli/package.json",
   ]) {
     const manifest = await readPackageJson(packagePath);
     requireScript(manifest.scripts ?? {}, "build", `${packagePath} build`);

@@ -106,3 +106,5 @@ editing code while a game is running doesn't hot-reload it.
 - [`docs/cookbook.md`](cookbook.md) — short recipes for common tasks.
 - [`docs/reference/`](reference/) — the full per-symbol API reference.
 - [`docs/sandbox.md`](sandbox.md) — a guided tour of the sandbox UI.
+- [`docs/cli.md`](cli.md) — drive games programmatically for deterministic
+  testing, state inspection, and screenshots.

@@ -29,6 +29,7 @@ export const createToneGenerator = tone.createToneGenerator;
 export const dispatchHook = events.dispatchHook;
 export const fitTextboxFontSize = rendering.fitTextboxFontSize;
 export const getParameterNames = events.getParameterNames;
+export const getGameInspector = runtime.getGameInspector;
 export const getScreen = rendering.getScreen;
 export const layoutText = rendering.layoutText;
 export const mapBrowserKeyEvent = events.mapBrowserKeyEvent;
@@ -69,6 +70,7 @@ export type {
 } from "./events";
 export type { CanvasLike, TextLayout } from "./rendering";
 export type {
+  GameInspector,
   PreloadedAssets,
   RuntimeCanvas,
   RuntimeDiagnostic,

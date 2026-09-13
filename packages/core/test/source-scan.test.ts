@@ -195,6 +195,20 @@ let i;
     });
   });
 
+  test("finds comma-separated identifier declarations without reading initializer contents", () => {
+    expect(
+      scanSource(`
+const a = 1, b = [first, second], c = { nested: value };
+let d, e = () => 1, f = call(one, two);
+var g = "done";
+`),
+    ).toEqual({
+      complete: true,
+      topLevelFunctions: ["e"],
+      topLevelAssignments: ["a", "b", "c", "d", "e", "f", "g"],
+    });
+  });
+
   test("ignores names that are merely used", () => {
     expect(
       scanSource(`
