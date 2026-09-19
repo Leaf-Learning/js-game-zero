@@ -329,6 +329,23 @@ export class GameSession {
     ];
   }
 
+  /** One value, every top-level binding, or a map keyed by each path's text. */
+  async #inspectMany(
+    request: StatePath | readonly StatePath[] | true,
+  ): Promise<unknown> {
+    if (request === true) return this.#inspect(undefined);
+    if (!Array.isArray(request)) return this.#inspect(request as StatePath);
+    const values: Record<string, unknown> = {};
+    for (const path of request as readonly StatePath[]) {
+      try {
+        values[path.source] = await this.#inspect(path);
+      } catch (error) {
+        values[path.source] = { error: firstLine(error) };
+      }
+    }
+    return values;
+  }
+
   async #inspect(path?: StatePath): Promise<unknown> {
     return this.#page.evaluate(
       (target) => (window as DriverWindow).__jgzDriver?.inspect(target),
@@ -349,21 +366,23 @@ export class GameSession {
 
   /** Runs a batch of input and time actions, then reports once: the status
    * with pixel summary, plus an inspection and an inline screenshot on
-   * request. One round trip per scenario instead of one per keystroke. */
+   * request. One round trip per scenario instead of one per keystroke. With
+   * `restart` the project is reloaded from disk and stepped one frame first,
+   * so a boot check, a scenario and its evidence fit in one request. */
   async #play(
     command: Extract<ProtocolCommand, { command: "play" }>,
   ): Promise<unknown> {
+    if (command.restart) {
+      await this.restart("command");
+      await this.execute({ command: "step", dt: 1 / 60, count: 1 });
+    }
     for (const action of command.actions) await this.execute(action);
     const status = await this.status(true);
     return {
       status,
       ...(command.inspect === undefined
         ? {}
-        : {
-            inspect: await this.#inspect(
-              command.inspect === true ? undefined : command.inspect,
-            ),
-          }),
+        : { inspect: await this.#inspectMany(command.inspect) }),
       ...(command.screenshot
         ? { screenshot: await this.#screenshot(undefined, true) }
         : {}),
@@ -430,7 +449,7 @@ export const HELP_COMMANDS = [
   "inspect [binding.property[index]]",
   "state",
   "call <binding>",
-  "play (JSON only: actions[], inspect, screenshot)",
+  "play (JSON only: actions[], restart, inspect, screenshot)",
   "screenshot [path]",
   "restart",
   "help",

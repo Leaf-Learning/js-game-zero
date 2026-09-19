@@ -11,6 +11,7 @@ export type StatePath = {
 };
 
 export const MAX_PLAY_ACTIONS = 200;
+export const MAX_INSPECT_PATHS = 12;
 
 /** Input and time commands a `play` request may batch. */
 export type PlayAction = Extract<
@@ -44,7 +45,10 @@ export type ProtocolCommand =
   | {
       readonly command: "play";
       readonly actions: readonly PlayAction[];
-      readonly inspect?: StatePath | true;
+      /** Reload the project from disk and wait for one frame before the actions. */
+      readonly restart?: boolean;
+      /** A state path, several (answered as a map keyed by path), or `true` for everything. */
+      readonly inspect?: StatePath | readonly StatePath[] | true;
       readonly screenshot?: boolean;
     }
   | {
@@ -285,10 +289,15 @@ function decodeCommandRecord(input: Record<string, unknown>): ProtocolCommand {
 const playActions = new Set(["step", "key", "mouse", "wheel"]);
 
 function decodePlay(input: Record<string, unknown>): ProtocolCommand {
-  if (!Array.isArray(input.actions) || input.actions.length === 0) {
+  const restart = optionalBoolean(input.restart, "restart");
+  if (input.actions === undefined && restart) input = { ...input, actions: [] };
+  if (!Array.isArray(input.actions)) {
+    throw new ProtocolError("invalid_request", "actions must be an array.");
+  }
+  if (input.actions.length === 0 && !restart) {
     throw new ProtocolError(
       "invalid_request",
-      "actions must be a non-empty array.",
+      "actions must be a non-empty array unless restart is true.",
     );
   }
   if (input.actions.length > MAX_PLAY_ACTIONS) {
@@ -313,19 +322,31 @@ function decodePlay(input: Record<string, unknown>): ProtocolCommand {
     }
     return action as PlayAction;
   });
-  let inspect: StatePath | true | undefined;
+  let inspect: StatePath | StatePath[] | true | undefined;
   if (input.inspect === true) inspect = true;
   else if (typeof input.inspect === "string" && input.inspect.length > 0) {
     inspect = parseStatePath(input.inspect);
+  } else if (
+    Array.isArray(input.inspect) &&
+    input.inspect.every((p) => typeof p === "string" && p.length > 0)
+  ) {
+    if (input.inspect.length > MAX_INSPECT_PATHS) {
+      throw new ProtocolError(
+        "invalid_request",
+        `inspect may hold at most ${MAX_INSPECT_PATHS} paths.`,
+      );
+    }
+    inspect = input.inspect.map((p) => parseStatePath(p as string));
   } else if (input.inspect !== undefined && input.inspect !== false) {
     throw new ProtocolError(
       "invalid_request",
-      "inspect must be true or a state path.",
+      "inspect must be true, a state path, or a list of state paths.",
     );
   }
   return {
     command: "play",
     actions,
+    ...(restart ? { restart: true } : {}),
     ...(inspect === undefined ? {} : { inspect }),
     ...(optionalBoolean(input.screenshot, "screenshot")
       ? { screenshot: true }

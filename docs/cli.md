@@ -99,9 +99,12 @@ do not inject plain text into the stream.
 
 Agents drive a whole scenario in one round trip with `play` (JSON mode only).
 `actions` holds any sequence of `step`, `key`, `mouse` and `wheel` requests,
-which run in order; the response carries the final status with a `pixels`
-summary, plus an `inspect` result (a state path, or `true` for everything) and
-an inline `screenshot` when asked:
+which run in order; `"restart": true` first reloads the project from disk,
+waits for it to initialize and steps one frame (then `actions` may be empty);
+the response carries the final status with a `pixels` summary, plus an
+`inspect` result (a state path, a list of up to twelve paths answered as a map
+keyed by path, or `true` for everything) and an inline `screenshot` when
+asked:
 
 ```json
 {

@@ -184,6 +184,40 @@ describe("agent batch commands", () => {
     expect(() => decodeTextLine("play")).toThrow(ProtocolError);
   });
 
+  test("decodes a restarting play with several inspect paths", () => {
+    expect(
+      decodeJsonLine(
+        '{"command":"play","restart":true,"inspect":["score","player.x"]}',
+      ).value,
+    ).toEqual({
+      command: "play",
+      actions: [],
+      restart: true,
+      inspect: [parseStatePath("score"), parseStatePath("player.x")],
+    });
+    expect(
+      decodeJsonLine(
+        '{"command":"play","restart":false,"actions":[{"command":"step"}]}',
+      ).value,
+    ).toEqual({
+      command: "play",
+      actions: [{ command: "step", dt: DEFAULT_STEP, count: 1 }],
+    });
+    expect(() =>
+      decodeJsonLine('{"command":"play","restart":"yes","actions":[]}'),
+    ).toThrow(ProtocolError);
+    expect(() =>
+      decodeJsonLine(
+        '{"command":"play","actions":[{"command":"step"}],"inspect":["ok",""]}',
+      ),
+    ).toThrow(ProtocolError);
+    expect(() =>
+      decodeJsonLine(
+        `{"command":"play","restart":true,"inspect":${JSON.stringify(Array.from({ length: 13 }, (_, i) => `v${i}`))}}`,
+      ),
+    ).toThrow(ProtocolError);
+  });
+
   test("decodes pixel and inline options", () => {
     expect(decodeJsonLine('{"command":"status","pixels":true}').value).toEqual({
       command: "status",
