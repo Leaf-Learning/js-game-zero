@@ -1,4 +1,4 @@
-TILE_SIZE = 54; // every tile and the player sprite are drawn at this pixel size
+const TILE_SIZE = 54; // tile size and player width, in pixels
 const COLS = 16;
 const ROWS = 9;
 WIDTH = COLS * TILE_SIZE;
@@ -34,18 +34,14 @@ const GRAVITY = 1700;
 const JUMP_SPEED = 680;
 const MAX_FALL_SPEED = 900;
 const COYOTE_TIME = 0.12; // grace period to jump just after walking off a ledge
+const MAX_PHYSICS_STEP = 1 / 120; // keep fast motion from skipping a tile
 
 const player = new Actor("player", {
   midbottom: cellTop(START_CELL),
   width: TILE_SIZE,
 });
-player.vx = 0;
-player.vy = 0;
-// The player spawns standing on solid ground, so start grounded rather
-// than waiting for the first physics frame to discover that - otherwise
-// a jump pressed the instant the game loads would be dropped.
-let onGround = true;
-let coyoteTimer = COYOTE_TIME;
+let onGround;
+let coyoteTimer;
 let gems = []; // Actors still waiting to be collected
 let flag;
 let score = 0;
@@ -90,14 +86,8 @@ function buildLevel() {
     }
   }
 }
-buildLevel();
-
 function resetGame() {
-  player.midbottom = cellTop(START_CELL);
-  player.vx = 0;
-  player.vy = 0;
-  onGround = true;
-  coyoteTimer = COYOTE_TIME;
+  respawn();
   score = 0;
   state = "playing";
   buildLevel();
@@ -109,11 +99,14 @@ function respawn() {
   player.midbottom = cellTop(START_CELL);
   player.vx = 0;
   player.vy = 0;
+  // The spawn is on solid ground, so a jump works before the first frame.
   onGround = true;
   coyoteTimer = COYOTE_TIME;
 }
+resetGame();
 
-function on_key_down(key) {
+function on_key_down(key, repeat) {
+  if (repeat) return; // holding jump must not trigger another jump on landing
   if (key === keys.UP || key === keys.W || key === keys.SPACE) tryJump();
   if (state !== "playing" && key === keys.SPACE) resetGame();
 }
@@ -129,12 +122,13 @@ function tryJump() {
   sounds.jump.play();
 }
 
-// Rows/columns of tiles a rectangle (given by its edges) overlaps.
+// Rows/columns of tiles a rectangle overlaps. Its far edge is exclusive;
+// ceil - 1 handles fractional positions without subtracting a whole pixel.
 function spannedRange(low, high) {
   const range = [];
   for (
     let index = Math.floor(low / TILE_SIZE);
-    index <= Math.floor((high - 1) / TILE_SIZE);
+    index < Math.ceil(high / TILE_SIZE);
     index += 1
   ) {
     range.push(index);
@@ -146,7 +140,7 @@ function moveHorizontal(dt) {
   player.x += player.vx * dt;
   const rowsCovered = spannedRange(player.top + 2, player.bottom - 2);
   if (player.vx > 0) {
-    const columnIndex = Math.floor((player.right - 1) / TILE_SIZE);
+    const columnIndex = Math.ceil(player.right / TILE_SIZE) - 1;
     if (rowsCovered.some((rowIndex) => isSolidCell(columnIndex, rowIndex))) {
       player.right = columnIndex * TILE_SIZE;
       player.vx = 0;
@@ -167,7 +161,7 @@ function moveVertical(dt) {
   onGround = false;
   const columnsCovered = spannedRange(player.left + 2, player.right - 2);
   if (player.vy > 0) {
-    const rowIndex = Math.floor((player.bottom - 1) / TILE_SIZE);
+    const rowIndex = Math.ceil(player.bottom / TILE_SIZE) - 1;
     if (
       columnsCovered.some((columnIndex) => isSolidCell(columnIndex, rowIndex))
     ) {
@@ -211,7 +205,12 @@ function updatePlayer(dt) {
 }
 
 function update(dt) {
-  if (state === "playing") updatePlayer(dt);
+  // A dropped frame can have a large dt. Consume all of it in short steps
+  // so collisions and collectibles are checked along the player's path.
+  const steps = Math.max(1, Math.ceil(dt / MAX_PHYSICS_STEP));
+  for (let step = 0; step < steps && state === "playing"; step += 1) {
+    updatePlayer(dt / steps);
+  }
 }
 
 function draw() {

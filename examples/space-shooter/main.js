@@ -119,8 +119,10 @@ function movePlayer(dt) {
   if (keyboard.right || keyboard.d) vx += 1;
   if (keyboard.up || keyboard.w) vy -= 1;
   if (keyboard.down || keyboard.s) vy += 1;
-  player.x += vx * PLAYER_SPEED * dt;
-  player.y += vy * PLAYER_SPEED * dt;
+  // Normalize diagonal input so it has the same speed as one direction.
+  const length = Math.hypot(vx, vy) || 1;
+  player.x += (vx / length) * PLAYER_SPEED * dt;
+  player.y += (vy / length) * PLAYER_SPEED * dt;
   player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
   player.top = Math.max(
     PLAYER_TOP_LIMIT,
@@ -203,8 +205,10 @@ function moveExplosions(dt) {
     const explosion = explosions[index];
     explosion.timer += dt;
     if (explosion.timer < EXPLOSION_FRAME_TIME) continue;
-    explosion.timer -= EXPLOSION_FRAME_TIME;
-    explosion.frame += 1;
+    // Advance every elapsed frame, including after a slow browser frame.
+    const elapsedFrames = Math.floor(explosion.timer / EXPLOSION_FRAME_TIME);
+    explosion.timer -= elapsedFrames * EXPLOSION_FRAME_TIME;
+    explosion.frame += elapsedFrames;
     if (explosion.frame >= EXPLOSION_FRAMES.length) {
       explosions.splice(index, 1);
       continue;
@@ -222,13 +226,13 @@ function moveStars(dt) {
 
 function update(dt) {
   moveStars(dt);
+  moveExplosions(dt); // let the final hit finish animating after game over
   if (state !== "playing") return;
   movePlayer(dt);
   moveLasers(dt);
   moveEnemies(dt);
   // Both lasers and contact with the player can remove the final enemy.
   if (enemies.length === 0 && state === "playing") spawnWave();
-  moveExplosions(dt);
 }
 
 function draw() {

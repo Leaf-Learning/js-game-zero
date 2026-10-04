@@ -12,9 +12,11 @@ import {
   keys,
   type ActorOptions,
   type DrawableImage,
+  type GameContext,
 } from "@js-game-zero/core";
 import { dispatchHook } from "@js-game-zero/core/host";
 import { exampleManifest, getExample } from "../../../examples/manifest";
+import { game as starterGame } from "../../../examples/sandbox-starter/game";
 
 // Execute the shipped learner source unchanged. Real Actor geometry, image
 // dimensions, clock and storage keep deterministic gameplay checks honest;
@@ -56,11 +58,17 @@ async function game(slug: string) {
     },
   });
   let saved: string | null = null;
+  let saveFailure = false;
+  let loadFailure = false;
   const storage = new Storage({
     adapter: {
       path: "test-storage",
-      load: async () => saved,
+      load: async () => {
+        if (loadFailure) throw new Error("Storage unavailable");
+        return saved;
+      },
       save: (text) => {
+        if (saveFailure) throw new Error("Storage full");
         saved = text;
       },
     },
@@ -107,6 +115,12 @@ async function game(slug: string) {
     clock,
     storage,
     text,
+    failSaves() {
+      saveFailure = true;
+    },
+    failLoads() {
+      loadFailure = true;
+    },
     click(pos: [number, number]) {
       dispatchHook(evaluate("on_mouse_down"), { pos });
     },
@@ -321,12 +335,125 @@ test("Storage Save changes current score independently, saves, loads, and never 
   expect(g.evaluate("score")).toBe(2);
   expect(g.storage.has("score")).toBe(false);
   g.click([396, 236]);
-  await g.evaluate("storage.save()");
+  await Bun.sleep(0); // wait for the button's asynchronous save
   expect(g.storage.get("score")).toBe(2);
   g.click([96, 236]);
   expect(g.evaluate("score")).toBe(1);
   g.click([544, 236]);
+  await Bun.sleep(0);
   expect(g.evaluate("score")).toBe(2);
   g.frame();
   expect(g.text).toContain("Loaded saved score 2.");
+});
+
+test("Storage Save keeps the last confirmed score after failed writes and reads", async () => {
+  const g = await game("storage-save");
+  g.click([244, 236]);
+  g.click([396, 236]);
+  await Bun.sleep(0);
+  expect(g.evaluate("savedScore")).toBe(1);
+  g.click([244, 236]);
+  g.failSaves();
+  g.click([396, 236]);
+  expect(g.evaluate("savedScore")).toBe(1);
+  await Bun.sleep(0);
+  expect(g.evaluate("[score, savedScore, busy]")).toEqual([2, 1, false]);
+  expect(g.evaluate("message")).toContain("Couldn't save");
+  // set() changed memory to 2, but loading must read the persisted 1.
+  g.click([544, 236]);
+  await Bun.sleep(0);
+  expect(g.evaluate("[score, savedScore, busy]")).toEqual([1, 1, false]);
+  g.click([244, 236]);
+  g.failLoads();
+  g.click([544, 236]);
+  await Bun.sleep(0);
+  expect(g.evaluate("[score, savedScore, busy]")).toEqual([2, 1, false]);
+  expect(g.evaluate("message")).toContain("Couldn't load");
+});
+
+test("Platformer resolves platforms crossed during a long frame", async () => {
+  const g = await game("platformer");
+  // Falling at maximum speed crosses row 3 during a quarter-second frame.
+  // Checking only the final position incorrectly lands on row 6 instead.
+  g.evaluate(
+    "flag = null; player.x = 13.5 * TILE_SIZE; player.bottom = 100; player.vy = MAX_FALL_SPEED;",
+  );
+  g.frame(0.25);
+  expect(g.evaluate("[player.bottom, player.vy, onGround]")).toEqual([
+    162,
+    0,
+    true,
+  ]);
+  for (let frame = 0; frame < 3; frame += 1) {
+    g.frame();
+    expect(g.evaluate("[player.bottom, player.vy, onGround]")).toEqual([
+      162,
+      0,
+      true,
+    ]);
+  }
+});
+
+test("Platformer ignores repeated jump events but accepts a fresh press", async () => {
+  const g = await game("platformer");
+  g.evaluate("on_key_down(keys.SPACE, true);");
+  expect(g.evaluate("player.vy")).toBe(0);
+  g.evaluate("on_key_down(keys.SPACE, false);");
+  expect(g.evaluate("player.vy")).toBe(-680);
+});
+
+test("Space Shooter explosions consume elapsed time and finish after game over", async () => {
+  const g = await game("space-shooter");
+  g.evaluate("explodeAt([100, 100]); state = 'gameover';");
+  g.frame(0.24);
+  expect(g.evaluate("explosions[0].frame")).toBe(4);
+  g.frame(0.07);
+  expect(g.evaluate("explosions.length")).toBe(0);
+});
+
+test("Space Shooter diagonal input preserves cardinal movement speed", async () => {
+  const g = await game("space-shooter");
+  g.evaluate(
+    "player.center = [240, 500]; keyboard.right = keyboard.up = true;",
+  );
+  g.frame(0.1);
+  const distance = g.evaluate("Math.hypot(player.x - 240, player.y - 500)");
+  expect(distance).toBeCloseTo(26);
+});
+
+test("Actor Movement clamps a resized sprite using its actual bounds", async () => {
+  const g = await game("actor-movement");
+  g.evaluate("player.width = 80; keyboard.right = true;");
+  g.frame(10);
+  expect(g.evaluate("player.right")).toBe(320);
+  g.evaluate("keyboard.right = false; keyboard.left = true;");
+  g.frame(10);
+  expect(g.evaluate("player.left")).toBe(0);
+});
+
+test("Sandbox Starter creates independent state for each scoped run", () => {
+  const positions: number[] = [];
+  const context = {
+    keyboard: { right: true, left: false },
+    keys,
+    screen: {
+      fill() {},
+      draw: {
+        filled_rect() {},
+        filled_circle(pos: [number, number]) {
+          positions.push(pos[0]);
+        },
+        text() {},
+      },
+    },
+  } as unknown as GameContext;
+  const first = starterGame.create(context);
+  const second = starterGame.create(context);
+  first.update?.(0.5);
+  first.draw?.();
+  second.draw?.();
+  expect(positions).toEqual([134, 64]);
+  first.onKeyDown?.({ key: keys.SPACE, repeat: false, unicode: " ", mod: 0 });
+  first.draw?.();
+  expect(positions.at(-1)).toBe(64);
 });

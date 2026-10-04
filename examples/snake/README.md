@@ -27,6 +27,17 @@ snake a little faster, and your best score is remembered between visits.
 - Mixing a sprite (`Actor` for the apple) with plain `screen.draw`
   rectangles for the snake itself.
 
+## Reading and extending it
+
+Start with `resetGame()` and `scheduleMove()`, then read `turn()` and
+`moveSnake()`. The turn queue stores input until a clock tick; the array of
+cells owns the snake's position. Rendering converts cells to pixels and
+never moves the snake. `placeApple()` enumerates free cells so filling the
+board has a defined outcome.
+
+Try changing the grid size or starting speed. Keep the grid dimensions
+whole numbers of cells and the starting snake inside the board.
+
 ## Assets
 
 Assets by Kenney (kenney.nl), licensed CC0.

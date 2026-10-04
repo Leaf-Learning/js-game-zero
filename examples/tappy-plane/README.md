@@ -22,6 +22,23 @@ remembered between visits.
 - Testing convex shapes with the separating axis test, using a rotated
   fuselage and tapered mountain hitboxes so transparent corners stay safe.
 
+## Reading and extending it
+
+Start with the tuning constants, then `resetGame()`, `updatePlane()`, and
+`updateMountains()`. Input changes velocity; updating advances the game;
+drawing only displays it.
+
+The collision helpers are the advanced part. Hitbox constants hold points
+in local sprite coordinates. `hitsRock()` rotates the plane's points and
+moves both shapes into screen coordinates. `polygonsOverlap()` projects
+both convex shapes onto axes perpendicular to every edge. If any axis has
+a gap between the projections, the shapes are separate. Rectangle bounds
+alone would count transparent mountain corners as hits.
+
+Try changing `GAP` or `MOUNTAIN_SPEED` first. If you replace the art, update
+the hitbox points to fit its painted silhouette; these are hand-tuned
+shapes for the shipped sprites, rather than automatic pixel collision.
+
 ## Assets
 
 Assets by Kenney (kenney.nl), licensed CC0.

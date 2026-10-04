@@ -3,8 +3,32 @@
 Every game listed here ships with the sandbox and can be played directly
 (with the sandbox running, open `http://localhost:4173/examples`, or the
 **Examples** button in the sandbox's top bar) or cloned into your own
-project from the sandbox's example gallery — see
+project from the sandbox's example gallery (except the import-mode Sandbox
+Starter) — see
 [`docs/sandbox.md#example-gallery`](sandbox.md#example-gallery).
+
+## Learning path and code structure
+
+| Level                   | Examples                                                         | Focus                                                           |
+| ----------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| Beginner                | Drawing Basics, Actor Movement, Animation Basics, Sound And Tone | One API or frame-loop concept at a time.                        |
+| Next steps              | Storage Save, Sandbox Starter                                    | Async persistence and scoped application modules.               |
+| Intermediate            | Breakout, Snake, Space Shooter                                   | Game states, collections, timers, and focused helper functions. |
+| Intermediate / advanced | Platformer, Tappy Plane                                          | Tile physics and convex polygon collision.                      |
+
+The global examples keep their game in one file so the sandbox can run it
+directly. Modularity comes from named tuning constants, helpers for specific
+jobs, and separate input, update, and drawing hooks. `draw()` presents state;
+it does not advance gameplay. A small example does not need a class hierarchy
+or a file per function to teach these boundaries clearly.
+
+Read a complete game's constants and state first, then its reset function,
+then `update()` and the helpers it calls, and finally `draw()`. Each README
+explains the main concept and suggests an extension to try.
+
+The sandbox preview runs only `main.js` as a script; it does not resolve ES
+module imports. Sandbox Starter demonstrates actual module boundaries:
+`game.ts` owns per-run game state, while `main.ts` connects it to the host page.
 
 ## Drawing Basics
 
@@ -49,19 +73,19 @@ Example route: `/examples/storage-save`
 Use the **+ 1** and **- 1** buttons to edit the current score, **Save current**
 to persist it, and **Load saved** to restore it. Separate current and saved
 score cards make each action visible. Reloading restores the saved score.
-Teaches: `storage.get`/`storage.set`, explicit `storage.save()`, and automatic
-loading when a game starts.
+Teaches: `storage.get`/`storage.set`, asynchronous `storage.save()` / `load()`,
+handling failed writes, and automatic loading when a game starts.
 
 ## Sandbox Starter
 
 Example route: `/examples/sandbox-starter`
 
-The one example that doesn't use zero-boilerplate globals — it `import`s
-`run`, `screen`, and `keyboard` from `@js-game-zero/core` directly and
-passes an explicit hooks object to `run()`, including a camelCase
-`onKeyDown` alias. Teaches: the explicit import-mode API, for anyone
-publishing outside the sandbox or preferring plain JavaScript modules over
-injected globals.
+The one example that doesn't use zero-boilerplate globals. `game.ts` exports
+a `defineGame()` factory with private state and scoped services; `main.ts`
+selects the example page's canvas and calls `run()`. Arrow keys move the
+circle, and a typed `onKeyDown(event)` hook resets it on space. Teaches:
+module boundaries, per-run state ownership, and embedding a game in a host
+page. See its README for the canvas markup and bundling requirements.
 
 ## Tappy Plane
 

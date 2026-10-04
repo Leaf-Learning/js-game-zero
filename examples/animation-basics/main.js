@@ -2,7 +2,8 @@ WIDTH = 320;
 HEIGHT = 180;
 TITLE = "Animation Basics";
 
-let orb = { x: 48, y: 90 };
+// const keeps the same object; animate() can still change its properties.
+const orb = { x: 48, y: 90 };
 animate(orb, { x: 260, duration: 1, tween: "decelerate" });
 
 function draw() {

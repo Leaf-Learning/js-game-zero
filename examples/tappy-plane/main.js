@@ -8,6 +8,24 @@ const GAP = 170; // vertical space the plane must fly through
 const GRAVITY = 900; // pixels per second^2 pulling the plane down
 const FLAP_STRENGTH = 320; // upward speed applied by a single flap
 const MOUNTAIN_SPEED = 220; // how fast the mountains scroll toward the plane
+// Local sprite coordinates, chosen inside the painted silhouettes. Keep
+// collision data separate from the algorithm so it can be tuned with the art.
+const PLANE_HITBOX = [
+  [-26, 0],
+  [20, 0],
+  [20, 16],
+  [-18, 16],
+];
+const TOP_MOUNTAIN_HITBOX = [
+  [10, 4],
+  [98, 4],
+  [65, 231],
+];
+const BOTTOM_MOUNTAIN_HITBOX = [
+  [65, 8],
+  [98, 235],
+  [10, 235],
+];
 
 const plane = new Actor("plane", { center: [140, HEIGHT / 2] });
 plane.vy = 0; // Actor doesn't know about velocity, so we track our own.
@@ -20,6 +38,8 @@ storage.setdefault("highscore", 0);
 // anchored at the point closest to the gap so their pointy tips line up.
 const rockTop = new Actor("rock_top", { anchor: ["left", "bottom"] });
 const rockBottom = new Actor("rock_bottom", { anchor: ["left", "top"] });
+rockTop.hitbox = TOP_MOUNTAIN_HITBOX;
+rockBottom.hitbox = BOTTOM_MOUNTAIN_HITBOX;
 
 function resetMountains() {
   const gapCenter = 150 + Math.random() * (HEIGHT - 300);
@@ -61,25 +81,11 @@ function hitsRock(rock) {
   const radians = (-plane.angle * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  const fuselage = [
-    [-26, 0],
-    [20, 0],
-    [20, 16],
-    [-18, 16],
-  ].map(([x, y]) => [plane.x + x * cos - y * sin, plane.y + x * sin + y * cos]);
-  const outline =
-    rock === rockBottom
-      ? [
-          [65, 8],
-          [98, 235],
-          [10, 235],
-        ]
-      : [
-          [10, 4],
-          [98, 4],
-          [65, 231],
-        ];
-  const mountain = outline.map(([x, y]) => [rock.left + x, rock.top + y]);
+  const fuselage = PLANE_HITBOX.map(([x, y]) => [
+    plane.x + x * cos - y * sin,
+    plane.y + x * sin + y * cos,
+  ]);
+  const mountain = rock.hitbox.map(([x, y]) => [rock.left + x, rock.top + y]);
   return polygonsOverlap(fuselage, mountain);
 }
 

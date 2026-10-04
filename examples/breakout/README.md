@@ -24,6 +24,16 @@ over; clear every brick and you win.
 - Simple game states (`playing` / `won` / `lost`) and restart handling.
 - Sound effects with `sounds.<name>.play()`.
 
+## Reading and extending it
+
+Start with `buildBricks()` and `startNewGame()`. Input moves the paddle;
+`update()` steps the ball; `moveBall()` resolves collisions and changes
+game state. `draw()` only reads that state. The bounce calculation is a
+simple arcade approximation rather than a general physics solver.
+
+Try changing the brick layout. If you increase the ball's speed, increase
+the number of simulation steps so it cannot skip a paddle or brick.
+
 ## Assets
 
 Assets by Kenney (kenney.nl), licensed CC0.

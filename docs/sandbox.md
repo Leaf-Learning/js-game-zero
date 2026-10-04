@@ -64,8 +64,14 @@ in the top bar, without going through project creation.
 Selecting a file in the **Files** section opens it in the editor (a
 CodeMirror-based JavaScript editor with syntax highlighting). New projects
 start with `main.js` selected automatically. Use **+** next to "Files" to
-add another file — useful for splitting a bigger game into modules and
-`import`-ing between them.
+add another file, for example to keep notes or alternate versions.
+
+The preview evaluates `main.js` as one zero-boilerplate script. It does not
+bundle other JavaScript files or resolve `import` statements. Organize a
+sandbox game with constants and focused helper functions in that script.
+For a game split into modules, use a browser bundler and the scoped
+`defineGame()` / `run()` API shown in
+[`Sandbox Starter`](../examples/sandbox-starter/README.md).
 
 Changes save automatically about half a second after you stop typing; the
 save status next to the editor toolbar reads "Unsaved changes" while a save

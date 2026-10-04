@@ -4,7 +4,8 @@ TITLE = "Storage Save";
 
 // The runtime loads storage before this file runs. Editing the current
 // score doesn't change storage until you click Save current.
-let score = storage.get("score", 0);
+let savedScore = storage.get("score", null);
+let score = savedScore ?? 0;
 let message = storage.has("score")
   ? `Loaded saved score ${score} when the example opened.`
   : "No score saved yet. Add some points, then save.";
@@ -36,13 +37,16 @@ function changeScore(amount) {
 
 function saveScore() {
   busy = true;
-  const savedScore = score;
-  storage.set("score", savedScore);
+  const scoreToSave = score;
+  storage.set("score", scoreToSave);
   message = "Saving...";
   // Assignments also auto-save; save() flushes this change immediately.
-  storage.save().then(
+  // set() changes memory immediately. Only report a saved value after the
+  // write succeeds; a rejected write must not change the saved score card.
+  return storage.save().then(
     () => {
       busy = false;
+      savedScore = scoreToSave;
       message = `Saved score ${savedScore}. Change the current score, then load it back.`;
     },
     () => {
@@ -53,12 +57,25 @@ function saveScore() {
 }
 
 function loadScore() {
-  if (!storage.has("score")) {
-    message = "No saved score yet. Click Save current first.";
-    return;
-  }
-  score = storage.get("score");
-  message = `Loaded saved score ${score}.`;
+  busy = true;
+  message = "Loading...";
+  // get() reads the in-memory value; load() reads persisted data again.
+  return storage.load().then(
+    () => {
+      busy = false;
+      savedScore = storage.get("score", null);
+      if (savedScore === null) {
+        message = "No saved score yet. Click Save current first.";
+        return;
+      }
+      score = savedScore;
+      message = `Loaded saved score ${score}.`;
+    },
+    () => {
+      busy = false;
+      message = "Couldn't load. Check that browser storage is available.";
+    },
+  );
 }
 
 function on_mouse_down(pos) {
@@ -83,7 +100,7 @@ function draw() {
   );
 
   drawScoreCard(32, "Current score", score);
-  drawScoreCard(332, "Saved score", storage.get("score", "None yet"));
+  drawScoreCard(332, "Saved score", savedScore ?? "None yet");
   for (const button of buttons) {
     screen.draw.filled_rect(button.rect, busy ? "#475569" : "#0f766e");
     screen.draw.text(button.label, undefined, {
