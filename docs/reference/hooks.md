@@ -108,9 +108,10 @@ In portrait mode, the dock places the D-pad on the left and the action
 buttons on the right, with Start/Select beneath them. A sits above and to
 the right of B in a Game Boy-style diagonal arrangement. The dock stays
 below the canvas in both portrait and landscape layouts, near the bottom
-of the game's viewport. The canvas sits 24px above the control dock in
-portrait and 16px above it in landscape. Bottom padding keeps buttons clear
-of the device's home indicator.
+of the game's viewport. In portrait, the canvas is centered vertically with
+at least 48px above the control dock. On shorter screens it moves upward as
+needed to keep the game and controls visible. Landscape keeps a 16px gap.
+Bottom padding keeps buttons clear of the device's home indicator.
 
 Only the buttons you list appear. Supported names are `up`, `down`, `left`,
 `right`, `a`, `b`, `start`, and `select`. Each value must be a numeric
@@ -163,9 +164,10 @@ tap-to-flap or drag-to-steer without adding separate touch hooks.
 
 For embedding, give each canvas a parent with a defined height. While the
 dock is visible, the runtime groups the canvas and controls into a column
-that fills the available space and aligns them toward the bottom. It
-accounts for visible siblings, padding, and row gaps, and restores the
-original canvas placement when the dock is hidden or the game stops.
+that fills the available space, anchors controls at the bottom, and centers
+the portrait canvas when space permits. It accounts for visible siblings,
+padding, and row gaps, and restores the original canvas placement when the
+dock is hidden or the game stops.
 The sandbox preview handles this automatically.
 
 ## on_mouse_down(pos, button) / on_mouse_up(pos, button)

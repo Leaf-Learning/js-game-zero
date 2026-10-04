@@ -89,7 +89,7 @@ const controlStyles = `
 [data-jgz-touch-controls] .jgz-actions.jgz-single button { grid-area: 1 / 1; }
 [data-jgz-touch-controls] .jgz-system button { height: 40px; font-size: 13px; }
 @media (orientation: portrait) {
-  [data-jgz-touch-surface] { gap: 24px; }
+  [data-jgz-touch-surface] { gap: 48px; }
   [data-jgz-touch-controls] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "dpad actions"; }
   [data-jgz-touch-controls].jgz-has-system { grid-template-areas: "dpad actions" "system system"; }
   [data-jgz-touch-controls] .jgz-system { flex-direction: row; }
@@ -321,11 +321,12 @@ export function mountTouchControls(
         pixels(parentStyle.paddingBottom),
     );
     surface.style.height = `${surfaceHeight}px`;
-    const height =
-      surfaceHeight -
-      root.getBoundingClientRect().height -
-      pixels(view.getComputedStyle(surface).rowGap) -
-      verticalEdges;
+    // Fit using the minimum gap before adding any space needed to center the
+    // portrait screen. Short viewports keep the largest game that fits.
+    surface.style.rowGap = "";
+    const dockHeight = root.getBoundingClientRect().height;
+    const minimumGap = pixels(view.getComputedStyle(surface).rowGap);
+    const height = surfaceHeight - dockHeight - minimumGap - verticalEdges;
     const scale = Math.max(
       0,
       Math.min(width / (canvas.width || 1), height / (canvas.height || 1)),
@@ -352,6 +353,13 @@ export function mountTouchControls(
     );
     if (constrainedScale < scale) {
       setScale(constrainedScale);
+    }
+    if (view.matchMedia("(orientation: portrait)").matches) {
+      const screenHeight = canvas.getBoundingClientRect().height;
+      surface.style.rowGap = `${Math.max(
+        minimumGap,
+        (surfaceHeight - screenHeight) / 2 - dockHeight,
+      )}px`;
     }
     fitted = true;
   };

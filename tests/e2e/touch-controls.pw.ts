@@ -272,10 +272,12 @@ test.describe("mobile touch input", () => {
     });
     for (const viewport of [
       { width: 390, height: 844 },
+      { width: 414, height: 896 },
       { width: 320, height: 568 },
       { width: 844, height: 390 },
     ]) {
       await page.setViewportSize(viewport);
+      const portrait = viewport.height > viewport.width;
       await expect
         .poll(async () => {
           const canvas = (await page.locator("canvas").boundingBox())!;
@@ -287,8 +289,15 @@ test.describe("mobile touch input", () => {
             canvas.width > 0 &&
             Math.abs((canvas.width - 2) / (canvas.height - 2) - 4 / 3) < 0.01 &&
             canvas.y + canvas.height <= controls.y + 1 &&
-            controls.y - (canvas.y + canvas.height) >= 15 &&
-            controls.y - (canvas.y + canvas.height) <= 25 &&
+            (portrait
+              ? controls.y - (canvas.y + canvas.height) >= 47 &&
+                (viewport.height >= 800
+                  ? Math.abs(
+                      canvas.y + canvas.height / 2 - viewport.height / 2,
+                    ) < 1
+                  : controls.y - (canvas.y + canvas.height) <= 49)
+              : controls.y - (canvas.y + canvas.height) >= 15 &&
+                controls.y - (canvas.y + canvas.height) <= 17) &&
             controls.y + controls.height <= viewport.height + 1 &&
             controls.y + controls.height >= viewport.height - 1 &&
             controls.x >= 0 &&
@@ -314,7 +323,7 @@ test.describe("mobile touch input", () => {
         expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
         expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
       }
-      if (viewport.height > viewport.width) {
+      if (portrait) {
         const dpad = (await controls.locator(".jgz-dpad").boundingBox())!;
         const actions = (await controls.locator(".jgz-actions").boundingBox())!;
         const system = (await controls.locator(".jgz-system").boundingBox())!;
@@ -338,7 +347,7 @@ test.describe("mobile touch input", () => {
     expect(pageErrors).toEqual([]);
   });
 
-  test("a simple action button remains close to the bottom with a comfortable screen gap", async ({
+  test("a simple action button stays at the bottom while the portrait screen is centered", async ({
     page,
   }) => {
     await startGame(page, "{ a: keys.SPACE }");
@@ -350,10 +359,11 @@ test.describe("mobile touch input", () => {
           .boundingBox())!;
         return {
           bottomInset: 844 - (a.y + a.height),
-          screenGap: a.y - (canvas.y + canvas.height),
+          screenCenter: canvas.y + canvas.height / 2,
+          spaciousGap: a.y - (canvas.y + canvas.height) > 100,
         };
       })
-      .toEqual({ bottomInset: 12, screenGap: 32 });
+      .toEqual({ bottomInset: 12, screenCenter: 422, spaciousGap: true });
     await page.getByRole("button", { name: "A", exact: true }).tap();
     expect(await snapshot(page)).toMatchObject({ actions: 1, pressed: [] });
   });
@@ -447,15 +457,19 @@ test.describe("mobile touch input", () => {
           )!;
           const rect = canvas.getBoundingClientRect();
           const dock = root.getBoundingClientRect();
+          const viewport = canvas.ownerDocument.documentElement;
+          const portrait = canvas.ownerDocument.defaultView!.matchMedia(
+            "(orientation: portrait)",
+          ).matches;
           return (
             rect.height > 0 &&
             rect.bottom <= dock.top + 1 &&
-            dock.top - rect.bottom >= 15 &&
-            dock.top - rect.bottom <= 25 &&
-            dock.bottom <=
-              canvas.ownerDocument.documentElement.clientHeight + 1 &&
-            dock.bottom >=
-              canvas.ownerDocument.documentElement.clientHeight - 1 &&
+            dock.top - rect.bottom >= (portrait ? 47 : 15) &&
+            (portrait
+              ? rect.top + rect.height / 2 <= viewport.clientHeight / 2 + 1
+              : dock.top - rect.bottom <= 17) &&
+            dock.bottom <= viewport.clientHeight + 1 &&
+            dock.bottom >= viewport.clientHeight - 1 &&
             Math.abs(rect.width / rect.height - 4 / 3) < 0.01
           );
         }),
