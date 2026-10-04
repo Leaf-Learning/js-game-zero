@@ -135,7 +135,7 @@ async function preloadDeclaredAssets() {
   for (const asset of declaredAssets) {
     if (!asset.startsWith("images/")) continue;
     const name = asset.slice("images/".length);
-    const image = await loadImage("/assets/${example.slug}/" + asset);
+    const image = await loadImage("/example-assets/${example.slug}/" + asset);
     preloaded.images[name] = new ImageSurface(image);
   }
   return preloaded;
@@ -150,7 +150,7 @@ const preloadedAssets = await preloadDeclaredAssets();
 const handle = run(source, {
   canvas,
   projectId: ${JSON.stringify(example.slug)},
-  assetBaseUrl: "/assets",
+  assetBaseUrl: "/example-assets",
   preload: ${JSON.stringify(example.assets)},
   preloadedAssets,
   diagnostics(diagnostic) {
@@ -233,7 +233,7 @@ async function productRouteResponse(url: URL): Promise<Response | null> {
     const response = await exampleRouteResponse(url.pathname);
     if (response) return response;
   }
-  if (url.pathname.startsWith("/assets/")) {
+  if (url.pathname.startsWith("/example-assets/")) {
     const response = await exampleOwnAssetResponse(url.pathname);
     if (response) return response;
   }
@@ -325,6 +325,14 @@ async function exampleRouteResponse(
   if (!slug) return null;
   const example = getExample(slug);
   if (!example) return new Response("Not found", { status: 404 });
+  if (slug !== example.slug) {
+    return new Response(null, {
+      status: 308,
+      headers: {
+        location: `/examples/${example.slug}${pathname.endsWith("/main.js") ? "/main.js" : ""}`,
+      },
+    });
+  }
   if (pathname.endsWith("/main.js")) return exampleEntryResponse(example);
   return html(examplePage(example));
 }
@@ -377,16 +385,11 @@ async function exampleAssetResponse(
   });
 }
 
-const EXAMPLE_ASSET_ROUTE = /^\/assets\/([a-z][a-z0-9-]*)\//;
+const EXAMPLE_ASSET_ROUTE = /^\/example-assets\/([a-z][a-z0-9-]*)\//;
 
 /**
- * Serves each example's own `assets/` directory at `/assets/<slug>/...`,
- * generalizing what used to be a single hardcoded `/assets/asset-sync-fixture/`
- * route shared (incorrectly) by every example. Only kicks in for a
- * pathname whose first segment names a real example in the manifest, so
- * it never shadows the sandbox's own `/assets/<projectId>/...` route for
- * user projects (see `reservedAssetProjectIds` in sandbox.ts, which keeps
- * example slugs out of that route so requests fall through to here).
+ * Built-in assets use a separate namespace from `/assets/<project>/...`,
+ * so user projects can share an example's name and customize their assets.
  */
 async function exampleOwnAssetResponse(
   pathname: string,
@@ -398,8 +401,8 @@ async function exampleOwnAssetResponse(
   if (!example) return null;
   return exampleAssetResponse(
     pathname,
-    `/assets/${slug}/`,
-    `../../../examples/${slug}/assets`,
+    `/example-assets/${slug}/`,
+    `../../../examples/${example.slug}/assets`,
   );
 }
 

@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, sep } from "node:path";
-import { exampleManifest, getExample } from "../../../examples/manifest";
+import { getExample } from "../../../examples/manifest";
 import type { ProjectSummary, WriteFileRequest } from "../shared/contracts";
 import {
   atomicWriteFile,
@@ -54,14 +54,6 @@ export type ProjectAsset = {
   readonly path: string;
   readonly bytes: Uint8Array;
 };
-
-const reservedAssetProjectIds = new Set([
-  "rendering-fixture",
-  "asset-sync-fixture",
-  ...exampleManifest
-    .filter((example) => example.assets.length > 0)
-    .map((example) => example.slug),
-]);
 
 const defaultStarterSource = `WIDTH = 320;
 HEIGHT = 180;
@@ -112,10 +104,6 @@ export class ProjectRepository {
     return this.#bootId;
   }
 
-  isReservedAssetProjectId(name: string): boolean {
-    return reservedAssetProjectIds.has(name);
-  }
-
   async listProjects(): Promise<ProjectSummary[]> {
     const root = await ensureProjectsRoot(this.#projectsRoot);
     const entries = await readdir(root, { withFileTypes: true });
@@ -149,11 +137,6 @@ export class ProjectRepository {
     exampleSlug?: string,
   ): Promise<ProjectSummary> {
     validateProjectName(name);
-    if (reservedAssetProjectIds.has(name)) {
-      throw new SandboxPathError(
-        `"${name}" is reserved for a built-in example's assets; choose another project name.`,
-      );
-    }
     const example =
       exampleSlug === undefined ? undefined : getExample(exampleSlug);
     if (exampleSlug !== undefined && (!example || example.mode !== "global")) {

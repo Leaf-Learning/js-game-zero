@@ -17,9 +17,13 @@ snake a little faster, and your best score is remembered between visits.
   shorter interval to speed the game up.
 - Modelling a game grid as plain data (an array of `{x, y}` cells) and
   turning it into pixels only in `draw()`.
-- Queuing input: a turn pressed between ticks is stored and applied on
-  the next scheduled move, so key presses never get lost or double up.
+- Queuing input: up to two turns pressed between ticks are stored and applied
+  one per scheduled move, so quick corners cannot reverse into the body.
 - Persisting a high score by assigning to `storage`.
+- Fitting a fruit sprite inside its grid cell with `Actor` sizing and
+  keeping the score bar outside the playable grid.
+- Picking fruit from free cells, allowing moves into a vacating tail cell,
+  and winning when the board is full.
 - Mixing a sprite (`Actor` for the apple) with plain `screen.draw`
   rectangles for the snake itself.
 

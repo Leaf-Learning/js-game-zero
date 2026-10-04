@@ -7,6 +7,90 @@ import { join, resolve } from "node:path";
 const repoRoot = resolve(import.meta.dirname, "../..");
 const cliBinary = join(repoRoot, "packages/cli/dist/cli.js");
 
+test("Space Shooter can clear two waves with real movement and firing", async () => {
+  test.setTimeout(45_000);
+  const environment = { ...process.env };
+  delete environment.FORCE_COLOR;
+  const client = new JsonlClient(
+    spawn(
+      cliBinary,
+      [
+        "test",
+        join(repoRoot, "examples/space-shooter"),
+        "--json",
+        "--seed",
+        "waves",
+      ],
+      { cwd: repoRoot, env: environment },
+    ),
+  );
+  type Shooter = {
+    wave: number;
+    score: number;
+    state: string;
+    enemyVX: number;
+    player: { x: number; top: number };
+    enemies: Array<{ x: number; y: number }>;
+  };
+  try {
+    await client.waitFor(
+      (record) => record.type === "event" && record.event === "ready",
+    );
+    let state = (await client.request({ command: "inspect" }))
+      .result as Shooter;
+    let steering: "left" | "right" | null = null;
+    await client.request({ command: "key", action: "down", key: "space" });
+    for (let frame = 0; frame < 900 && state.wave < 3; frame += 1) {
+      expect(state.state).toBe("playing");
+      // Aim at the nearest enemy in the lowest row. Lead its horizontal
+      // motion by the laser's travel time. The CLI only reads game state;
+      // all changes come from the same keys and frames a player uses.
+      const lowest = Math.max(...state.enemies.map((enemy) => enemy.y));
+      const target = state.enemies
+        .filter((enemy) => enemy.y > lowest - 50)
+        .sort(
+          (a, b) =>
+            Math.abs(a.x - state.player.x) - Math.abs(b.x - state.player.x),
+        )[0]!;
+      const travelTime = Math.max(0, (state.player.top - target.y) / 420);
+      const aim = Math.max(
+        50,
+        Math.min(430, target.x + state.enemyVX * travelTime),
+      );
+      const dx = aim - state.player.x;
+      const next = Math.abs(dx) < 10 ? null : dx < 0 ? "left" : "right";
+      const actions: JsonRecord[] = [];
+      if (next !== steering) {
+        if (steering)
+          actions.push({ command: "key", action: "up", key: steering });
+        if (next) actions.push({ command: "key", action: "down", key: next });
+        steering = next;
+      }
+      actions.push({ command: "step", dt: 0.05, count: 1 });
+      const response = await client.request({
+        command: "play",
+        actions,
+        inspect: true,
+      });
+      expect(response.ok).toBe(true);
+      state = (response.result as { inspect: Shooter }).inspect;
+    }
+    expect(state.wave).toBe(3);
+    expect(state.score).toBe(160);
+    expect(state.enemies.length).toBe(8);
+    expect((await client.request({ command: "status" })).result).toMatchObject({
+      state: "running",
+      diagnostics: [],
+      console: [],
+      pageErrors: [],
+    });
+    await client.request({ command: "quit" });
+    expect(await client.exited()).toBe(0);
+  } finally {
+    client.stop();
+  }
+});
+
 test("drives a game through JSONL, inspects it, and reloads edits", async () => {
   test.setTimeout(45_000);
   const root = await mkdtemp(join(tmpdir(), "jgz-cli-e2e-"));
@@ -103,10 +187,14 @@ test("drives a game through JSONL, inspects it, and reloads edits", async () => 
       command: "screenshot",
       path: screenshotPath,
     });
-    expect(screenshot.result).toEqual({
+    expect(screenshot.result).toMatchObject({
       path: screenshotPath,
       width: 200,
       height: 100,
+      pixels: {
+        distinctColors: 2,
+        frameHash: expect.stringMatching(/^[0-9a-f]+$/),
+      },
     });
     expect([
       ...new Uint8Array(await readFile(screenshotPath)).slice(0, 8),

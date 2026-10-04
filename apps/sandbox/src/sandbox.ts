@@ -328,10 +328,7 @@ export function createSandboxHandler(
       }
 
       const assetReadRoute = matchProjectPathRoute(rawPath, "/assets/", "/");
-      if (
-        assetReadRoute &&
-        !repository.isReservedAssetProjectId(assetReadRoute.project)
-      ) {
+      if (assetReadRoute) {
         if (request.method !== "GET") return methodNotAllowed();
         return previewReadResponse(
           await readProjectAssetResponse(repository, assetReadRoute),

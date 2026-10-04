@@ -1,12 +1,12 @@
 WIDTH = 800;
 HEIGHT = 480;
-TITLE = "Flappy Bird";
+TITLE = "Tappy Plane";
 
 // Change these to tune how the game feels.
 const GAP = 170; // vertical space the plane must fly through
 const GRAVITY = 900; // pixels per second^2 pulling the plane down
 const FLAP_STRENGTH = 320; // upward speed applied by a single flap
-const PIPE_SPEED = 220; // how fast the rocks scroll toward the plane
+const MOUNTAIN_SPEED = 220; // how fast the mountains scroll toward the plane
 
 const plane = new Actor("plane", { center: [140, HEIGHT / 2] });
 plane.vy = 0; // Actor doesn't know about velocity, so we track our own.
@@ -20,12 +20,12 @@ storage.setdefault("highscore", 0);
 const rockTop = new Actor("rock_top", { anchor: ["left", "bottom"] });
 const rockBottom = new Actor("rock_bottom", { anchor: ["left", "top"] });
 
-function resetPipes() {
+function resetMountains() {
   const gapCenter = 150 + Math.random() * (HEIGHT - 300);
   rockTop.pos = [WIDTH + 40, gapCenter - GAP / 2];
   rockBottom.pos = [WIDTH + 40, gapCenter + GAP / 2];
 }
-resetPipes();
+resetMountains();
 
 function resetGame() {
   plane.center = [140, HEIGHT / 2];
@@ -33,7 +33,7 @@ function resetGame() {
   plane.angle = 0;
   plane.crashed = false;
   score = 0;
-  resetPipes();
+  resetMountains();
 }
 
 function flap() {
@@ -53,11 +53,54 @@ function on_key_down(key) {
   if (key === keys.SPACE) flap();
 }
 
-// Rocks look like tall spikes with a lot of empty space around the tip, so
-// colliding against their full image would feel unfair. Shrinking both
-// boxes a little before testing keeps near-misses feeling like near-misses.
+// Each mountain has a tapered silhouette. A triangle just inside that
+// silhouette leaves the transparent corners safe to fly through. The
+// plane's small fuselage hitbox rotates with its sprite.
 function hitsRock(rock) {
-  return plane.inflate(-16, -10).colliderect(rock.inflate(-30, 0));
+  const radians = (-plane.angle * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const fuselage = [
+    [-26, 0],
+    [20, 0],
+    [20, 16],
+    [-18, 16],
+  ].map(([x, y]) => [plane.x + x * cos - y * sin, plane.y + x * sin + y * cos]);
+  const outline =
+    rock === rockBottom
+      ? [
+          [65, 8],
+          [98, 235],
+          [10, 235],
+        ]
+      : [
+          [10, 4],
+          [98, 4],
+          [65, 231],
+        ];
+  const mountain = outline.map(([x, y]) => [rock.left + x, rock.top + y]);
+  return polygonsOverlap(fuselage, mountain);
+}
+
+// Two convex shapes overlap only if their projections overlap on every
+// edge's perpendicular axis (the separating axis test).
+function polygonsOverlap(first, second) {
+  for (const polygon of [first, second]) {
+    for (let index = 0; index < polygon.length; index += 1) {
+      const point = polygon[index];
+      const next = polygon[(index + 1) % polygon.length];
+      const axis = [point[1] - next[1], next[0] - point[0]];
+      const a = first.map(([x, y]) => x * axis[0] + y * axis[1]);
+      const b = second.map(([x, y]) => x * axis[0] + y * axis[1]);
+      if (
+        Math.max(...a) <= Math.min(...b) ||
+        Math.max(...b) <= Math.min(...a)
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 function updatePlane(dt) {
@@ -82,12 +125,12 @@ function updatePlane(dt) {
   }
 }
 
-function updatePipes(dt) {
+function updateMountains(dt) {
   if (plane.crashed) return; // freeze the course while the game is over
-  rockTop.left -= PIPE_SPEED * dt;
-  rockBottom.left -= PIPE_SPEED * dt;
+  rockTop.left -= MOUNTAIN_SPEED * dt;
+  rockBottom.left -= MOUNTAIN_SPEED * dt;
   if (rockTop.right < 0) {
-    resetPipes();
+    resetMountains();
     score += 1;
     sounds.score.play();
     if (score > storage.highscore) {
@@ -98,7 +141,7 @@ function updatePipes(dt) {
 
 function update(dt) {
   updatePlane(dt);
-  updatePipes(dt);
+  updateMountains(dt);
 }
 
 function draw() {

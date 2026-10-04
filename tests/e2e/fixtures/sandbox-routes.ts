@@ -140,17 +140,17 @@ export async function testFixtureRouteResponse(
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
-  if (url.pathname.startsWith("/assets/rendering-fixture/")) {
+  if (url.pathname.startsWith("/fixture-assets/rendering-fixture/")) {
     return fixtureAssetResponse(
       url.pathname,
-      "/assets/rendering-fixture/",
+      "/fixture-assets/rendering-fixture/",
       "rendering-fixture",
     );
   }
-  if (url.pathname.startsWith("/assets/asset-sync-fixture/")) {
+  if (url.pathname.startsWith("/fixture-assets/asset-sync-fixture/")) {
     return fixtureAssetResponse(
       url.pathname,
-      "/assets/asset-sync-fixture/",
+      "/fixture-assets/asset-sync-fixture/",
       "asset-sync-fixture",
     );
   }

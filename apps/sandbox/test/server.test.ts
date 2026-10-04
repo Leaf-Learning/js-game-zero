@@ -16,6 +16,7 @@ import {
   testFixtureRoutesLoaded,
 } from "../src/server";
 import { normalizeSandboxRelativePath } from "../src/sandbox";
+import { exampleManifest } from "../../../examples/manifest";
 
 let projectsRoot = "";
 let handler: (request: Request) => Promise<Response>;
@@ -43,6 +44,77 @@ async function createProject(name = "demo_game"): Promise<void> {
 }
 
 describe("sandbox routes", () => {
+  test("every global example can be cloned under its own name with independent assets", async () => {
+    for (const example of exampleManifest) {
+      if (example.mode !== "global") continue;
+      const created = await request("/api/projects", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: example.slug, exampleSlug: example.slug }),
+      });
+      expect(created.status).toBe(201);
+      const source = await request(
+        `/api/projects/${example.slug}/files/main.js`,
+      );
+      expect(await source.json()).toMatchObject({
+        content: await Bun.file(example.entryPoint).text(),
+      });
+      for (const asset of example.assets) {
+        const projectAsset = await request(`/assets/${example.slug}/${asset}`);
+        const builtInAsset = await request(
+          `/example-assets/${example.slug}/${asset}`,
+        );
+        expect(projectAsset.status).toBe(200);
+        expect(builtInAsset.status).toBe(200);
+        expect(await projectAsset.arrayBuffer()).toEqual(
+          await builtInAsset.arrayBuffer(),
+        );
+      }
+    }
+    const original = await request("/example-assets/snake/images/fruit.png");
+    const originalBytes = await original.arrayBuffer();
+    const custom = new Uint8Array([1, 2, 3, 4]);
+    expect(
+      (
+        await request("/api/projects/snake/assets/images/fruit.png", {
+          method: "PUT",
+          body: custom,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      new Uint8Array(
+        await (await request("/assets/snake/images/fruit.png")).arrayBuffer(),
+      ),
+    ).toEqual(custom);
+    expect(
+      await (
+        await request("/example-assets/snake/images/fruit.png")
+      ).arrayBuffer(),
+    ).toEqual(originalBytes);
+    expect(
+      (
+        await request("/api/projects/snake/assets/images/fruit.png", {
+          method: "DELETE",
+        })
+      ).status,
+    ).toBe(200);
+    expect((await request("/assets/snake/images/fruit.png")).status).toBe(404);
+    expect(
+      (await request("/example-assets/snake/images/fruit.png")).status,
+    ).toBe(200);
+  });
+
+  test("old flying-game links redirect to Tappy Plane", async () => {
+    const response = await request("/examples/flappy-bird");
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe("/examples/tappy-plane");
+    const source = await request("/examples/flappy-bird/main.js");
+    expect(source.headers.get("location")).toBe(
+      "/examples/tappy-plane/main.js",
+    );
+  });
+
   test("the health endpoint responds with ok", async () => {
     const health = await request("/api/health");
     expect(health.status).toBe(200);
@@ -871,7 +943,7 @@ describe("sandbox routes", () => {
     expect(gatedPage.status).toBe(404);
     const gatedAsset = await fixturesOff(
       new Request(
-        "http://localhost/assets/rendering-fixture/images/player.svg",
+        "http://localhost/fixture-assets/rendering-fixture/images/player.svg",
       ),
     );
     expect(gatedAsset.status).toBe(404);
@@ -905,7 +977,7 @@ describe("sandbox routes", () => {
     expect(testFixtureRoutesLoaded()).toBe(true);
     const openAsset = await fixturesOn(
       new Request(
-        "http://localhost/assets/rendering-fixture/images/player.svg",
+        "http://localhost/fixture-assets/rendering-fixture/images/player.svg",
       ),
     );
     expect(openAsset.status).toBe(200);
@@ -919,7 +991,7 @@ describe("sandbox routes", () => {
 
     const syncedAsset = await fixturesOn(
       new Request(
-        "http://localhost/assets/asset-sync-fixture/images/player.svg",
+        "http://localhost/fixture-assets/asset-sync-fixture/images/player.svg",
       ),
     );
     expect(syncedAsset.status).toBe(200);

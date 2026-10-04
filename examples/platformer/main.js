@@ -34,7 +34,10 @@ const JUMP_SPEED = 680;
 const MAX_FALL_SPEED = 900;
 const COYOTE_TIME = 0.12; // grace period to jump just after walking off a ledge
 
-const player = new Actor("player", { midbottom: cellTop(START_CELL) });
+const player = new Actor("player", {
+  midbottom: cellTop(START_CELL),
+  width: TILE_SIZE,
+});
 player.vx = 0;
 player.vy = 0;
 // The player spawns standing on solid ground, so start grounded rather
@@ -105,6 +108,8 @@ function respawn() {
   player.midbottom = cellTop(START_CELL);
   player.vx = 0;
   player.vy = 0;
+  onGround = true;
+  coyoteTimer = COYOTE_TIME;
 }
 
 function on_key_down(key) {

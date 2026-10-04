@@ -88,27 +88,40 @@ for (const example of exampleManifest) {
     expect(initial.diagnostics).toEqual([]);
 
     if (example.slug === "storage-save") {
-      // The harness mirrors the game's storage; the example only keeps a
-      // running score there. Scoring must both advance and survive a
-      // reload (proving auto-load + auto-save with no explicit save()).
-      await page.waitForFunction(
-        () => {
-          const status = (
-            window as typeof window & { __jgzExampleStatus?: ExampleStatus }
-          ).__jgzExampleStatus;
-          const score = status?.storage?.score;
-          return typeof score === "number" && score > 0;
-        },
-        undefined,
-        { timeout: 5_000 },
-      );
-      const before = numeric(
+      const canvas = page.locator("[data-jgz-example-canvas]");
+      const before = await canvasFingerprint(page);
+      await canvas.click({ position: { x: 244, y: 236 } });
+      await canvas.click({ position: { x: 244, y: 236 } });
+      await expect.poll(() => canvasFingerprint(page)).not.toBe(before);
+      // Unsaved edits do not touch storage. Saving flushes the exact score,
+      // subtracting changes only current, and loading restores the display.
+      expect(
         (await waitForExampleStatus(page, example.slug)).storage?.score,
-      );
-      expect(before).toBeGreaterThan(0);
+      ).toBeUndefined();
+      await canvas.click({ position: { x: 396, y: 236 } });
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const raw = localStorage.getItem(
+              "js-game-zero:storage-save:storage",
+            );
+            return raw ? JSON.parse(raw).score : null;
+          }),
+        )
+        .toBe(2);
+      await canvas.click({ position: { x: 96, y: 236 } });
+      const edited = await canvasFingerprint(page);
+      await canvas.click({ position: { x: 544, y: 236 } });
+      await expect.poll(() => canvasFingerprint(page)).not.toBe(edited);
       await page.reload();
       const reloaded = await waitForExampleStatus(page, example.slug);
-      expect(numeric(reloaded.storage?.score)).toBeGreaterThan(before);
+      expect(numeric(reloaded.storage?.score)).toBe(2);
+      await canvas.click({ position: { x: 396, y: 236 } });
+      expect(
+        numeric(
+          (await waitForExampleStatus(page, example.slug)).storage?.score,
+        ),
+      ).toBe(2);
     }
 
     if (example.slug === "animation-basics") {

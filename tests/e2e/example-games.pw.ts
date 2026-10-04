@@ -7,7 +7,7 @@ import {
 } from "./fixtures/harness-helpers";
 
 /**
- * End-to-end tests for the complete example games (flappy-bird, breakout,
+ * End-to-end tests for the complete example games (tappy-plane, breakout,
  * space-shooter, snake, and platformer). The games are plain teaching code
  * with zero test hooks; all observations happen through canvas pixels and
  * the read-only debug handle (`window.__jgzExampleHandle`) that the
@@ -169,7 +169,7 @@ async function persistedStorageNumber(
 
 /**
  * The plane sprite is the only strongly yellow cluster on the left side
- * of the flappy-bird playfield (sky/clouds are pale blue and white, rocks
+ * of the tappy-plane playfield (sky/clouds are pale blue and white, rocks
  * are brown, and the gold "Best" label sits in the middle of the screen,
  * outside the scanned band). Returns the median y of yellow pixels in the
  * plane's column band, or -1 when none are found.
@@ -202,11 +202,11 @@ async function flappyPlaneY(page: Page): Promise<number> {
   }, FLAPPY_PLANE_YELLOW);
 }
 
-test.describe("flappy-bird", () => {
+test.describe("tappy-plane", () => {
   test("loads cleanly and a flap pushes the plane upward", async ({ page }) => {
     const { errors, pageErrors } = collectPageErrors(page);
-    await openExample(page, "flappy-bird");
-    await expect(page).toHaveTitle("Flappy Bird");
+    await openExample(page, "tappy-plane");
+    await expect(page).toHaveTitle("Tappy Plane");
     expect(await canvasIsNonblank(exampleCanvas(page))).toBe(true);
 
     // Let gravity pull the plane below its spawn point: this proves the sim is
@@ -253,12 +253,12 @@ test.describe("flappy-bird", () => {
   }) => {
     test.setTimeout(60_000);
     const { errors, pageErrors } = collectPageErrors(page);
-    await openExample(page, "flappy-bird");
+    await openExample(page, "tappy-plane");
     // Start from a clean slate so the asserted high score comes from this
     // run alone.
     await page.evaluate(() => window.localStorage.clear());
     await page.reload();
-    await openExample(page, "flappy-bird");
+    await openExample(page, "tappy-plane");
     expect(await readStorageNumber(page, "highscore")).toBe(0);
 
     // A tiny pixel-driven autopilot plays the game for real: read the
@@ -389,13 +389,13 @@ test.describe("flappy-bird", () => {
     // localStorage, then reload and confirm it came back without the game
     // ever calling save().
     await expect
-      .poll(() => persistedStorageNumber(page, "flappy-bird", "highscore"), {
+      .poll(() => persistedStorageNumber(page, "tappy-plane", "highscore"), {
         timeout: 5_000,
         message: "the best score should be auto-saved to localStorage",
       })
       .toBeGreaterThanOrEqual(scored);
     await page.reload();
-    await openExample(page, "flappy-bird");
+    await openExample(page, "tappy-plane");
     expect(await readStorageNumber(page, "highscore")).toBeGreaterThanOrEqual(
       scored,
     );
@@ -761,6 +761,7 @@ async function snakeFruitPos(
     let sumY = 0;
     let count = 0;
     for (let index = 0; index < data.length; index += 4) {
+      if (Math.floor(index / 4 / target.width) < 32) continue;
       const r = data[index] ?? 0;
       const g = data[index + 1] ?? 0;
       const b = data[index + 2] ?? 0;
@@ -781,6 +782,46 @@ async function snakeFruitPos(
 }
 
 test.describe("snake", () => {
+  test("fruit stays within one grid cell", async ({ page }) => {
+    await openExample(page, "snake");
+    const bounds = await exampleCanvas(page).evaluate((canvas, fruit) => {
+      const target = canvas as HTMLCanvasElement;
+      const data = target
+        .getContext("2d")!
+        .getImageData(0, 0, target.width, target.height).data;
+      let left = Infinity,
+        top = Infinity,
+        right = -Infinity,
+        bottom = -Infinity;
+      for (let index = 0; index < data.length; index += 4) {
+        if (Math.floor(index / 4 / target.width) < 32) continue; // score bar
+        const r = data[index] ?? 0,
+          g = data[index + 1] ?? 0,
+          b = data[index + 2] ?? 0;
+        if (
+          r > fruit.rMin &&
+          g > fruit.gMin &&
+          g < fruit.gMax &&
+          b < fruit.bMax
+        ) {
+          const pixel = index / 4;
+          const x = pixel % target.width,
+            y = Math.floor(pixel / target.width);
+          left = Math.min(left, x);
+          right = Math.max(right, x);
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+      return { left, top, right, bottom };
+    }, SNAKE_FRUIT_ORANGE);
+    expect(Number.isFinite(bounds.left)).toBe(true);
+    expect(bounds.right - bounds.left + 1).toBeLessThanOrEqual(28);
+    expect(bounds.bottom - bounds.top + 1).toBeLessThanOrEqual(28);
+    expect(Math.floor(bounds.left / 32)).toBe(Math.floor(bounds.right / 32));
+    expect(Math.floor(bounds.top / 32)).toBe(Math.floor(bounds.bottom / 32));
+  });
+
   test("loads cleanly and turning changes the snake's heading", async ({
     page,
   }) => {
@@ -885,6 +926,7 @@ test.describe("snake", () => {
           let sumY = 0;
           let count = 0;
           for (let index = 0; index < data.length; index += 4) {
+            if (Math.floor(index / 4 / canvas.width) < 32) continue;
             const r = data[index] ?? 0;
             const g = data[index + 1] ?? 0;
             const b = data[index + 2] ?? 0;

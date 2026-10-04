@@ -48,7 +48,8 @@ let state = "playing"; // "playing" or "gameover"
 function spawnWave() {
   wave += 1;
   enemies = [];
-  const rowCount = Math.min(2 + Math.floor((wave - 1) / 3), 5);
+  // Keep new formations above the player's flight area, even in later waves.
+  const rowCount = Math.min(2 + Math.floor((wave - 1) / 3), 3);
   const startX = (WIDTH - (ENEMY_COLS - 1) * ENEMY_SPACING_X) / 2;
   for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
     for (let columnIndex = 0; columnIndex < ENEMY_COLS; columnIndex += 1) {
@@ -76,6 +77,7 @@ function resetGame() {
   score = 0;
   lives = 3;
   wave = 0;
+  fireCooldown = 0;
   invulnerableTime = 0;
   state = "playing";
   spawnWave();
@@ -168,7 +170,6 @@ function moveEnemies(dt) {
       hitPlayer(index);
     }
   }
-  if (enemies.length === 0 && state === "playing") spawnWave();
 }
 
 function moveLasers(dt) {
@@ -218,6 +219,8 @@ function update(dt) {
   movePlayer(dt);
   moveLasers(dt);
   moveEnemies(dt);
+  // Both lasers and contact with the player can remove the final enemy.
+  if (enemies.length === 0 && state === "playing") spawnWave();
   moveExplosions(dt);
 }
 

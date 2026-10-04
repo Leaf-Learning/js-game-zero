@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { e2eProjectsRoot as projectsRoot } from "./fixtures/e2e-projects-root";
+import { exampleManifest } from "../../examples/manifest";
 import {
   canvasIsNonblank,
   collectPageErrors,
@@ -630,16 +631,38 @@ test("cloning an example produces a running game", async ({ page }) => {
   );
 });
 
+for (const example of exampleManifest.filter(
+  (entry) => entry.mode === "global",
+)) {
+  test(`gallery clones ${example.slug} using the example's own name`, async ({
+    page,
+  }) => {
+    const { errors, pageErrors } = collectPageErrors(page);
+    await page.goto("/");
+    await cloneExampleProject(page, example.slug, example.slug);
+    await page.locator("[data-jgz-play]").click();
+    await expect
+      .poll(() => canvasIsNonblank(previewCanvas(page)), { timeout: 8_000 })
+      .toBe(true);
+    await expect(page.locator("[data-jgz-diagnostics]")).toHaveAttribute(
+      "data-count",
+      "0",
+    );
+    expect(errors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+}
+
 test("cloning an asset-heavy game copies its assets and runs", async ({
   page,
 }) => {
   const name = uniqueName("flappy");
   await page.goto("/");
-  await cloneExampleProject(page, "flappy-bird", name);
+  await cloneExampleProject(page, "tappy-plane", name);
 
   await expect(
     page.locator("[data-jgz-editor-mount] .cm-content"),
-  ).toContainText("Flappy Bird");
+  ).toContainText("Tappy Plane");
 
   // Every image and sound the game needs must have been copied into the
   // new project (visible in the assets panel and byte-identical on disk).
@@ -656,7 +679,7 @@ test("cloning an asset-heavy game copies its assets and runs", async ({
     await expect(page.locator(`[data-jgz-asset="${asset}"]`)).toBeVisible();
     const copied = await readFile(resolve(projectsRoot, name, asset));
     const original = await readFile(
-      resolve(process.cwd(), "examples/flappy-bird/assets", asset),
+      resolve(process.cwd(), "examples/tappy-plane/assets", asset),
     );
     expect(copied).toEqual(original);
   }

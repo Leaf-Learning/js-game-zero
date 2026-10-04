@@ -28,7 +28,7 @@ arrow keys, clamped to the window. Teaches: `Actor` positioning, reading
 
 Example route: `/examples/sound-tone`
 
-Defines a sound effect from an inline data URL and plays it — along with a
+Loads a sound effect from `sounds/click.ogg` and plays it — along with a
 short generated `tone` — every time the canvas is clicked, growing a circle
 with each click. Teaches: triggering audio from `on_mouse_down`, the
 click-to-unlock browser audio rule, and `tone.play`.
@@ -46,10 +46,11 @@ properties (not just an `Actor`'s).
 
 Example route: `/examples/storage-save`
 
-Increments a score every frame and persists it through `storage`, drawing
-the current value to the canvas. Reload the page and the score picks up
-where it left off. Teaches: `storage.get`/`storage.set` and automatic
-save/load.
+Use the **+ 1** and **- 1** buttons to edit the current score, **Save current**
+to persist it, and **Load saved** to restore it. Separate current and saved
+score cards make each action visible. Reloading restores the saved score.
+Teaches: `storage.get`/`storage.set`, explicit `storage.save()`, and automatic
+loading when a game starts.
 
 ## Sandbox Starter
 
@@ -62,17 +63,17 @@ passes an explicit hooks object to `run()`, including a camelCase
 publishing outside the sandbox or preferring plain JavaScript modules over
 injected globals.
 
-## Flappy Bird
+## Tappy Plane
 
-A complete arcade game: tap or press space to flap upward against constant
-gravity, dodge a stream of scrolling rock gaps, and try to beat your high
+A complete arcade game: tap or press space to boost upward against constant
+gravity, dodge a stream of scrolling mountain gaps, and try to beat your high
 score. Teaches: gravity/velocity movement, scrolling procedurally-spawned
 obstacles, precise collision detection against multiple `Actor`s at once,
 and a full game-over/restart loop with a high score backed by `storage`.
 
-Example route: `/examples/flappy-bird`
+Example route: `/examples/tappy-plane`
 
-![Flappy Bird example gameplay](media/game-flappy.png)
+![Tappy Plane example gameplay](media/game-flappy.png)
 
 ## Breakout
 

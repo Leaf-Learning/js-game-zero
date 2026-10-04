@@ -190,16 +190,13 @@ export function getParameterNames(callback: Function): string[] {
   const source = Function.prototype.toString
     .call(callback)
     .replaceAll(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
-  const arrowIndex = source.indexOf("=>");
-  if (arrowIndex !== -1) {
-    const left = source
-      .slice(0, arrowIndex)
-      .trim()
-      .replace(/^async\s+/, "");
-    if (left.startsWith("("))
-      return splitParameterList(left.slice(1, left.lastIndexOf(")")));
-    return left ? [cleanParameter(left)] : [];
-  }
+  // Only an arrow at the start describes this callback. An arrow nested
+  // inside a normal hook's body (e.g. buttons.find(button => ...)) must not
+  // replace that hook's own parameter list.
+  const arrow = /^(?:async\s+)?(?:\(([^)]*)\)|([\w$]+))\s*=>/.exec(
+    source.trim(),
+  );
+  if (arrow) return splitParameterList(arrow[1] ?? arrow[2] ?? "");
   const match = /^[^(]*\(([^)]*)\)/.exec(source);
   return match ? splitParameterList(match[1] ?? "") : [];
 }

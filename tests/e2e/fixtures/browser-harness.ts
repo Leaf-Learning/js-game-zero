@@ -685,7 +685,7 @@ if (storageButton) {
 function createRenderingFixtureLoaders() {
   return createAssetLoaders({
     projectId: "rendering-fixture",
-    assetBaseUrl: "/assets",
+    assetBaseUrl: "/fixture-assets",
   });
 }
 

@@ -82,15 +82,15 @@ export const exampleManifest = [
     assets: [],
     smokeMarker: "__jgzExampleStatus",
     tutorial: "examples/storage-save/README.md",
-    e2eScenario: "persists and draws a score with storage",
-    expectsInput: "none",
+    e2eScenario: "edits, saves, and loads a score with visible buttons",
+    expectsInput: "mouse",
     visual: true,
   },
   {
-    slug: "flappy-bird",
-    title: "Flappy Bird",
+    slug: "tappy-plane",
+    title: "Tappy Plane",
     mode: "global",
-    entryPoint: "examples/flappy-bird/main.js",
+    entryPoint: "examples/tappy-plane/main.js",
     assets: [
       "images/background.png",
       "images/plane.png",
@@ -101,8 +101,9 @@ export const exampleManifest = [
       "sounds/score.ogg",
     ],
     smokeMarker: "__jgzExampleStatus",
-    tutorial: "examples/flappy-bird/README.md",
-    e2eScenario: "flaps a plane through scrolling pipes and saves a high score",
+    tutorial: "examples/tappy-plane/README.md",
+    e2eScenario:
+      "flies a plane through scrolling mountain gaps and saves a high score",
     expectsInput: "mouse",
     visual: true,
   },
@@ -193,5 +194,7 @@ export const exampleManifest = [
 ] as const satisfies readonly ExampleManifestEntry[];
 
 export function getExample(slug: string): ExampleManifestEntry | undefined {
-  return exampleManifest.find((example) => example.slug === slug);
+  // Keep existing example links and saved clone requests working after the rename.
+  const canonicalSlug = slug === "flappy-bird" ? "tappy-plane" : slug;
+  return exampleManifest.find((example) => example.slug === canonicalSlug);
 }

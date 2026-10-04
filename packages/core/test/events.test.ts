@@ -81,6 +81,27 @@ describe("hook dispatch", () => {
     ).toEqual(["pos", "rel", "buttons"]);
     expect(getParameterNames((event: unknown) => event)).toEqual(["event"]);
   });
+
+  test("nested arrows in function and method hooks preserve the outer parameters", () => {
+    const received: unknown[] = [];
+    function on_mouse_down(pos: unknown) {
+      received.push([pos].find((value) => value !== undefined));
+    }
+    const hooks = {
+      on_mouse_move(pos: unknown, rel: unknown) {
+        [pos, rel].forEach((value) => received.push(value));
+      },
+    };
+    expect(getParameterNames(on_mouse_down)).toEqual(["pos"]);
+    expect(getParameterNames(hooks.on_mouse_move)).toEqual(["pos", "rel"]);
+    dispatchHook(on_mouse_down, { pos: [12, 34] });
+    dispatchHook(hooks.on_mouse_move, { pos: [20, 40], rel: [8, 6] });
+    expect(received).toEqual([
+      [12, 34],
+      [20, 40],
+      [8, 6],
+    ]);
+  });
 });
 
 describe("browser event mapping", () => {

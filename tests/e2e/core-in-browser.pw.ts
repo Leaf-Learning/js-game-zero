@@ -191,7 +191,7 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
     const sound = createBrowserSoundAsset({
       kind: "sound",
       name: "tap.wav",
-      url: "/assets/rendering-fixture/sounds/tap.wav",
+      url: "/fixture-assets/rendering-fixture/sounds/tap.wav",
     });
     window.__jgzSoundHandle = {
       stopAndCount: () => {
@@ -580,7 +580,7 @@ function draw() {
     const handle = run(source, {
       canvas,
       projectId: "asset-sync-fixture",
-      assetBaseUrl: "/assets",
+      assetBaseUrl: "/fixture-assets",
     });
 
     const deadline = Date.now() + 8000;
@@ -726,7 +726,7 @@ test("a loaded custom font renders different pixels than the fallback", async ({
 
     // Load the WOFF, register it with the fonts loader under its asset name,
     // and confirm the browser actually accepted the FontFace.
-    const fontUrl = "/assets/rendering-fixture/fonts/ui.woff";
+    const fontUrl = "/fixture-assets/rendering-fixture/fonts/ui.woff";
     const bytes = await (await fetch(fontUrl)).arrayBuffer();
     const family = "jgz-core-in-browser-ui";
     const face = new FontFace(family, bytes);
