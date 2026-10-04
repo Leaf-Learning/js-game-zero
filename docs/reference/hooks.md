@@ -88,6 +88,86 @@ function on_key_down(key, mod) {
 usually a better fit for continuous movement inside `update`; use
 `on_key_down`/`on_key_up` for one-shot actions like jumping or firing.
 
+## Touch controls
+
+Set `TOUCH_CONTROLS` near `WIDTH` and `HEIGHT` to add controls below your
+game on phones, tablets, and computers with touch input. The runtime fits
+the canvas into the space above the controls, preserving its aspect ratio
+and logical `WIDTH`/`HEIGHT`. Keyboard code works with these buttons too:
+
+```js
+TOUCH_CONTROLS = {
+  left: keys.LEFT,
+  right: keys.RIGHT,
+  a: keys.SPACE,
+  start: keys.RETURN,
+};
+```
+
+In portrait mode, the dock places the D-pad on the left and the action
+buttons on the right, with Start/Select beneath them. A sits above and to
+the right of B in a Game Boy-style diagonal arrangement. The dock stays
+below the canvas in both portrait and landscape layouts, near the bottom
+of the game's viewport. The canvas sits 24px above the control dock in
+portrait and 16px above it in landscape. Bottom padding keeps buttons clear
+of the device's home indicator.
+
+Only the buttons you list appear. Supported names are `up`, `down`, `left`,
+`right`, `a`, `b`, `start`, and `select`. Each value must be a numeric
+constant from `keys`; the button's label is independent of its mapped key.
+For example, `a: keys.SPACE` makes A trigger a game's existing Space action.
+Omitting `TOUCH_CONTROLS`, or setting it to `false`, hides the controls.
+
+`TOUCH_CONTROLS = true` enables this full preset:
+
+| Button                   | Mapped key                                           |
+| ------------------------ | ---------------------------------------------------- |
+| Up / Down / Left / Right | `keys.UP` / `keys.DOWN` / `keys.LEFT` / `keys.RIGHT` |
+| A                        | `keys.SPACE`                                         |
+| B                        | `keys.X`                                             |
+| Start                    | `keys.RETURN`                                        |
+| Select                   | `keys.ESCAPE`                                        |
+
+The default `show: "auto"` displays controls when the browser reports touch
+support or a coarse pointing device. Add `show: "always"` to a mapping to
+preview them on desktop. These are native buttons, so mouse clicks and
+Tab followed by Space or Enter work as well.
+
+Holding a button updates `keyboard` and fires `on_key_down` once; releasing
+it fires `on_key_up`. Virtual presses have `mod: keymods.NONE`,
+`unicode: ""`, and `repeat: false`; use `update(dt)` for repeated actions.
+Multiple fingers can hold directions and action buttons together. Slide a
+finger across the D-pad to change direction. Each mapped key stays held
+until every touch button and physical key holding it has
+been released. Cancellation, loss of pointer capture, leaving the window,
+and hiding the page clear held inputs. Stopping or reloading a game removes
+its controls and listeners.
+
+In import mode, put `TOUCH_CONTROLS` on the module returned by `defineGame`,
+on a raw game module, or in the options passed to `run`. TypeScript exports
+`TouchButton`, `TouchControlsConfig`, and `TouchControlsOptions`.
+
+### Tapping and dragging the canvas
+
+Canvas touch and pen input work even without a control dock. A primary
+touch triggers `on_mouse_down`, dragging triggers `on_mouse_move` with
+`mouse.LEFT` in `buttons`, and releasing or cancelling triggers
+`on_mouse_up`. Positions and movement are converted to logical game
+coordinates when the canvas is scaled. The pointer remains captured when
+it leaves the canvas; extra canvas touches are ignored until the first is
+released. Touch buttons do not trigger canvas mouse hooks.
+
+The canvas and control buttons disable native touch panning during play;
+the surrounding page retains its normal gestures. Games can therefore use
+tap-to-flap or drag-to-steer without adding separate touch hooks.
+
+For embedding, give each canvas a parent with a defined height. While the
+dock is visible, the runtime groups the canvas and controls into a column
+that fills the available space and aligns them toward the bottom. It
+accounts for visible siblings, padding, and row gaps, and restores the
+original canvas placement when the dock is hidden or the game stops.
+The sandbox preview handles this automatically.
+
 ## on_mouse_down(pos, button) / on_mouse_up(pos, button)
 
 ```ts

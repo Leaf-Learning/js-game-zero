@@ -4,6 +4,7 @@ const ROWS = 9;
 WIDTH = COLS * TILE_SIZE;
 HEIGHT = ROWS * TILE_SIZE;
 TITLE = "Platformer";
+TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, a: keys.SPACE };
 
 // The level, hand-authored as one string per row. This is the whole
 // layout: '#' is solid ground, 'G' is a gem, 'F' is the goal flag, '~' is

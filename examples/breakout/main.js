@@ -1,6 +1,7 @@
 WIDTH = 800;
 HEIGHT = 600;
 TITLE = "Breakout";
+TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, start: keys.SPACE };
 
 // The wall of bricks is a grid: ROWS rows of COLUMNS bricks each, coloured
 // by row so the wall looks striped like the classic game.

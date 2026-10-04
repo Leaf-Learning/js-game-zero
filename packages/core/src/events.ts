@@ -1,5 +1,11 @@
 import { type Point } from "./geometry";
-import { KeyboardState, keymods, keys, mouse } from "./input";
+import {
+  assertKeyConstant,
+  KeyboardState,
+  keymods,
+  keys,
+  mouse,
+} from "./input";
 
 type HookArgs = Record<string, unknown>;
 export type Hook = (...args: unknown[]) => void;
@@ -276,6 +282,8 @@ export class InputDispatcher {
   readonly keyboard: KeyboardState;
   hooks: InputHooks;
   private lastMousePos: Point | null = null;
+  private readonly physicalKeys = new Set<number>();
+  private readonly virtualKeys = new Map<unknown, number>();
 
   constructor(hooks: InputHooks = {}, keyboard = new KeyboardState()) {
     this.hooks = hooks;
@@ -285,21 +293,64 @@ export class InputDispatcher {
   handleKeyDown(event: BrowserKeyboardLike): boolean {
     const mapped = mapBrowserKeyEvent(event);
     if (!mapped) return false;
+    this.physicalKeys.add(mapped.key);
     this.keyboard.press(mapped.key);
-    dispatchHook(getHook(this.hooks, "on_key_down"), mapped);
+    if (![...this.virtualKeys.values()].includes(mapped.key) || mapped.repeat) {
+      dispatchHook(getHook(this.hooks, "on_key_down"), mapped);
+    }
     return true;
   }
 
   handleKeyUp(event: BrowserKeyboardLike): boolean {
     const mapped = mapBrowserKeyEvent(event);
     if (!mapped) return false;
+    this.physicalKeys.delete(mapped.key);
+    if ([...this.virtualKeys.values()].includes(mapped.key)) return true;
     this.keyboard.release(mapped.key);
     dispatchHook(getHook(this.hooks, "on_key_up"), mapped);
     return true;
   }
 
   handleFocusLoss(): void {
+    this.physicalKeys.clear();
+    this.virtualKeys.clear();
     this.keyboard.clear();
+  }
+
+  /** Each pointer owns its press, so releasing one input cannot release another. */
+  handleVirtualKeyDown(key: number, source: unknown): void {
+    assertKeyConstant(key);
+    if (this.virtualKeys.has(source)) return;
+    this.virtualKeys.set(source, key);
+    const held = this.keyboard.isPressed(key);
+    this.keyboard.press(key);
+    if (!held) {
+      dispatchHook(getHook(this.hooks, "on_key_down"), {
+        key,
+        mod: keymods.NONE,
+        unicode: "",
+        repeat: false,
+      });
+    }
+  }
+
+  handleVirtualKeyUp(source: unknown): void {
+    const key = this.virtualKeys.get(source);
+    if (key === undefined) return;
+    this.virtualKeys.delete(source);
+    if (
+      this.physicalKeys.has(key) ||
+      [...this.virtualKeys.values()].includes(key)
+    ) {
+      return;
+    }
+    this.keyboard.release(key);
+    dispatchHook(getHook(this.hooks, "on_key_up"), {
+      key,
+      mod: keymods.NONE,
+      unicode: "",
+      repeat: false,
+    });
   }
 
   handleMouseDown(event: BrowserMouseLike, target?: BoundsTarget): boolean {

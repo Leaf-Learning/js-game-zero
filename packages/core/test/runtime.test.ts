@@ -66,6 +66,65 @@ class MockCanvas extends EventTarget {
   }
 }
 
+describe("runtime touch configuration", () => {
+  test("reads source globals, scoped definitions, and run option overrides", async () => {
+    const source = run(
+      "TOUCH_CONTROLS = { a: keys.SPACE }; function draw() {}",
+      {
+        canvas: canvas(),
+        autostart: false,
+      },
+    );
+    expect(source.module.TOUCH_CONTROLS).toEqual({ a: keys.SPACE });
+    await source.dispose();
+    const defined = run(
+      defineGame(({ keys }) => ({
+        TOUCH_CONTROLS: { left: keys.LEFT, a: keys.UP },
+        draw() {},
+      })),
+      { canvas: canvas(), autostart: false },
+    );
+    expect(defined.module.TOUCH_CONTROLS).toEqual({
+      left: keys.LEFT,
+      a: keys.UP,
+    });
+    await defined.dispose();
+    const overridden = run(
+      { TOUCH_CONTROLS: true },
+      {
+        canvas: canvas(),
+        autostart: false,
+        TOUCH_CONTROLS: false,
+      },
+    );
+    expect(overridden.module.TOUCH_CONTROLS).toBe(false);
+    expect(
+      overridden.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "duplicate-config" &&
+          diagnostic.name === "TOUCH_CONTROLS",
+      ),
+    ).toBe(true);
+    await overridden.dispose();
+  });
+
+  test("reports invalid touch configuration as a startup failure", () => {
+    const diagnostics: RuntimeDiagnostic[] = [];
+    expect(() =>
+      run("TOUCH_CONTROLS = { a: 999999 };", {
+        canvas: canvas(),
+        autostart: false,
+        diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+      }),
+    ).toThrow("TOUCH_CONTROLS.a must be a keys constant");
+    expect(diagnostics.at(-1)).toMatchObject({
+      code: "runtime-error",
+      phase: "startup",
+      severity: "error",
+    });
+  });
+});
+
 class MemoryAdapter {
   readonly path = "memory";
   text: string | null = null;

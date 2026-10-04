@@ -62,6 +62,41 @@ Multiply speed by `dt` in `update()` for frame-rate-independent movement.
 See it running: `/examples/actor-movement`. Full API:
 [`docs/reference/actor.md`](reference/actor.md).
 
+## Play on a phone or tablet
+
+Map touch buttons to the same keys your game already uses. This example
+lets one finger steer while another holds A to change the ball's colour:
+
+```js
+WIDTH = 480;
+HEIGHT = 320;
+TITLE = "Touch Controls";
+TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, a: keys.SPACE };
+
+let x = WIDTH / 2;
+
+function update(dt) {
+  if (keyboard.left) x -= 180 * dt;
+  if (keyboard.right) x += 180 * dt;
+  x = Math.max(20, Math.min(WIDTH - 20, x));
+}
+
+function draw() {
+  screen.fill("#152638");
+  screen.draw.filled_circle(
+    [x, HEIGHT / 2],
+    20,
+    keyboard.space ? "gold" : "white",
+  );
+}
+```
+
+Controls appear automatically on touch devices. To try them with a mouse,
+add `show: "always"` to the mapping. Use `TOUCH_CONTROLS = true` for a full
+D-pad plus A/B/Start/Select preset. Tapping and dragging directly on the
+canvas also work with existing mouse hooks. Full options:
+[`Touch controls`](reference/hooks.md#touch-controls).
+
 ## Play sounds
 
 ```js

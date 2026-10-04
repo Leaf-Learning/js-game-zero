@@ -80,6 +80,11 @@ export const keyboard = inputModule.keyboard;
 export const keymods = inputModule.keymods;
 export const keys = inputModule.keys;
 export const mouse = inputModule.mouse;
+export type {
+  TouchButton,
+  TouchControlsConfig,
+  TouchControlsOptions,
+} from "./touch-controls";
 
 export const Screen = renderingModule.Screen;
 export type Screen = renderingModule.Screen;

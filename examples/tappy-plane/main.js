@@ -1,6 +1,7 @@
 WIDTH = 800;
 HEIGHT = 480;
 TITLE = "Tappy Plane";
+TOUCH_CONTROLS = { a: keys.SPACE };
 
 // Change these to tune how the game feels.
 const GAP = 170; // vertical space the plane must fly through

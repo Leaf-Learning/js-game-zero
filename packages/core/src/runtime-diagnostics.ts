@@ -14,6 +14,7 @@ export const RUNTIME_CONFIGURATION_NAMES = [
   "HEIGHT",
   "TITLE",
   "ICON",
+  "TOUCH_CONTROLS",
 ] as const;
 
 export const RUNTIME_SOURCE_HOOK_NAMES = [

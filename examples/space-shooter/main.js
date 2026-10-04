@@ -1,6 +1,13 @@
 WIDTH = 480;
 HEIGHT = 640;
 TITLE = "Space Shooter";
+TOUCH_CONTROLS = {
+  up: keys.UP,
+  down: keys.DOWN,
+  left: keys.LEFT,
+  right: keys.RIGHT,
+  a: keys.SPACE,
+};
 
 // Change these to tune how the game feels.
 const PLAYER_SPEED = 260; // pixels per second

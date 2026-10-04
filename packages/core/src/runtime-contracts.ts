@@ -12,12 +12,14 @@ import type {
   MappedMouseEvent,
 } from "./events";
 import type { Storage, StorageAdapter } from "./storage";
+import type { TouchControlsConfig } from "./touch-controls";
 
 export type GameModule = InputHooks & {
   readonly WIDTH?: number;
   readonly HEIGHT?: number;
   readonly TITLE?: string;
   readonly ICON?: string | null;
+  readonly TOUCH_CONTROLS?: TouchControlsConfig;
   readonly draw?: Hook;
   readonly update?: Hook;
 };
@@ -111,6 +113,7 @@ export type DefinedGameModule = {
   readonly HEIGHT?: number;
   readonly TITLE?: string;
   readonly ICON?: string | null;
+  readonly TOUCH_CONTROLS?: TouchControlsConfig;
   readonly draw?: () => void;
   readonly update?: (dt: number) => void;
   readonly onKeyDown?: (event: GameKeyEvent) => void;

@@ -31,6 +31,11 @@ function draw() {
 That's a complete, runnable game file. Build the rest of it — catching
 comets, sound, a score, win/lose — in [the tutorial](docs/tutorial.md).
 
+Games can also use [touch controls](docs/reference/hooks.md#touch-controls):
+add `TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, a: keys.SPACE }`
+to show buttons on touch devices, using the same keyboard actions. Canvas
+taps and drags work with the existing mouse hooks too.
+
 ![The sandbox running a game, with the editor, asset panel, and live preview visible](docs/media/main-view-running-game.png)
 
 ## Quickstart

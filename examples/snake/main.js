@@ -1,6 +1,13 @@
 WIDTH = 640;
 HEIGHT = 480;
 TITLE = "Snake";
+TOUCH_CONTROLS = {
+  up: keys.UP,
+  down: keys.DOWN,
+  left: keys.LEFT,
+  right: keys.RIGHT,
+  start: keys.SPACE,
+};
 
 // Change these to tune how the game feels.
 const CELL = 32; // size of one grid square, in pixels

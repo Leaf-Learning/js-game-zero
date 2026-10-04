@@ -46,6 +46,12 @@ import {
 } from "./storage";
 import { createToneGenerator } from "./tone";
 import {
+  mountTouchControls,
+  normalizeTouchControls,
+  type TouchControlsSettings,
+} from "./touch-controls";
+import { attachTouchPointer } from "./touch-pointer";
+import {
   createDiagnosticEmitter,
   describeRuntimeError as describeError,
   diagnoseGameModule,
@@ -186,6 +192,7 @@ export function run(
   let inspector: GameInspector | null = null;
   let context!: RuntimeContext;
   let game!: GameModule;
+  let touchControls: TouchControlsSettings | null = null;
   try {
     if (mode === "global") {
       context = createRuntimeContext(options, diagnostics, emit, undefined);
@@ -215,6 +222,7 @@ export function run(
     applyCanvasConfiguration(context.canvas, game, emit);
     configureDocumentTitle(game);
     applyFavicon(context, game.ICON, emit);
+    touchControls = normalizeTouchControls(game.TOUCH_CONTROLS);
   } catch (error) {
     const line = sourceLineOf(error);
     emit({
@@ -310,6 +318,7 @@ export function run(
     context.canvas,
     options,
     (error) => failRuntime("input", error),
+    touchControls,
   );
   const musicEndHook = getHook(hooks, "on_music_end") as
     (() => void) | undefined;
@@ -624,6 +633,9 @@ function adaptDefinedGame(module: DefinedGameModule): GameModule {
     ...(module.HEIGHT === undefined ? {} : { HEIGHT: module.HEIGHT }),
     ...(module.TITLE === undefined ? {} : { TITLE: module.TITLE }),
     ...(module.ICON === undefined ? {} : { ICON: module.ICON }),
+    ...(module.TOUCH_CONTROLS === undefined
+      ? {}
+      : { TOUCH_CONTROLS: module.TOUCH_CONTROLS }),
     ...(module.draw ? { draw: module.draw } : {}),
     ...(module.update ? { update: module.update as Hook } : {}),
   };
@@ -892,6 +904,7 @@ function attachDispatcher(
   canvas: RuntimeCanvas,
   options: RunOptions,
   onFailure: (error: unknown) => void,
+  touchControls: TouchControlsSettings | null,
 ): () => void {
   const keyboardTarget =
     options.keyboardTarget ??
@@ -922,7 +935,18 @@ function attachDispatcher(
     invoke(() => void dispatcher.handleMouseMove(event as MouseEvent, canvas));
   const wheel = (event: Event) =>
     invoke(() => void dispatcher.handleWheel(event as WheelEvent, canvas));
-  const clearKeyboard = (): void => context.keyboard.clear();
+  const controls = mountTouchControls(
+    canvas,
+    touchControls,
+    dispatcher,
+    invoke,
+  );
+  const touchPointer = attachTouchPointer(canvas, dispatcher, invoke);
+  const clearKeyboard = (): void => {
+    controls.reset();
+    touchPointer.reset();
+    dispatcher.handleFocusLoss();
+  };
   const visibilityChange = (): void => {
     if (
       typeof document !== "undefined" &&
@@ -951,6 +975,9 @@ function attachDispatcher(
   keyboardTarget.addEventListener("keydown", keyDown);
   keyboardTarget.addEventListener("keyup", keyUp);
   keyboardTarget.addEventListener("blur", clearKeyboard);
+  if (typeof window !== "undefined" && keyboardTarget !== window) {
+    window.addEventListener("blur", clearKeyboard);
+  }
   canvas.addEventListener("mousedown", mouseDown);
   for (const target of mouseReleaseTargets) {
     target.addEventListener("mouseup", mouseUp);
@@ -962,9 +989,14 @@ function attachDispatcher(
   }
 
   return () => {
+    controls.detach();
+    touchPointer.detach();
     keyboardTarget.removeEventListener("keydown", keyDown);
     keyboardTarget.removeEventListener("keyup", keyUp);
     keyboardTarget.removeEventListener("blur", clearKeyboard);
+    if (typeof window !== "undefined" && keyboardTarget !== window) {
+      window.removeEventListener("blur", clearKeyboard);
+    }
     canvas.removeEventListener("mousedown", mouseDown);
     for (const target of mouseReleaseTargets) {
       target.removeEventListener("mouseup", mouseUp);
