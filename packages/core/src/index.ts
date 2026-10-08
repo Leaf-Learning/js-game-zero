@@ -9,6 +9,7 @@ import * as audioModule from "./audio";
 import * as clockModule from "./clock";
 import * as eventsModule from "./events";
 import * as geometryModule from "./geometry";
+import * as helpersModule from "./helpers";
 import * as inputModule from "./input";
 import * as renderingModule from "./rendering";
 import * as runtimeModule from "./runtime";
@@ -74,12 +75,17 @@ export const angleTo = geometryModule.angleTo;
 export const distanceTo = geometryModule.distanceTo;
 export type { Point, RectDict, RectLike, RectTuple, Size } from "./geometry";
 
+export const clamp = helpersModule.clamp;
+export const random_choice = helpersModule.random_choice;
+export const random_int = helpersModule.random_int;
+
 export const KeyboardState = inputModule.KeyboardState;
 export type KeyboardState = inputModule.KeyboardState;
 export const keyboard = inputModule.keyboard;
 export const keymods = inputModule.keymods;
 export const keys = inputModule.keys;
 export const mouse = inputModule.mouse;
+export type { LiveMouse } from "./input";
 export type {
   TouchButton,
   TouchControlsConfig,

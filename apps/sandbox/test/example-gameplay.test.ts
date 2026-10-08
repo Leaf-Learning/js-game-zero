@@ -9,6 +9,7 @@ import {
   ImageSurface,
   Rect,
   Storage,
+  clamp,
   keys,
   type ActorOptions,
   type DrawableImage,
@@ -82,13 +83,20 @@ async function game(slug: string) {
     TILE_SIZE: 0,
     Actor: class extends Actor {
       constructor(image: string, options: ActorOptions = {}) {
-        super(image, { ...options, imageLoader: loader });
+        super(image, { ...options, imageLoader: loader, clock });
       }
       override draw() {}
     },
     Rect,
     clock,
     storage,
+    // Deterministic stand-ins that pick like the real helpers would if
+    // Math.random() always returned 0.5.
+    random_int: (min: number, max: number) =>
+      Math.ceil(min) + Math.floor(0.5 * (Math.floor(max) - Math.ceil(min) + 1)),
+    random_choice: <T>(items: readonly T[]) =>
+      items[Math.floor(0.5 * items.length)],
+    clamp,
     keys,
     keyboard: {},
     Math: Object.assign(Object.create(Math), { random: () => 0.5 }),
@@ -407,7 +415,7 @@ test("Platformer ignores repeated jump events but accepts a fresh press", async 
 test("Space Shooter explosions consume elapsed time and finish after game over", async () => {
   const g = await game("space-shooter");
   g.evaluate("explodeAt([100, 100]); state = 'gameover';");
-  g.frame(0.24);
+  g.frame(0.25);
   expect(g.evaluate("explosions[0].frame")).toBe(4);
   g.frame(0.07);
   expect(g.evaluate("explosions.length")).toBe(0);

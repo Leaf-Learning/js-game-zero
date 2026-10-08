@@ -20,10 +20,12 @@ import {
 } from "./events";
 import { Rect, ZRect } from "./geometry";
 import {
+  createLiveMouse,
   KeyboardState,
   keymods,
   keys,
-  mouse,
+  MouseState,
+  type LiveMouse,
   setActiveKeyboard,
 } from "./input";
 import {
@@ -109,7 +111,7 @@ export type GameContext = {
   readonly keyboard: KeyboardState;
   readonly keymods: typeof keymods;
   readonly keys: typeof keys;
-  readonly mouse: typeof mouse;
+  readonly mouse: LiveMouse;
   readonly images: AssetLoaders["images"];
   readonly sounds: AssetLoaders["sounds"];
   readonly music: ReturnType<typeof createMusicPlayer>;
@@ -311,7 +313,11 @@ export function run(
   };
 
   const hooks: InputHooks = game;
-  const dispatcher = createInputDispatcher(hooks, context.keyboard);
+  const dispatcher = createInputDispatcher(
+    hooks,
+    context.keyboard,
+    context.mouseState,
+  );
   detachInput = attachDispatcher(
     dispatcher,
     context,
@@ -436,6 +442,8 @@ type RuntimeContext = {
   readonly clock: Clock;
   readonly clockFailure: { current: unknown | null };
   readonly keyboard: KeyboardState;
+  readonly mouseState: MouseState;
+  readonly mouse: LiveMouse;
   readonly loaders: AssetLoaders;
   readonly music: ReturnType<typeof createMusicPlayer>;
   readonly storage: Storage;
@@ -490,6 +498,11 @@ function createRuntimeContext(
     definePreloadedAssets(loaders, options.preloadedAssets);
     preloadAssets(loaders, options.preload, emit);
     const keyboard = new KeyboardState();
+    const mouseState = new MouseState();
+    const liveMouse = createLiveMouse(mouseState, () => [
+      screen.width / 2,
+      screen.height / 2,
+    ]);
     const clockFailure = { current: null as unknown | null };
     const clock = new Clock({
       onError(error) {
@@ -533,6 +546,8 @@ function createRuntimeContext(
       clock,
       clockFailure,
       keyboard,
+      mouseState,
+      mouse: liveMouse,
       loaders,
       music,
       tone: scopedTone,
@@ -596,6 +611,7 @@ function createGameContext(context: RuntimeContext): GameContext {
         ...options,
         screen: context.screen,
         loader: context.loaders.images,
+        clock: context.clock,
       });
     }
   }
@@ -615,7 +631,7 @@ function createGameContext(context: RuntimeContext): GameContext {
     keyboard: context.keyboard,
     keymods,
     keys,
-    mouse,
+    mouse: context.mouse,
     images: context.loaders.images,
     sounds: context.loaders.sounds,
     music: context.music,

@@ -173,6 +173,7 @@ describe("sandbox routes", () => {
       "reference/actor",
       "reference/rect",
       "reference/clock",
+      "reference/helpers",
       "reference/audio",
       "reference/storage",
       "reference/loaders",

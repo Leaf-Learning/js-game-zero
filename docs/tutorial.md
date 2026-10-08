@@ -285,7 +285,7 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);
@@ -329,7 +329,9 @@ function draw() {
 `clock.schedule_interval(spawnRandomComet, 1.1)` is called once, at the top
 of the file — it doesn't need to be inside `update()`. From then on, a new
 comet appears at a random x position roughly every 1.1 seconds, on top of
-whatever you spawn by clicking.
+whatever you spawn by clicking. `random_int(24, WIDTH - 24)` picks a random
+whole number from 24 to `WIDTH - 24`, including both ends, so comets never
+start half off the screen.
 
 ## 9. Score and a saved high score
 
@@ -352,7 +354,7 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);
@@ -435,7 +437,7 @@ function spawnComet(x) {
 
 function spawnRandomComet() {
   if (over) return;
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);

@@ -152,7 +152,7 @@ function moveHorizontal(dt) {
       player.vx = 0;
     }
   }
-  player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
+  player.left = clamp(player.left, 0, WIDTH - player.width);
 }
 
 function moveVertical(dt) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   Actor,
+  Clock,
   ImageSurface,
   Screen,
   type SurfaceLike,
@@ -482,6 +483,82 @@ describe("Actor behavior", () => {
       "restore",
     ]);
     expect(context.globalAlpha).toBe(1);
+  });
+});
+
+describe("Actor flip-book animation", () => {
+  function animated(options: Record<string, unknown> = {}) {
+    const loader = loaderWithSprites();
+    for (const name of ["coin_0.png", "coin_1.png", "coin_2.png"]) {
+      loader.define(name, surface(20, 10));
+    }
+    const clock = new Clock();
+    const coin = new Actor("coin_0.png", {
+      center: [50, 50],
+      images: ["coin_0.png", "coin_1.png", "coin_2.png"],
+      fps: 10,
+      clock,
+      loader,
+      ...options,
+    });
+    const screen = new Screen(
+      { width: 100, height: 100 },
+      new MockContext() as unknown as CanvasRenderingContext2D,
+    );
+    return { coin, clock, screen };
+  }
+
+  test("shows each picture in turn on the game clock, then loops", () => {
+    const { coin, clock, screen } = animated();
+    expect(coin.frame).toBe(0);
+    clock.tick(0.1);
+    expect(coin.frame).toBe(1);
+    coin.draw(screen);
+    expect(coin.image).toBe("coin_1.png");
+    clock.tick(0.2);
+    expect(coin.frame).toBe(0);
+    expect(coin.finished).toBe(false);
+    coin.draw(screen);
+    expect(coin.image).toBe("coin_0.png");
+    expect(coin.center).toEqual([50, 50]);
+  });
+
+  test("a non-looping animation holds its last picture and reports finished", () => {
+    const { coin, clock } = animated({ loop: false });
+    clock.tick(0.25);
+    expect(coin.frame).toBe(2);
+    expect(coin.finished).toBe(false);
+    clock.tick(0.05);
+    expect(coin.frame).toBe(2);
+    expect(coin.finished).toBe(true);
+  });
+
+  test("changing fps keeps the current picture; images restarts or stops", () => {
+    const { coin, clock } = animated();
+    clock.tick(0.1);
+    coin.fps = 20;
+    expect(coin.frame).toBe(1);
+    clock.tick(0.05);
+    expect(coin.frame).toBe(2);
+    coin.images = ["coin_2.png", "coin_0.png"];
+    expect(coin.frame).toBe(0);
+    expect(coin.image).toBe("coin_2.png");
+    coin.images = null;
+    expect(coin.images).toBeNull();
+    expect(coin.frame).toBe(0);
+  });
+
+  test("rejects images, fps and loop values it can't use", () => {
+    const { coin } = animated();
+    expect(() => {
+      coin.images = ["coin_0.png", ""];
+    }).toThrow("list of image names");
+    expect(() => {
+      coin.fps = 0;
+    }).toThrow("greater than 0");
+    expect(() => {
+      coin.loop = "yes" as never;
+    }).toThrow("true or false");
   });
 });
 

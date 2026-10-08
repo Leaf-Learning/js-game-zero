@@ -44,7 +44,7 @@ buildBricks();
 
 function resetBall() {
   ball.center = [WIDTH / 2, HEIGHT / 2];
-  ball.vx = Math.random() < 0.5 ? -220 : 220;
+  ball.vx = random_choice([-220, 220]);
   ball.vy = -320;
 }
 

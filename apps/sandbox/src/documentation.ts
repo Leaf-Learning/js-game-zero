@@ -86,6 +86,13 @@ const documents: readonly DocumentationSummary[] = [
     navigation: true,
   },
   {
+    id: "reference/helpers",
+    title: "Helpers",
+    section: "API Reference",
+    sourcePath: "docs/reference/helpers.md",
+    navigation: true,
+  },
+  {
     id: "reference/audio",
     title: "Audio",
     section: "API Reference",

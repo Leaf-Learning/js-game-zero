@@ -4,6 +4,22 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Helpers
+
+- `random_int(min, max)` (both ends included), `random_choice(list)` and
+  `clamp(value, min, max)` are game-file globals and package exports, with
+  errors that explain a backwards range or an empty list. camelCase
+  spellings of snake_case globals (`randomInt`) resolve too.
+- In game files and `defineGame()`, `mouse` also reports the live pointer:
+  `mouse.pos`, `mouse.x`, `mouse.y` (the screen center until the mouse
+  moves) and `mouse.buttons`, updated by mouse and canvas touch input.
+- `Actor` flip-book animation: `images`, `fps` and `loop` (as options or
+  properties) cycle pictures on the game clock, with `frame` and `finished`
+  to follow along. The space shooter's explosions use it in place of 20
+  lines of hand-written frame timing.
+- New `docs/reference/helpers.md` page; the tutorial, cookbook and examples
+  use the helpers instead of hand-written `Math.random`/`Math.max` code.
+
 ### Naming
 
 - Every snake_case library method and property also answers to its

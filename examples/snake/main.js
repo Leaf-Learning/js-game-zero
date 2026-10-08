@@ -68,13 +68,9 @@ function placeApple() {
     clock.unschedule(moveSnake);
     return;
   }
-  const cell = freeCells[randomInt(freeCells.length)];
+  const cell = random_choice(freeCells);
   apple = new Actor("fruit", { center: cellCenter(cell), width: CELL - 4 });
   apple.cell = cell;
-}
-
-function randomInt(max) {
-  return Math.floor(Math.random() * max);
 }
 
 function cellCenter(cell) {

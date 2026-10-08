@@ -147,3 +147,45 @@ animate(player, { x: 300, duration: 0.6, tween: "bounce_end" });
 ```
 
 See [`docs/reference/clock.md`](clock.md#animation) for the full tween list.
+
+## Flip-book animation: `images` and `fps`
+
+Give an actor a list of pictures and it flips through them by itself, like a
+flip book — for walking legs, spinning coins, or explosions:
+
+```js
+let coin = new Actor("coin_0", {
+  center: [200, 120],
+  images: ["coin_0", "coin_1", "coin_2", "coin_3"],
+  fps: 8, // pictures per second
+});
+
+function draw() {
+  coin.draw();
+}
+```
+
+| Property   | Meaning                                                                               |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `images`   | The pictures to show, in order. Setting it starts again from the first; `null` stops. |
+| `fps`      | Pictures per second (default `10`). Changing it keeps the current picture.            |
+| `loop`     | Start over after the last picture (default `true`). `false` stops on the last.        |
+| `frame`    | Which picture is showing: `0` for the first.                                          |
+| `finished` | `true` once a `loop: false` animation has shown its last picture.                     |
+
+The pictures change on the game's own clock, so they pause when the game
+does and keep the same speed at any frame rate. All of them start loading
+as soon as you set `images`. For a one-shot effect, remove the actor once
+it's `finished`:
+
+```js
+explosions.push(
+  new Actor("boom_0", {
+    center: pos,
+    images: ["boom_0", "boom_1", "boom_2"],
+    fps: 16,
+    loop: false,
+  }),
+);
+explosions = explosions.filter((explosion) => !explosion.finished);
+```

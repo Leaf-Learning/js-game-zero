@@ -42,7 +42,7 @@ rockTop.hitbox = TOP_MOUNTAIN_HITBOX;
 rockBottom.hitbox = BOTTOM_MOUNTAIN_HITBOX;
 
 function resetMountains() {
-  const gapCenter = 150 + Math.random() * (HEIGHT - 300);
+  const gapCenter = random_int(150, HEIGHT - 150);
   rockTop.pos = [WIDTH + 40, gapCenter - GAP / 2];
   rockBottom.pos = [WIDTH + 40, gapCenter + GAP / 2];
 }
@@ -115,7 +115,7 @@ function updatePlane(dt) {
   plane.y += plane.vy * dt;
   // Nose up while climbing, nose down while falling - a small touch that
   // makes the flight feel alive.
-  plane.angle = Math.max(-25, Math.min(75, -plane.vy / 8));
+  plane.angle = clamp(-plane.vy / 8, -25, 75);
 
   if (plane.crashed) {
     plane.y = Math.min(plane.y, HEIGHT - 30); // stay in view after dying

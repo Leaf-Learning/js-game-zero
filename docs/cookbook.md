@@ -78,7 +78,7 @@ let x = WIDTH / 2;
 function update(dt) {
   if (keyboard.left) x -= 180 * dt;
   if (keyboard.right) x += 180 * dt;
-  x = Math.max(20, Math.min(WIDTH - 20, x));
+  x = clamp(x, 20, WIDTH - 20); // stay on screen
 }
 
 function draw() {
@@ -157,6 +157,57 @@ Storage loads automatically before your code runs and saves automatically
 after each change — no explicit `save()`/`load()` calls needed for normal
 use. See it running: `/examples/storage-save`. Full API:
 [`docs/reference/storage.md`](reference/storage.md).
+
+## Follow the mouse
+
+`mouse.pos` is where the mouse is right now, so `update()` can chase it:
+
+```js
+WIDTH = 480;
+HEIGHT = 320;
+TITLE = "Follow The Mouse";
+
+let x = WIDTH / 2;
+let y = HEIGHT / 2;
+
+function update(dt) {
+  // Ease toward the mouse; a bigger number than 5 follows faster.
+  x += (mouse.x - x) * 5 * dt;
+  y += (mouse.y - y) * 5 * dt;
+}
+
+function draw() {
+  screen.fill("#152638");
+  screen.draw.filled_circle([x, y], 16, "gold");
+}
+```
+
+Full API: [`docs/reference/hooks.md`](reference/hooks.md#mouse).
+
+## Animate a sprite with several pictures
+
+Give an `Actor` a list of `images` and it flips through them on its own:
+
+```js
+WIDTH = 320;
+HEIGHT = 180;
+TITLE = "Flip Book";
+
+let coin = new Actor("coin_0", {
+  center: [160, 90],
+  images: ["coin_0", "coin_1", "coin_2", "coin_3"],
+  fps: 8,
+});
+
+function draw() {
+  screen.fill("#1f2937");
+  coin.draw();
+}
+```
+
+Add `loop: false` for a one-shot effect, and check `coin.finished` to know
+when it's over. Full API:
+[`docs/reference/actor.md`](reference/actor.md#flip-book-animation-images-and-fps).
 
 ## Animate properties
 

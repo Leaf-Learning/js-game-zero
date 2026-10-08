@@ -5,6 +5,7 @@ import {
   keymods,
   keys,
   mouse,
+  MouseState,
 } from "./input";
 
 type HookArgs = Record<string, unknown>;
@@ -325,14 +326,20 @@ export function buttonsFromBrowserButtons(buttons: number): Set<number> {
 
 export class InputDispatcher {
   readonly keyboard: KeyboardState;
+  readonly mouseState: MouseState;
   hooks: InputHooks;
   private lastMousePos: Point | null = null;
   private readonly physicalKeys = new Set<number>();
   private readonly virtualKeys = new Map<unknown, number>();
 
-  constructor(hooks: InputHooks = {}, keyboard = new KeyboardState()) {
+  constructor(
+    hooks: InputHooks = {},
+    keyboard = new KeyboardState(),
+    mouseState = new MouseState(),
+  ) {
     this.hooks = hooks;
     this.keyboard = keyboard;
+    this.mouseState = mouseState;
   }
 
   handleKeyDown(event: BrowserKeyboardLike): boolean {
@@ -368,6 +375,7 @@ export class InputDispatcher {
     this.physicalKeys.clear();
     this.virtualKeys.clear();
     this.keyboard.clear();
+    this.mouseState.clearButtons();
   }
 
   /** Each pointer owns its press, so releasing one input cannot release another. */
@@ -406,7 +414,7 @@ export class InputDispatcher {
 
   handleMouseDown(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
-    this.lastMousePos = mapped.pos;
+    this.trackMouse(mapped);
     if (mapped.button === null) return false;
     dispatchHook(
       getHook(this.hooks, "on_mouse_down"),
@@ -418,7 +426,7 @@ export class InputDispatcher {
 
   handleMouseUp(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
-    this.lastMousePos = mapped.pos;
+    this.trackMouse(mapped);
     if (mapped.button === null) return false;
     dispatchHook(
       getHook(this.hooks, "on_mouse_up"),
@@ -430,7 +438,7 @@ export class InputDispatcher {
 
   handleMouseMove(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
-    this.lastMousePos = mapped.pos;
+    this.trackMouse(mapped);
     dispatchHook(
       getHook(this.hooks, "on_mouse_move"),
       mapped,
@@ -448,12 +456,19 @@ export class InputDispatcher {
     const mapped = mapBrowserWheelEvent(event, target);
     if (!mapped) return false;
     this.lastMousePos = mapped.pos;
+    this.mouseState.pos = mapped.pos;
     dispatchHook(
       getHook(this.hooks, "on_mouse_down"),
       mapped,
       HOOK_PARAMETERS.on_mouse_down,
     );
     return true;
+  }
+
+  private trackMouse(mapped: MappedMouseEvent): void {
+    this.lastMousePos = mapped.pos;
+    this.mouseState.pos = mapped.pos;
+    this.mouseState.buttons = new Set(mapped.buttons);
   }
 
   attach(
@@ -519,8 +534,9 @@ export class InputDispatcher {
 export function createInputDispatcher(
   hooks: InputHooks = {},
   keyboard = new KeyboardState(),
+  mouseState = new MouseState(),
 ): InputDispatcher {
-  return new InputDispatcher(hooks, keyboard);
+  return new InputDispatcher(hooks, keyboard, mouseState);
 }
 
 function keyFromBrowserEvent(event: BrowserKeyboardLike): number | null {

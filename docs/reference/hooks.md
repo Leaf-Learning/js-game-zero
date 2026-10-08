@@ -303,6 +303,24 @@ function on_key_down(key, mod) {
 
 ## `mouse`
 
+In a game file, `mouse` also says where the mouse is right now, for code in
+`update()` that follows or aims at it — the way `keyboard` does for keys:
+
+| Property        | Meaning                                                                       |
+| --------------- | ----------------------------------------------------------------------------- |
+| `mouse.pos`     | `[x, y]` of the mouse (or a finger) over the game. The center until it moves. |
+| `mouse.x`       | The same `x`.                                                                 |
+| `mouse.y`       | The same `y`.                                                                 |
+| `mouse.buttons` | A `Set` of buttons held now: `mouse.buttons.has(mouse.LEFT)`.                 |
+
+```js
+function update(dt) {
+  ship.angle = ship.angle_to(mouse.pos); // aim at the mouse
+}
+```
+
+Button constants:
+
 | Constant           | Value | Meaning                                                |
 | ------------------ | ----- | ------------------------------------------------------ |
 | `mouse.LEFT`       | 1     | Left mouse button                                      |

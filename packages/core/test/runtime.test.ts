@@ -1989,6 +1989,77 @@ function draw() {
     );
   });
 
+  test("game files get random_int, random_choice, clamp and a live mouse", async () => {
+    const { handle, target } = start(`WIDTH = 320;
+HEIGHT = 180;
+const roll = random_int(1, 6);
+const camelRoll = randomInt(1, 6);
+const pick = random_choice(["a", "b"]);
+const kept = clamp(500, 0, WIDTH);
+let start = mouse.pos;
+let seen = null;
+let held = false;
+function update() {
+  seen = [mouse.x, mouse.y];
+  held = mouse.buttons.has(mouse.LEFT);
+}
+function draw() {}
+`);
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("roll")).toBeGreaterThanOrEqual(1);
+    expect(inspector?.read("roll")).toBeLessThanOrEqual(6);
+    expect(inspector?.read("camelRoll")).toBeGreaterThanOrEqual(1);
+    expect(["a", "b"]).toContain(inspector?.read("pick") as string);
+    expect(inspector?.read("kept")).toBe(320);
+    expect(inspector?.read("start")).toEqual([160, 90]);
+
+    const move = new Event("mousemove");
+    Object.defineProperties(move, {
+      clientX: { value: 40 },
+      clientY: { value: 30 },
+      buttons: { value: 0 },
+    });
+    target.dispatchEvent(move);
+    target.dispatchEvent(mouseEvent("mousedown"));
+    handle.step(0.1);
+    expect(inspector?.read("seen")).toEqual([4, 6]);
+    expect(inspector?.read("held")).toBe(true);
+    await handle.dispose();
+  });
+
+  test("an Actor's images animate on the game's own clock", async () => {
+    const images = createImageLoader({
+      projectId: "frames",
+      loadAsset: async () => surface(),
+    });
+    for (const name of ["coin_0", "coin_1", "coin_2"]) {
+      images.define(`${name}.png`, surface());
+    }
+    const handle = run(
+      `WIDTH = 320;
+HEIGHT = 180;
+const coin = new Actor("coin_0", { images: ["coin_0", "coin_1", "coin_2"], fps: 10, loop: false });
+let frames = [];
+function update() { frames.push(coin.frame); }
+function draw() {}
+`,
+      {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+        loaders: { images },
+      },
+    );
+    await handle.ready;
+    for (let step = 0; step < 4; step += 1) handle.step(0.1);
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("frames")).toEqual([1, 2, 2, 2]);
+    expect((inspector?.read("coin") as { finished: boolean }).finished).toBe(
+      true,
+    );
+    await handle.dispose();
+  });
+
   test("typeof checks, optional hooks and common builtins keep working", async () => {
     const { handle } = start(`
 const missing = typeof somethingElse;

@@ -5,7 +5,14 @@ import { createBrowserSoundAsset, type MusicPlayer } from "./audio";
 import { Clock } from "./clock";
 import { friendlyService } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
-import { KeyboardState, keymods, keys, mouse } from "./input";
+import { clamp, random_choice, random_int } from "./helpers";
+import {
+  createLiveMouse,
+  KeyboardState,
+  keymods,
+  keys,
+  type MouseState,
+} from "./input";
 import { Screen } from "./rendering";
 import {
   diagnoseSource,
@@ -22,6 +29,7 @@ export type SourceEvaluationContext = {
   readonly screen: Screen;
   readonly clock: Clock;
   readonly keyboard: KeyboardState;
+  readonly mouseState: MouseState;
   readonly loaders: AssetLoaders;
   readonly music: MusicPlayer;
   readonly storage: Storage;
@@ -193,6 +201,7 @@ export function executeZeroBoilerplateSource(
         ...options,
         screen: context.screen,
         loader: context.loaders.images,
+        clock: context.clock,
       });
     }
   }
@@ -219,17 +228,32 @@ export function executeZeroBoilerplateSource(
     keyboard: context.keyboard,
     keymods: friendlyService(keymods, "keymods"),
     keys: friendlyService(keys, "keys"),
-    mouse: friendlyService(mouse, "mouse"),
+    // Top-level code runs before WIDTH/HEIGHT size the canvas, so the
+    // not-yet-moved mouse is centered on the size the script asked for.
+    mouse: friendlyService(
+      createLiveMouse(context.mouseState, () => [
+        configuredSize("WIDTH", context.screen.width) / 2,
+        configuredSize("HEIGHT", context.screen.height) / 2,
+      ]),
+      "mouse",
+    ),
     images: context.loaders.images,
     sounds: context.loaders.sounds,
     music: friendlyService(context.music, "music"),
     createBrowserSoundAsset,
     storage: context.storage,
     tone: friendlyService(context.tone, "tone"),
+    random_int,
+    random_choice,
+    clamp,
     run: runFunction,
     exit: () => context.stop?.(),
   };
   const scopeTarget: Record<string, unknown> = { ...globals };
+  function configuredSize(name: "WIDTH" | "HEIGHT", fallback: number): number {
+    const value = scopeTarget[name];
+    return typeof value === "number" && value > 0 ? value : fallback;
+  }
   // Reading a name nothing defined is a ReferenceError, like in any other
   // JavaScript, instead of a silent undefined that only fails later as
   // "undefined is not an object". The runtime's own reads of optional hooks
@@ -251,6 +275,14 @@ export function executeZeroBoilerplateSource(
       if (property in target) return target[property];
       if (property in builtinGlobals) return builtinGlobals[property];
       if (optionalNames.has(property)) return undefined;
+      // camelCase spellings of snake_case globals: randomInt -> random_int.
+      const snake = property.replace(
+        /[A-Z]/g,
+        (letter) => `_${letter.toLowerCase()}`,
+      );
+      if (snake !== property && snake in globals) {
+        return globals[snake as keyof typeof globals];
+      }
       throw undefinedNameError(property, source, target);
     },
     set(target, property, value) {

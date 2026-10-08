@@ -24,6 +24,7 @@ const userFacingDocs = [
   "docs/reference/actor.md",
   "docs/reference/rect.md",
   "docs/reference/clock.md",
+  "docs/reference/helpers.md",
   "docs/reference/audio.md",
   "docs/reference/storage.md",
   "docs/reference/loaders.md",
