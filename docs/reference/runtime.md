@@ -96,6 +96,14 @@ Browser APIs a game can't reach say what to use instead — for example,
 `localStorage` at `storage`. Standard JavaScript built-ins such as `Math`,
 `JSON`, `isNaN`, `Map` and `console` are available as usual.
 
+Library names are snake_case, following Pygame Zero, but every one also
+answers to its camelCase spelling: `screen.draw.filledCircle`,
+`actor.angleTo`, `rect.collidePoint`, `clock.scheduleInterval`. In a
+global-mode game, `screen`, `clock`, `music`, `tone`, `keys`, `keymods` and
+`mouse` also ignore capitalization (`keys.space`), and reading a member they
+don't have throws with a suggestion
+(`screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`).
+
 ## `RunOptions`
 
 | Option            | Purpose                                                                                                                                                                        |

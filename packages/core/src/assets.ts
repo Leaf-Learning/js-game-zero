@@ -6,6 +6,7 @@ import {
   loadSoundAsset,
 } from "./browser-asset-backends";
 import { createActiveServiceProxy } from "./active-service";
+import { addCamelCaseAliases } from "./friendly-names";
 import { Rect, type Point, type RectLike } from "./geometry";
 import {
   imageExtensions,
@@ -186,6 +187,8 @@ export class ImageSurface implements SurfaceLike {
     return rect;
   }
 }
+
+addCamelCaseAliases(ImageSurface.prototype);
 
 export function createImageLoader(
   options: AssetLoaderOptions<SurfaceLike> = {},
@@ -588,7 +591,7 @@ function createLazySurface(
     return asset;
   };
 
-  return {
+  const surface: SurfaceLike = {
     get source(): DrawableImage {
       return loaded().source;
     },
@@ -605,6 +608,8 @@ function createLazySurface(
       return loaded().get_rect(options);
     },
   };
+  addCamelCaseAliases(surface);
+  return surface;
 }
 
 function createLazySoundAsset(
@@ -638,7 +643,7 @@ function createLazySoundAsset(
       .catch(() => undefined);
   };
 
-  return {
+  const sound: SoundAsset = {
     kind: "sound",
     name: context.requested,
     get url(): string {
@@ -674,6 +679,8 @@ function createLazySoundAsset(
       return current()?.get_volume() ?? 1;
     },
   };
+  addCamelCaseAliases(sound);
+  return sound;
 }
 
 function createLazyLoadedAsset<T>(context: LazyAssetContext<T>): T {

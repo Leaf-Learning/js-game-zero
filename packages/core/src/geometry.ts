@@ -1,3 +1,4 @@
+import { addCamelCaseAliases } from "./friendly-names";
 import {
   isFiniteNumber,
   isPair,
@@ -497,6 +498,8 @@ function* dictEntries<V>(dict: RectDict<V>): Iterable<[unknown, V]> {
   }
   yield* Object.entries(dict) as unknown as Iterable<[unknown, V]>;
 }
+
+addCamelCaseAliases(Rect.prototype);
 
 export class ZRect extends Rect {}
 

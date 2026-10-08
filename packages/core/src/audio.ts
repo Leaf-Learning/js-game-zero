@@ -6,6 +6,7 @@ import {
   type SoundAsset,
 } from "./assets";
 import { createActiveServiceProxy } from "./active-service";
+import { addCamelCaseAliases } from "./friendly-names";
 import { isPromiseLike } from "./util";
 
 export type AudioElementLike = {
@@ -221,6 +222,8 @@ export class BrowserSoundAsset implements SoundAsset {
     this.activeInstances.delete(instance);
   }
 }
+
+addCamelCaseAliases(BrowserSoundAsset.prototype);
 
 export function createBrowserSoundAsset(
   asset: LoadedAsset,
@@ -609,6 +612,8 @@ export class MusicPlayer {
     this.fadeoutHandles = [];
   }
 }
+
+addCamelCaseAliases(MusicPlayer.prototype);
 
 export function createMusicPlayer(
   options: MusicPlayerOptions = {},

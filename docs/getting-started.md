@@ -98,7 +98,9 @@ disappear) before pressing movement keys.
 match anything your game or js-game-zero defines — usually a typo. The
 message suggests the closest real name (`scren is not defined. Did you mean
 screen?`) and the Problems panel shows the line. Browser features games
-can't use, such as `setTimeout` or `document`, say what to use instead.
+can't use, such as `setTimeout` or `document`, say what to use instead. A
+misspelled library method, such as `screen.draw.cirlce`, fails the same way
+with "doesn't exist. Did you mean screen.draw.circle?".
 
 **My code changes don't seem to take effect.** The sandbox auto-saves your
 file a moment after you stop typing (watch the save status next to the

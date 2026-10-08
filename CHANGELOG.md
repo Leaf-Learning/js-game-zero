@@ -4,6 +4,22 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Naming
+
+- Every snake_case library method and property also answers to its
+  camelCase spelling, through non-enumerable aliases on `Actor`, `Rect`,
+  `Clock`, `MusicPlayer`, sound assets, `ImageSurface` and `Storage`:
+  `actor.angleTo`, `actor.topLeft`, `rect.collidePoint`, `clock.eachTick`,
+  `music.setVolume`, `storage.setDefault`, and so on. The aliases are not
+  part of the typed API, so TypeScript users and the docs keep one style.
+- In zero-boilerplate games, `screen` (including `screen.draw`), `clock`,
+  `music`, `tone`, `keys`, `keymods` and `mouse` match members regardless of
+  capitalization and underscores (`screen.draw.filledCircle`, `keys.space`),
+  and reading a member they don't have throws
+  `screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`
+  instead of `undefined is not a function`. Guesses such as
+  `screen.drawRect` or `screen.draw.fillRect` point at the real method.
+
 ### Friendlier call shapes
 
 - `screen.draw.text(text, options)` takes its options second when they

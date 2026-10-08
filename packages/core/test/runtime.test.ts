@@ -3,6 +3,7 @@ import {
   clock,
   defineGame,
   exit,
+  keymods,
   images as globalImages,
   ImageSurface,
   keyboard,
@@ -1947,6 +1948,44 @@ function draw() {
     );
     expect(startupError('localStorage.setItem("a", "1");')).toContain(
       "Use storage instead",
+    );
+  });
+
+  test("a game written in camelCase runs", async () => {
+    const { handle } = start(`WIDTH = 320;
+HEIGHT = 180;
+let ticks = 0;
+let space = keys.space;
+let mods = keymods.Shift;
+let circle = typeof screen.draw.filledCircle;
+clock.scheduleInterval(() => { ticks += 1; }, 0.05);
+function draw() {
+  screen.fill("black");
+}
+`);
+    handle.step(0.1);
+    expect(handle.failure).toBeNull();
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("ticks")).toBeGreaterThan(0);
+    expect(inspector?.read("space")).toBe(keys.SPACE);
+    expect(inspector?.read("mods")).toBe(keymods.SHIFT);
+    expect(inspector?.read("circle")).toBe("function");
+    await handle.dispose();
+  });
+
+  test("a misspelled library name fails with a suggestion and line", () => {
+    const { handle } = start(`WIDTH = 320;
+function draw() {
+  screen.draw.cirlce([10, 10], 4, "gold");
+}
+`);
+    handle.step(0.1);
+    expect(handle.failure?.message).toBe(
+      "screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?",
+    );
+    expect(handle.failure?.line).toBe(3);
+    expect(startupError("screen.drawRect([0, 0, 4, 4], 'red');")).toContain(
+      "Did you mean screen.draw.rect?",
     );
   });
 

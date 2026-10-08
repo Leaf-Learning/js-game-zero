@@ -3,6 +3,7 @@ import { Animation, animate } from "./animation";
 import type { AssetLoaders } from "./assets";
 import { createBrowserSoundAsset, type MusicPlayer } from "./audio";
 import { Clock } from "./clock";
+import { friendlyService } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
 import { KeyboardState, keymods, keys, mouse } from "./input";
 import { Screen } from "./rendering";
@@ -62,6 +63,51 @@ const builtinGlobals: Record<string, unknown> = {
   parseInt,
   undefined,
 };
+
+const drawMethods = [
+  "line",
+  "circle",
+  "filled_circle",
+  "polygon",
+  "filled_polygon",
+  "rect",
+  "filled_rect",
+  "text",
+  "textbox",
+  "image",
+];
+
+/**
+ * Where guesses at drawing methods belong: `screen.drawRect`, `screen.circle`
+ * and `screen.draw.fillRect` all point at the real `screen.draw` method.
+ */
+const screenHints: Record<string, string> = Object.fromEntries([
+  ...drawMethods.flatMap((name) => {
+    const loose = name.replaceAll("_", "");
+    return [
+      [`draw${loose}`, `screen.draw.${name}`],
+      [loose, `screen.draw.${name}`],
+    ];
+  }),
+  ["fillrect", "screen.draw.filled_rect"],
+  ["fillcircle", "screen.draw.filled_circle"],
+  ["fillpolygon", "screen.draw.filled_polygon"],
+  ["rectangle", "screen.draw.rect"],
+  ["filledrectangle", "screen.draw.filled_rect"],
+  ["fillrectangle", "screen.draw.filled_rect"],
+  ["drawrectangle", "screen.draw.rect"],
+]);
+
+/** Screen's internal drawing helpers, which take different arguments. */
+const screenInternals = [
+  "drawSurface",
+  "drawLine",
+  "drawCircle",
+  "drawPolygon",
+  "drawRect",
+  "drawText",
+  "drawTextbox",
+];
 
 /**
  * Browser globals a game cannot reach, with what to use instead. Games run
@@ -161,18 +207,25 @@ export function executeZeroBoilerplateSource(
     Screen,
     Storage,
     Actor: RuntimeActor,
-    screen: context.screen,
-    clock: context.clock,
+    // Services answer to camelCase and other spellings of their members, and
+    // a misspelled member fails with a suggestion. Storage, keyboard and the
+    // asset loaders already treat unknown names as data, keys, or assets.
+    screen: friendlyService(context.screen, "screen", {
+      hidden: screenInternals,
+      nested: ["draw"],
+      hints: screenHints,
+    }),
+    clock: friendlyService(context.clock, "clock"),
     keyboard: context.keyboard,
-    keymods,
-    keys,
-    mouse,
+    keymods: friendlyService(keymods, "keymods"),
+    keys: friendlyService(keys, "keys"),
+    mouse: friendlyService(mouse, "mouse"),
     images: context.loaders.images,
     sounds: context.loaders.sounds,
-    music: context.music,
+    music: friendlyService(context.music, "music"),
     createBrowserSoundAsset,
     storage: context.storage,
-    tone: context.tone,
+    tone: friendlyService(context.tone, "tone"),
     run: runFunction,
     exit: () => context.stop?.(),
   };

@@ -44,9 +44,11 @@ imports" recipe in [the cookbook](cookbook.md#use-explicit-imports-no-globals).
 Almost everything keeps its Pygame Zero name, including the snake_case
 hook and method names (`on_key_down`, `schedule_interval`, `angle_to`, ...)
 — this project keeps them deliberately rather than renaming to camelCase, so
-a Pygame Zero script's _shape_ is immediately recognizable. Where this
-project also offers a camelCase alias (such as the `onKeyDown` hook), it's
-noted below.
+a Pygame Zero script's _shape_ is immediately recognizable. Learners who
+guess camelCase aren't stuck, though: every library name also answers to
+its camelCase spelling (`screen.draw.filledCircle`, `actor.angleTo`,
+`rect.collidePoint`, `clock.scheduleInterval`, `onKeyDown`), and the docs
+and examples stick to one style.
 
 | Pygame Zero                                                                         | js-game-zero                                                            | Notes                                                                                         |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |

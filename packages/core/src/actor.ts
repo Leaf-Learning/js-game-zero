@@ -1,4 +1,5 @@
 import { images, type AssetLoader, type SurfaceLike } from "./assets";
+import { addCamelCaseAliases } from "./friendly-names";
 import {
   angleTo,
   distanceTo,
@@ -716,3 +717,5 @@ function normalizeAnchor(value: ActorAnchor): ActorAnchor {
 function actorTargetPoint(target: Actor | Point): Point {
   return target instanceof Actor ? target.pos : requirePoint(target, "target");
 }
+
+addCamelCaseAliases(Actor.prototype);

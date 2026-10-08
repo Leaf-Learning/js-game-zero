@@ -271,7 +271,10 @@ Numeric key constants, one property per key. The full set includes:
 | Locks                      | `keys.CAPSLOCK`, `keys.NUMLOCK`, `keys.SCROLLOCK`                                                                                                                                   |
 
 The values are arbitrary integers (matching SDL/pygame's numbering) — never
-hardcode them, always compare against the named constant.
+hardcode them, always compare against the named constant. In a game file the
+names ignore capitalization (`keys.space` is `keys.SPACE`), and a misspelled
+name such as `keys.SPCE` throws with a suggestion instead of quietly
+comparing against `undefined`. The same goes for `keymods` and `mouse`.
 
 ## `keymods`
 
