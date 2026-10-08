@@ -152,28 +152,28 @@ function update(dt) {
 }
 
 function draw() {
-  screen.blit("background", [0, 0]);
+  screen.draw.image("background", [0, 0]);
   rockTop.draw();
   rockBottom.draw();
   plane.draw();
 
-  screen.draw.text(`${score}`, undefined, {
+  screen.draw.text(`${score}`, {
     midtop: [WIDTH / 2, 16],
-    fontsize: 56,
+    size: 56,
     color: "white",
     shadow: 2,
   });
-  screen.draw.text(`Best: ${storage.highscore}`, undefined, {
+  screen.draw.text(`Best: ${storage.highscore}`, {
     midtop: [WIDTH / 2, 84],
-    fontsize: 24,
+    size: 24,
     color: "#facc15",
     shadow: 1,
   });
 
   if (plane.crashed) {
-    screen.draw.text("Click or press space to play again", undefined, {
+    screen.draw.text("Click or press space to play again", {
       center: [WIDTH / 2, HEIGHT - 40],
-      fontsize: 22,
+      size: 22,
       color: "white",
       shadow: 1,
     });

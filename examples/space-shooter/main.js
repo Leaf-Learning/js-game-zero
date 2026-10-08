@@ -166,7 +166,7 @@ function moveEnemies(dt) {
     const enemy = enemies[index];
     enemy.x += enemyVX * dt;
     enemy.y += enemyDropSpeed * dt;
-    if (enemy.colliderect(player)) {
+    if (enemy.touches(player)) {
       hitPlayer(index);
       continue;
     }
@@ -186,7 +186,7 @@ function moveLasers(dt) {
       lasers.splice(index, 1);
       continue;
     }
-    const hitIndex = enemies.findIndex((enemy) => enemy.colliderect(laser));
+    const hitIndex = enemies.findIndex((enemy) => enemy.touches(laser));
     if (hitIndex !== -1) {
       explodeAt(enemies[hitIndex].pos);
       enemies.splice(hitIndex, 1);
@@ -244,30 +244,30 @@ function draw() {
   if (state === "playing" || invulnerableTime > 0) player.draw();
 
   screen.draw.text(`Score: ${score}`, [12, 10], {
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
-  screen.draw.text(`Wave: ${wave}`, undefined, {
+  screen.draw.text(`Wave: ${wave}`, {
     midtop: [WIDTH / 2, 10],
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
-  screen.draw.text(`Lives: ${lives}`, undefined, {
+  screen.draw.text(`Lives: ${lives}`, {
     topright: [WIDTH - 12, 10],
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
 
   if (state === "gameover") {
-    screen.draw.text("Game Over", undefined, {
+    screen.draw.text("Game Over", {
       center: [WIDTH / 2, HEIGHT / 2 - 20],
-      fontsize: 48,
+      size: 48,
       color: "#f87171",
       shadow: 2,
     });
-    screen.draw.text("Click or press space to try again", undefined, {
+    screen.draw.text("Click or press space to try again", {
       center: [WIDTH / 2, HEIGHT / 2 + 30],
-      fontsize: 20,
+      size: 20,
       color: "white",
       shadow: 1,
     });

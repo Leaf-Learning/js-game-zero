@@ -100,6 +100,9 @@ Collision uses **half-open bounds**: the left and top edges are inclusive,
 the right and bottom edges are exclusive — a point exactly on the right or
 bottom edge does not count as colliding. This matches pygame's `Rect`.
 
+- `touches(target): boolean` — the one test most games need: `target` is an
+  `[x, y]` point (does the rect contain it?) or any rect-like value, such as
+  another `Rect` or an `Actor` (do they overlap?).
 - `contains(other): boolean`
 - `collidepoint(point)` / `collidepoint(x, y): boolean`
 - `colliderect(other): boolean`

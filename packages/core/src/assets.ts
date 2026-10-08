@@ -56,6 +56,8 @@ export type LoadedAsset = {
 
 export type SoundAsset = LoadedAsset & {
   play(loops?: number): void;
+  /** Plays the sound over and over until `stop()`. */
+  loop(): void;
   stop(): void;
   get_length(): number;
   set_volume(volume: number): void;
@@ -644,6 +646,12 @@ function createLazySoundAsset(
     },
     play(loops = 0): void {
       whenLoaded((asset) => asset.play(loops));
+    },
+    loop(): void {
+      // Host-built sound assets that predate loop() still loop via play(-1).
+      whenLoaded((asset) =>
+        typeof asset.loop === "function" ? asset.loop() : asset.play(-1),
+      );
     },
     stop(): void {
       const asset = current();

@@ -196,6 +196,76 @@ describe("draw.text layout", () => {
   });
 });
 
+describe("beginner-friendly text calls", () => {
+  function operationsFor(draw: (screen: Screen) => void): Operation[] {
+    const { screen, context } = screenAndContext();
+    draw(screen);
+    return context.operations;
+  }
+
+  test("options can come second, in place of a position", () => {
+    expect(
+      operationsFor((screen) =>
+        screen.draw.text("Game Over", { center: [80, 60], fontsize: 20 }),
+      ),
+    ).toEqual(
+      operationsFor((screen) =>
+        screen.draw.text("Game Over", undefined, {
+          center: [80, 60],
+          fontsize: 20,
+        }),
+      ),
+    );
+  });
+
+  test("options given twice are rejected", () => {
+    const { screen } = screenAndContext();
+    expect(() =>
+      screen.draw.text("Hi", { center: [1, 1] } as never, { fontsize: 9 }),
+    ).toThrow("takes its options once");
+  });
+
+  test("readable option names match Pygame Zero's terse ones", () => {
+    const terse = operationsFor((screen) =>
+      screen.draw.text("Score", [40, 30], {
+        fontsize: 16,
+        gcolor: "yellow",
+        shadow: [2, 3],
+        scolor: "black",
+        owidth: 1,
+        ocolor: "navy",
+      }),
+    );
+    const readable = operationsFor((screen) =>
+      screen.draw.text("Score", [40, 30], {
+        size: 16,
+        gradient_color: "yellow",
+        shadow: [2, 3],
+        shadow_color: "black",
+        outline: 1,
+        outline_color: "navy",
+      }),
+    );
+    expect(readable).toEqual(terse);
+    expect(
+      operationsFor((screen) =>
+        screen.draw.textbox("Hi", [0, 0, 80, 40], { min_size: 30 }),
+      ),
+    ).toEqual(
+      operationsFor((screen) =>
+        screen.draw.textbox("Hi", [0, 0, 80, 40], { min_fontsize: 30 }),
+      ),
+    );
+  });
+
+  test("giving both names for one option is an error", () => {
+    const { screen } = screenAndContext();
+    expect(() =>
+      screen.draw.text("Hi", [0, 0], { size: 10, fontsize: 12 }),
+    ).toThrow("got both size and fontsize");
+  });
+});
+
 describe("draw.textbox", () => {
   test("chooses the largest font size that fits the target rect", () => {
     const context = new MockContext();

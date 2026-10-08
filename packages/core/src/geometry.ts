@@ -416,6 +416,16 @@ export class Rect {
     );
   }
 
+  /**
+   * True when this rectangle overlaps `target`: another rect (or anything
+   * with a rect, like an Actor), or an `[x, y]` point inside it.
+   */
+  touches(target: RectLike | PairLike): boolean {
+    return isPair(target)
+      ? this.collidepoint(target)
+      : this.colliderect(target as RectLike);
+  }
+
   colliderect(other: RectLike): boolean {
     const a = normalizedRect(this);
     const b = normalizedRect(other);

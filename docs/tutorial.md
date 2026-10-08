@@ -226,7 +226,7 @@ function update(dt) {
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
     } else if (comet.y < HEIGHT + 20) {
@@ -244,13 +244,13 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
 ```
 
-`player.collidepoint([comet.x, comet.y])` checks whether the falling
+`player.touches([comet.x, comet.y])` checks whether the falling
 comet's position is inside the player's hitbox; if so, we count it as
 caught, bump the score, and play a `"C5"` tone (a musical note name — you
 can also pass a frequency in Hz). Comets that fall past the bottom without
@@ -302,7 +302,7 @@ function update(dt) {
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
     } else if (comet.y < HEIGHT + 20) {
@@ -320,7 +320,7 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
@@ -369,7 +369,7 @@ function update(dt) {
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       if (score > highScore) {
         highScore = score;
@@ -391,11 +391,11 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
   screen.draw.text(`Best: ${highScore}`, [16, 40], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
 }
@@ -475,7 +475,7 @@ function update(dt) {
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
       if (score >= WIN_SCORE) endGame(true);
@@ -498,15 +498,15 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
   screen.draw.text(`Lives: ${lives}`, [16, 40], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
   screen.draw.text(`Best: ${highScore}`, [16, 62], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
 
@@ -514,9 +514,9 @@ function draw() {
     const message = won
       ? "You win! Click to play again"
       : "Game over — click to play again";
-    screen.draw.text(message, [], {
+    screen.draw.text(message, {
       center: [WIDTH / 2, HEIGHT / 2],
-      fontsize: 26,
+      size: 26,
       color: "white",
       background: "#0b1220cc",
     });

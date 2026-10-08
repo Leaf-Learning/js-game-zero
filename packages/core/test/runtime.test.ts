@@ -1733,6 +1733,7 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
       name: "beep.ogg",
       url: "/beep.ogg",
       play() {},
+      loop() {},
       stop() {},
       get_length: () => 0,
       set_volume() {},

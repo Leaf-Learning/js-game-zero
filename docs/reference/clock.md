@@ -105,21 +105,28 @@ an earlier call keep running.
 
 ### Tween names
 
-| Name               | Feel                                                |
-| ------------------ | --------------------------------------------------- |
-| `linear`           | Constant speed.                                     |
-| `accelerate`       | Starts slow, speeds up.                             |
-| `decelerate`       | Starts fast, eases to a stop.                       |
-| `accel_decel`      | Eases in, then eases out.                           |
-| `in_elastic`       | Overshoots at the start, like a pulled rubber band. |
-| `out_elastic`      | Overshoots at the end and settles.                  |
-| `in_out_elastic`   | Elastic overshoot at both ends.                     |
-| `bounce_end`       | Bounces to a stop, like a dropped ball.             |
-| `bounce_start`     | Bounces at the start instead of the end.            |
-| `bounce_start_end` | Bounces at both ends.                               |
-| `end_elastic`      | Alias of `in_elastic`.                              |
-| `start_elastic`    | Alias of `out_elastic`.                             |
-| `both_elastic`     | Alias of `in_out_elastic`.                          |
+| Name               | What the motion looks like                                                    |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `linear`           | Constant speed.                                                               |
+| `ease_in`          | Starts slow, speeds up (CSS's name). Same as `accelerate`.                    |
+| `ease_out`         | Starts fast, slows to a stop (CSS's name). Same as `decelerate`.              |
+| `ease_in_out`      | Speeds up, then slows down (CSS's name). Same as `accel_decel`.               |
+| `bounce`           | Bounces to a stop at the target, like a dropped ball. Same as `bounce_end`.   |
+| `spring`           | Shoots past the target, then wobbles back and settles. Same as `out_elastic`. |
+| `accelerate`       | Starts slow, speeds up.                                                       |
+| `decelerate`       | Starts fast, eases to a stop.                                                 |
+| `accel_decel`      | Eases in, then eases out.                                                     |
+| `in_elastic`       | Wobbles around the starting point, then snaps to the target at the end.       |
+| `out_elastic`      | Shoots past the target right away, then wobbles back and settles.             |
+| `in_out_elastic`   | Wobbles at the start, then again around the target.                           |
+| `bounce_end`       | Bounces to a stop at the target, like a dropped ball.                         |
+| `bounce_start`     | Bounces around the starting point, then heads for the target.                 |
+| `bounce_start_end` | Bounces at both ends.                                                         |
+| `end_elastic`      | Pygame Zero's name for `in_elastic`: the wobble comes near the end.           |
+| `start_elastic`    | Pygame Zero's name for `out_elastic`: the wobble comes near the start.        |
+| `both_elastic`     | Pygame Zero's name for `in_out_elastic`.                                      |
 
-That's all 13 names `tween` accepts (`tweenNames` exports the same list at
-runtime, if you want to validate a name programmatically).
+That's all 18 names `tween` accepts (`tweenNames` exports the same list at
+runtime, if you want to validate a name programmatically). If you're not
+sure which to pick, try `ease_out` for smooth movement, `bounce` for things
+that land, and `spring` for things that pop into place.

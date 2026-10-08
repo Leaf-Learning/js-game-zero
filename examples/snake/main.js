@@ -151,27 +151,27 @@ function draw() {
   drawSnake();
 
   screen.draw.text(`Score: ${score}`, [10, 8], {
-    fontsize: 22,
+    size: 22,
     color: "white",
     shadow: 1,
   });
-  screen.draw.text(`Best: ${storage.highscore}`, undefined, {
+  screen.draw.text(`Best: ${storage.highscore}`, {
     topright: [WIDTH - 10, 8],
-    fontsize: 22,
+    size: 22,
     color: "#facc15",
     shadow: 1,
   });
 
   if (state !== "playing") {
-    screen.draw.text(state === "won" ? "You win!" : "Game Over", undefined, {
+    screen.draw.text(state === "won" ? "You win!" : "Game Over", {
       center: [WIDTH / 2, HEIGHT / 2 - 16],
-      fontsize: 44,
+      size: 44,
       color: "#f87171",
       shadow: 2,
     });
-    screen.draw.text("Click or press space to play again", undefined, {
+    screen.draw.text("Click or press space to play again", {
       center: [WIDTH / 2, HEIGHT / 2 + 28],
-      fontsize: 20,
+      size: 20,
       color: "white",
       shadow: 1,
     });

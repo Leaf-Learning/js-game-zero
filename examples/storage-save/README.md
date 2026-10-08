@@ -9,7 +9,7 @@ Edit a current score and see how saving and loading affect it.
 - Reload the page to see the saved score loaded automatically.
 
 The two score cards and status message show exactly what changed. The
-example teaches `Rect.collidepoint()` buttons, `storage.get()` / `set()`,
+example teaches `Rect.touches()` buttons, `storage.get()` / `set()`,
 asynchronous saving/loading, and automatic loading when the runtime starts.
 `set()` updates memory before the write completes. The saved card changes
 only after a successful write or load; failures keep the last confirmed

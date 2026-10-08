@@ -74,8 +74,9 @@ project's source, not assumptions from the Python API's shape.
 - **Animation calls take one options object, not keyword arguments.**
   JavaScript has no equivalent of Python's `**kwargs`, so
   `animate(ship, angle=90, tween='bounce_end')` becomes
-  `animate(ship, { angle: 90, tween: "bounce_end" })` — every tween name and
-  the animation semantics are otherwise the same 13 curves. See
+  `animate(ship, { angle: 90, tween: "bounce_end" })` — every Pygame Zero
+  tween name and the animation semantics are otherwise the same 13 curves
+  (plus friendlier aliases such as `ease_out` and `bounce`). See
   [`docs/reference/clock.md#animation`](reference/clock.md#animation).
 - **Generated tones are capped at 4 seconds.** `tone.play(note, duration)`
   throws a `RangeError` if `duration` is greater than `4` (or not greater
@@ -123,4 +124,20 @@ project's source, not assumptions from the Python API's shape.
   whatever order you declare them, exactly like Pygame Zero), but the
   mechanism is a lightweight parse of your function's own source text rather
   than true runtime reflection. Ordinary parameter lists work exactly as
-  expected; avoid exotic destructuring in a hook's parameter list.
+  expected; avoid exotic destructuring in a hook's parameter list. Unlike
+  Pygame Zero, a parameter with an unfamiliar name isn't an error: it
+  receives the next value by position, with a warning.
+
+## Friendlier names you'll see in this project's examples
+
+Every Pygame Zero name above still works. The tutorial and examples also use
+a few additions that read more easily for beginners:
+
+| Pygame Zero                                                                        | Also available                                                       |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `actor.colliderect(other)`, `actor.collidepoint(pos)`                              | `actor.touches(other_or_pos)`                                        |
+| `screen.blit(image, pos)`                                                          | `screen.draw.image(image, pos)`                                      |
+| `screen.draw.text(..., fontsize=24, owidth=1, ocolor=..., scolor=..., gcolor=...)` | `size`, `outline`, `outline_color`, `shadow_color`, `gradient_color` |
+| `screen.draw.text("Hi", None, center=(x, y))`                                      | `screen.draw.text("Hi", { center: [x, y] })`                         |
+| `sound.play(-1)`                                                                   | `sound.loop()`                                                       |
+| `music.get_pos()` (ms) / `music.set_pos(seconds)`                                  | `music.position` (seconds, read and write)                           |

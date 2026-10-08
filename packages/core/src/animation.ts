@@ -93,6 +93,22 @@ export const tweens = Object.freeze({
   both_elastic(n: number): number {
     return tweens.in_out_elastic(n);
   },
+  // Plain-language names: CSS's easing words, and what the motion looks like.
+  ease_in(n: number): number {
+    return tweens.accelerate(n);
+  },
+  ease_out(n: number): number {
+    return tweens.decelerate(n);
+  },
+  ease_in_out(n: number): number {
+    return tweens.accel_decel(n);
+  },
+  bounce(n: number): number {
+    return tweens.bounce_end(n);
+  },
+  spring(n: number): number {
+    return tweens.out_elastic(n);
+  },
 });
 
 export const tweenNames = Object.freeze(Object.keys(tweens) as TweenName[]);

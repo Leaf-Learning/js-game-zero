@@ -116,6 +116,10 @@ export class BrowserSoundAsset implements SoundAsset {
     });
   }
 
+  loop(): void {
+    this.play(-1);
+  }
+
   stop(): void {
     for (const instance of [...this.activeInstances]) {
       this.removeInstance(instance, true);
@@ -337,6 +341,19 @@ export class MusicPlayer {
 
   getPos(): number {
     return this.get_pos();
+  }
+
+  /**
+   * Seconds into the current track (0 when nothing is loaded); set it to
+   * jump there. Unlike `get_pos()`, which reports milliseconds for Pygame
+   * compatibility, this reads and writes the same unit.
+   */
+  get position(): number {
+    return this.currentTrack?.element.currentTime ?? 0;
+  }
+
+  set position(seconds: number) {
+    this.set_pos(seconds);
   }
 
   /** Seeks the current track to the given position in seconds. */
@@ -630,7 +647,9 @@ function createHtmlAudioElement(url: string): AudioElementLike {
 
 function requireLoopCount(loops: number): number {
   if (Number.isInteger(loops) && loops >= -1) return loops;
-  throw new RangeError("loops must be an integer greater than or equal to -1.");
+  throw new RangeError(
+    "loops is how many extra times to play the sound: 0 plays it once, 2 plays it three times, and -1 (or sound.loop()) plays it until stop().",
+  );
 }
 
 function errorMessage(error: unknown): string {

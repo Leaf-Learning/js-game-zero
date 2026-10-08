@@ -110,7 +110,7 @@ function draw() {
   screen.fill("#1f2937");
   screen.draw.filled_circle([160, 82], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click to play a sound", [76, 134], {
-    fontsize: 16,
+    size: 16,
     color: "#f8fafc",
   });
 }
@@ -147,7 +147,7 @@ function update() {
 function draw() {
   screen.fill("#12312b");
   screen.draw.text(`score ${score}`, [92, 76], {
-    fontsize: 28,
+    size: 28,
     color: "#ffffff",
   });
 }
@@ -200,7 +200,7 @@ clock.schedule_interval(spawnEnemy, 2); // then again every 2 seconds
 function draw() {
   screen.fill("#1c1330");
   screen.draw.text(`Enemies spawned: ${enemies}`, [24, 24], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
@@ -228,7 +228,7 @@ function draw() {
   screen.fill("#0b1220");
   screen.draw.filled_circle([160, 90], 30 * zoom, "#38bdf8");
   screen.draw.text(`zoom: ${zoom.toFixed(1)}`, [16, 16], {
-    fontsize: 16,
+    size: 16,
     color: "white",
   });
 }

@@ -20,15 +20,25 @@ function on_mouse_down() {
 
 ### `.play(loops = 0)`
 
-Plays the sound. `loops` follows pygame's convention: `0` (the default)
-plays it once; a positive integer plays it that many _additional_ times
-after the first (so `loops: 2` plays three times total); `-1` loops forever
-until `.stop()` is called.
+Plays the sound. `loops` follows pygame's convention: it counts the
+_extra_ plays after the first. `0` (the default) plays it once, `2` plays it
+three times in total, and `-1` loops forever until `.stop()` is called.
 
 Calling `.play()` again while a previous playback is still going **does not
 cut it off** — sounds overlap, just like pygame's channel mixing, so rapid
 repeated triggers (e.g. a machine-gun sound effect) layer instead of
 stuttering.
+
+### `.loop()`
+
+Plays the sound over and over until `.stop()` — the same as `.play(-1)`.
+Handy for engine hums and background ambience:
+
+```js
+sounds.engine.loop();
+// later
+sounds.engine.stop();
+```
 
 ### `.stop()`
 
@@ -61,8 +71,9 @@ music.play("theme.ogg"); // loops forever
 | `music.rewind()`                                  | Restarts the current track from the beginning without stopping it.                                                                       |
 | `music.fadeout(seconds)`                          | Fades the volume to zero over `seconds`, then stops. `0` stops immediately.                                                              |
 | `music.set_volume(volume)` / `music.get_volume()` | `0`–`1`.                                                                                                                                 |
-| `music.get_pos()`                                 | Milliseconds the current track has been playing, or `-1` if nothing is loaded.                                                           |
-| `music.set_pos(seconds)`                          | Seeks the current track to a position, in seconds.                                                                                       |
+| `music.position`                                  | Seconds into the current track (`0` if nothing is loaded). Set it to jump: `music.position = 30`.                                        |
+| `music.get_pos()`                                 | **Milliseconds** the current track has been playing, or `-1` if nothing is loaded (Pygame's unit).                                       |
+| `music.set_pos(seconds)`                          | Seeks the current track to a position, in **seconds**. To save and restore a spot, use `music.position` for both.                        |
 | `music.is_playing()`                              | `true` if a track is currently playing and not paused.                                                                                   |
 
 Several `music` methods also offer a camelCase alias for JS ergonomics —

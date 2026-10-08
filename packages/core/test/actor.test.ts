@@ -485,6 +485,20 @@ describe("Actor behavior", () => {
   });
 });
 
+describe("Actor touches", () => {
+  test("tests another actor, a rect, or a click point", () => {
+    const loader = loaderWithSprites();
+    const player = new Actor("hero.svg", { topleft: [0, 0], loader });
+    const enemy = new Actor("ship.svg", { topleft: [15, 5], loader });
+    const far = new Actor("ship.svg", { topleft: [200, 200], loader });
+    expect(player.touches(enemy)).toBe(true);
+    expect(player.touches(far)).toBe(false);
+    expect(player.touches([5, 5])).toBe(true);
+    expect(player.touches([25, 5])).toBe(false);
+    expect(player.touches([18, 8, 10, 10])).toBe(true);
+  });
+});
+
 describe("Actor clamp_ip", () => {
   test("moves the actor itself so it fits inside an area", () => {
     const loader = loaderWithSprites();

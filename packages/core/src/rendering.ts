@@ -51,6 +51,8 @@ export type TextOptions = {
   readonly fontname?: string;
   readonly sysfontname?: string;
   readonly fontsize?: number;
+  /** Same as `fontsize`. */
+  readonly size?: number;
   readonly bold?: boolean;
   readonly italic?: boolean;
   readonly underline?: boolean;
@@ -78,10 +80,18 @@ export type TextOptions = {
   readonly align?: TextAlignOption;
   readonly strip?: boolean;
   readonly owidth?: number;
+  /** Same as `owidth`. */
+  readonly outline?: number;
   readonly ocolor?: Color;
+  /** Same as `ocolor`. */
+  readonly outline_color?: Color;
   readonly shadow?: number | Point;
   readonly scolor?: Color;
+  /** Same as `scolor`. */
+  readonly shadow_color?: Color;
   readonly gcolor?: Color;
+  /** Same as `gcolor`. */
+  readonly gradient_color?: Color;
   readonly alpha?: number;
   readonly anchor?: TextAnchor;
   readonly angle?: number;
@@ -100,6 +110,18 @@ export type TextboxOptions = Omit<
   | "centery"
 > & {
   readonly min_fontsize?: number;
+  /** Same as `min_fontsize`. */
+  readonly min_size?: number;
+};
+
+/**
+ * `screen.draw.text` takes its options either third, after a position, or
+ * second, in place of one: `text("Hi", [10, 10], { size: 20 })` and
+ * `text("Hi", { center: [160, 90], size: 20 })` both work.
+ */
+export type DrawText = {
+  (text: string, options?: TextOptions): void;
+  (text: string, pos: Point | undefined, options?: TextOptions): void;
 };
 
 export type TextLayout = {
@@ -130,7 +152,21 @@ type TextPositionKey =
 
 const textPositionKeys = ["pos", ...rectPositionKeys] as const;
 
+/**
+ * Readable names for Pygame Zero's terse text options. Either name works;
+ * giving both for the same option is an error.
+ */
+const textOptionAliases = {
+  size: "fontsize",
+  min_size: "min_fontsize",
+  outline: "owidth",
+  outline_color: "ocolor",
+  shadow_color: "scolor",
+  gradient_color: "gcolor",
+} as const;
+
 const textboxOptionKeys = new Set<string>([
+  ...Object.keys(textOptionAliases),
   ...rectPositionKeys,
   "fontname",
   "sysfontname",
@@ -155,7 +191,9 @@ const textboxOptionKeys = new Set<string>([
 ]);
 
 const textOptionKeys = new Set<string>([
-  ...[...textboxOptionKeys].filter((key) => key !== "min_fontsize"),
+  ...[...textboxOptionKeys].filter(
+    (key) => key !== "min_fontsize" && key !== "min_size",
+  ),
   "pos",
   "top",
   "left",
@@ -189,13 +227,21 @@ export class Screen {
       this.drawRect(rect, color, width),
     filled_rect: (rect: RectLike, color: Color): void =>
       this.drawRect(rect, color, 0, true),
-    text: (text: string, pos?: Point, options: TextOptions = {}): void =>
-      this.drawText(text, pos, options),
+    text: ((
+      text: string,
+      posOrOptions?: Point | TextOptions,
+      options?: TextOptions,
+    ): void => this.drawText(text, posOrOptions, options)) as DrawText,
     textbox: (
       text: string,
       rect: RectLike,
       options: TextboxOptions = {},
     ): void => this.drawTextbox(text, rect, options),
+    /** Same as `screen.blit`: draws an image with its top-left at `pos`. */
+    image: (
+      image: string | SurfaceLike,
+      pos: Point | RectLike,
+    ): Promise<void> | void => this.blit(image, pos),
   };
 
   constructor(
@@ -360,10 +406,24 @@ export class Screen {
 
   private drawText(
     text: string,
-    pos: Point | undefined,
-    options: TextOptions,
+    posOrOptions: Point | TextOptions | undefined,
+    maybeOptions: TextOptions | undefined,
   ): void {
-    rejectUnknownOptions(options, textOptionKeys, "screen.draw.text");
+    let pos: Point | undefined;
+    let given: TextOptions;
+    if (isPlainOptions(posOrOptions)) {
+      if (maybeOptions !== undefined) {
+        throw new TypeError(
+          'screen.draw.text takes its options once: either second, as in text("Hi", { center: [x, y] }), or third, after a position.',
+        );
+      }
+      given = posOrOptions;
+    } else {
+      pos = posOrOptions;
+      given = maybeOptions ?? {};
+    }
+    rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
+    const options = canonicalTextOptions(given, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
     renderTextLayout(this.context, layout, options);
   }
@@ -371,9 +431,14 @@ export class Screen {
   private drawTextbox(
     text: string,
     rectLike: RectLike,
-    options: TextboxOptions,
+    givenOptions: TextboxOptions,
   ): void {
-    rejectUnknownOptions(options, textboxOptionKeys, "screen.draw.textbox");
+    rejectUnknownOptions(
+      givenOptions,
+      textboxOptionKeys,
+      "screen.draw.textbox",
+    );
+    const options = canonicalTextOptions(givenOptions, "screen.draw.textbox");
     const rect = new Rect(rectLike);
     const fit = fitTextboxFontSize(this.context, text, rect, options);
     // pgzero's drawbox anchors the text on the rect at the anchor fraction
@@ -396,6 +461,33 @@ export class Screen {
     });
     renderTextLayout(this.context, layout, options);
   }
+}
+
+/** A `{ ... }` literal, as opposed to a position (an array, or a Rect). */
+function isPlainOptions(value: unknown): value is TextOptions {
+  if (typeof value !== "object" || value === null) return false;
+  const prototype = Object.getPrototypeOf(value) as unknown;
+  return prototype === Object.prototype || prototype === null;
+}
+
+/** Rewrites readable option names (`size`) to the names layout reads (`fontsize`). */
+function canonicalTextOptions<T extends TextOptions & TextboxOptions>(
+  options: T,
+  label: string,
+): T {
+  let result: Record<string, unknown> | null = null;
+  for (const [alias, canonical] of Object.entries(textOptionAliases)) {
+    if (!(alias in options)) continue;
+    if (canonical in options) {
+      throw new TypeError(
+        `${label} got both ${alias} and ${canonical}; they mean the same thing, so give just one.`,
+      );
+    }
+    result ??= { ...options };
+    result[canonical] = result[alias];
+    delete result[alias];
+  }
+  return (result ?? options) as T;
 }
 
 export function setScreen(screen: Screen | null): Screen | null {

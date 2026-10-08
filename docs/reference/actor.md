@@ -109,10 +109,13 @@ never the picture.
   a new `Rect`, `move_ip` moves the actor itself.
 - `inflate(x, y)` / `inflate_ip(x, y)` — grow/shrink the hitbox around its
   center.
+- `touches(target)` — `true` when the actor overlaps `target`, which can be
+  another `Actor`, a `Rect`, a `[left, top, width, height]` tuple, or an
+  `[x, y]` point such as a click position.
 - `collidepoint(point)`, `colliderect(other)`, `collidelist(others)`,
-  `collidelistall(others)`, `contains(other)` — delegate to the actor's
-  `rect()`. `other` can be a `Rect`, a plain `[left, top, width, height]`
-  tuple, or another `Actor`.
+  `collidelistall(others)`, `contains(other)` — Pygame Zero's collision
+  tests, delegating to the actor's `rect()`. `other` can be a `Rect`, a
+  plain `[left, top, width, height]` tuple, or another `Actor`.
 - `clamp_ip(area)` — moves the actor (without resizing it) so its bounding
   box fits inside `area`. `player.clamp_ip(screen.bounds())` keeps the
   player on screen.
@@ -128,10 +131,10 @@ function update(dt) {
 }
 
 function on_mouse_down(pos) {
-  if (player.collidepoint(pos)) console.log("clicked the player");
+  if (player.touches(pos)) console.log("clicked the player");
 }
 
-if (player.colliderect(enemy)) loseLife();
+if (player.touches(enemy)) loseLife();
 ```
 
 ## Animating an Actor

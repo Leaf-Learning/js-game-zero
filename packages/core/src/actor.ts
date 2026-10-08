@@ -546,6 +546,14 @@ export class Actor {
     return this.rect().collidepoint(pointOrX, y as number);
   }
 
+  /**
+   * True when the actor overlaps `target`: another actor, a rect, or an
+   * `[x, y]` point such as a click position.
+   */
+  touches(target: Actor | RectLike | Point): boolean {
+    return this.rect().touches(target);
+  }
+
   colliderect(other: RectLike): boolean {
     return this.rect().colliderect(other);
   }

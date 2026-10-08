@@ -18,7 +18,7 @@ over; clear every brick and you win.
 - Building a grid of `Actor` sprites with nested loops.
 - Ball physics: velocity, wall bounces, and paddle "spin" based on where
   the ball lands.
-- Rectangle collision with `colliderect()` and stepping the simulation in
+- Rectangle collision with `touches()` and stepping the simulation in
   small increments so a fast ball can't tunnel through the paddle.
 - Mouse input with `on_mouse_move(pos)` alongside `keyboard` polling.
 - Simple game states (`playing` / `won` / `lost`) and restart handling.

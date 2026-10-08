@@ -4,6 +4,30 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Friendlier call shapes
+
+- `screen.draw.text(text, options)` takes its options second when they
+  position the text, so `text("Game Over", { center: [x, y] })` replaces the
+  `undefined`/`[]` placeholder the examples used to need.
+- Readable text option names alongside Pygame Zero's: `size` (`fontsize`),
+  `outline` (`owidth`), `outline_color` (`ocolor`), `shadow_color`
+  (`scolor`), `gradient_color` (`gcolor`) and, for textboxes, `min_size`
+  (`min_fontsize`). Giving both names for one option is an error.
+- `actor.touches(target)` and `rect.touches(target)` test overlap with an
+  actor, a rect, or an `[x, y]` point in one method.
+- `screen.draw.image(image, pos)` is a readable name for `screen.blit`.
+- `sound.loop()` plays a sound until `stop()`; a bad `loops` count now
+  explains that it counts extra plays. `SoundAsset` implementations gain a
+  `loop()` member (lazy sounds fall back to `play(-1)` for host assets
+  without one).
+- `music.position` reads and seeks the current track in seconds, avoiding
+  the milliseconds/seconds mismatch between `get_pos()` and `set_pos()`.
+- Tween aliases `ease_in`, `ease_out`, `ease_in_out`, `bounce` and `spring`.
+  The tween table describes each curve by what the motion looks like, and
+  explains that Pygame Zero's `end_elastic`/`start_elastic` name when the
+  wobble happens, not where.
+- The tutorial, cookbook and examples use these forms.
+
 ### Actor
 
 - `Actor.clamp_ip(area)` moves the actor so its bounding box fits inside

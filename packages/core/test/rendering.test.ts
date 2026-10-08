@@ -283,6 +283,22 @@ describe("Screen canvas drawing", () => {
     ).toThrow("screen.draw.textbox has no option called width.");
   });
 
+  test("draw.image draws an image like blit", () => {
+    const loader = createImageLoader({
+      projectId: "draw_image",
+      loadAsset: async () => surface(),
+    });
+    loader.define("tree.png", surface());
+    const viaImage = mockScreen(loader);
+    const viaBlit = mockScreen(loader);
+    viaImage.screen.draw.image("tree.png", [5, 6]);
+    viaBlit.screen.blit("tree.png", [5, 6]);
+    expect(viaImage.context.operations).toEqual(viaBlit.context.operations);
+    expect(viaImage.context.operations.map((op) => op.name)).toContain(
+      "drawImage",
+    );
+  });
+
   test("draw primitives validate inputs and call canvas operations", () => {
     const { screen, context } = mockScreen();
     screen.draw.line([1, 2], [10, 20], "red", 3);

@@ -24,6 +24,11 @@ describe("tweens", () => {
       "end_elastic",
       "start_elastic",
       "both_elastic",
+      "ease_in",
+      "ease_out",
+      "ease_in_out",
+      "bounce",
+      "spring",
     ]);
     for (const name of tweenNames) {
       expect(Number.isFinite(tweens[name](0.5))).toBe(true);
@@ -67,6 +72,11 @@ describe("tweens", () => {
       end_elastic: inElastic,
       start_elastic: outElastic,
       both_elastic: inOutElastic,
+      ease_in: accelerate,
+      ease_out: decelerate,
+      ease_in_out: accelDecel,
+      bounce: bounceEnd,
+      spring: outElastic,
     };
 
     for (const name of tweenNames) {

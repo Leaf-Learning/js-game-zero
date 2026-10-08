@@ -32,33 +32,35 @@ function draw() {
 }
 ```
 
-## `screen.fill(color, gcolor?)`
+## `screen.fill(color, bottom_color?)`
 
 Fills the canvas with a solid color, or a top-to-bottom gradient when a
-second color is given.
+second color is given: `color` at the top fading to `bottom_color` at the
+bottom.
 
 ```js
 screen.fill("#0f172a"); // solid
 screen.fill("#0f172a", "#164e63"); // gradient, dark at top to teal at bottom
 ```
 
-## `screen.blit(image, pos)`
+## `screen.draw.image(image, pos)` / `screen.blit(image, pos)`
 
-Draws an already-loaded image (by asset name, or a `SurfaceLike` you already
+`screen.draw.image` and `screen.blit` (Pygame Zero's name) do the same
+thing. Draws an already-loaded image (by asset name, or a `SurfaceLike` you already
 hold) at a position. `pos` is a `[x, y]` point for the image's top-left
 corner, or a rect-like value (its top-left corner is used; blit does not
 scale the image to the rect's size).
 
 ```js
-screen.blit("player.svg", [40, 40]);
+screen.draw.image("player.svg", [40, 40]);
 ```
 
-If the named image hasn't finished loading yet, `blit` returns a `Promise`
+If the named image hasn't finished loading yet, it returns a `Promise`
 that resolves once it has drawn; most games don't need to await it because
 the runtime already holds the first frame until images touched at startup
 have loaded (see [`docs/reference/runtime.md`](runtime.md#preload-gate)).
-Prefer `Actor` for anything that moves or needs collision — `blit` is for
-one-off background art.
+Prefer `Actor` for anything that moves or needs collision — drawing an image
+directly is for background art and tiles.
 
 ## `screen.bounds()`
 
@@ -110,7 +112,7 @@ screen.draw.filled_polygon(
 );
 ```
 
-## `screen.draw.text(text, pos?, options?)`
+## `screen.draw.text(text, pos?, options?)` / `screen.draw.text(text, options)`
 
 Draws text with a large set of beginner-friendly options — this is a
 JavaScript-native reimplementation of pgzero's `ptext` module, including its
@@ -118,10 +120,29 @@ word-wrapping algorithm and gradient/outline/shadow effects.
 
 ```js
 screen.draw.text("Score: 12", [16, 16], {
-  fontsize: 24,
+  size: 24,
   color: "white",
 });
 ```
+
+When the options say where the text goes (`center`, `topright`, ...), pass
+them second, in place of the position:
+
+```js
+screen.draw.text("Game Over", { center: [WIDTH / 2, HEIGHT / 2], size: 40 });
+```
+
+Several options have two names: a readable one, and the shorter one Pygame
+Zero uses. Either works, but not both at once:
+
+| Readable name    | Pygame Zero name |
+| ---------------- | ---------------- |
+| `size`           | `fontsize`       |
+| `outline`        | `owidth`         |
+| `outline_color`  | `ocolor`         |
+| `shadow_color`   | `scolor`         |
+| `gradient_color` | `gcolor`         |
+| `min_size`       | `min_fontsize`   |
 
 ### Position options
 
@@ -140,23 +161,24 @@ them throws a `TypeError`):
 }`), or use just one axis and fall back to `pos` for the other.
 
 ```js
-screen.draw.text("Game Over", [], {
+screen.draw.text("Game Over", {
   center: [WIDTH / 2, HEIGHT / 2],
-  fontsize: 40,
+  size: 40,
 });
-screen.draw.text("HUD", [], { right: WIDTH - 10, top: 10 }); // top-right corner, 10px margin
+screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10px margin
 ```
 
 ### Font options
 
-- `fontsize` (default `24`)
+- `size` / `fontsize` (default `24`)
 - `fontname` — the stem of a font asset under `fonts/` (e.g. `"pixel"` for
   `fonts/pixel.ttf`); loads asynchronously the first time it's used.
 - `sysfontname` — a literal CSS font family name instead (e.g. `"Georgia"`).
   Mutually exclusive with `fontname`.
 - `bold`, `italic`, `underline` — booleans.
 - `color` (default `"white"`), `background` (fills a box behind the text).
-- `gcolor` — a second color for a top-to-bottom gradient across the text.
+- `gradient_color` / `gcolor` — a second color for a top-to-bottom gradient
+  across the text.
 
 ### Layout options
 
@@ -164,8 +186,8 @@ screen.draw.text("HUD", [], { right: WIDTH - 10, top: 10 }); // top-right corner
   broken at explicit newlines (`\n`). Wrapping is greedy word-wrap: a single
   word longer than `width` is placed on its own (overflowing) line rather
   than being cut.
-- `widthem` — like `width`, but expressed as a multiple of `fontsize`.
-- `lineheight` — pixels between lines (default `fontsize * 1.2`).
+- `widthem` — like `width`, but expressed as a multiple of `size`.
+- `lineheight` — pixels between lines (default `size * 1.2`).
 - `align` — `"left"` (default), `"center"`, or `"right"`, for multi-line text.
 - `strip` — trims trailing spaces from each wrapped line (default `true`).
 - `anchor` — overrides which part of the text's bounding box sits at the
@@ -177,16 +199,17 @@ screen.draw.text("HUD", [], { right: WIDTH - 10, top: 10 }); // top-right corner
 
 ### Effects
 
-- `owidth` + `ocolor` — an outline stroke around the glyphs.
-- `shadow` (a number or `[x, y]` offset) + `scolor` (default `"black"`) — a
-  drop shadow.
+- `outline` / `owidth` + `outline_color` / `ocolor` — an outline stroke
+  around the glyphs, `outline` pixels thick.
+- `shadow` (a number or `[x, y]` offset) + `shadow_color` / `scolor`
+  (default `"black"`) — a drop shadow.
 - `alpha` — overall opacity, `0`–`1` (default `1`).
 
 ## `screen.draw.textbox(text, rect, options?)`
 
-Like `draw.text`, but instead of a fixed `fontsize` you give a rectangle and
+Like `draw.text`, but instead of a fixed `size` you give a rectangle and
 `textbox` picks the **largest font size that fits inside it** (shrinking
-down to `min_fontsize`, default `4`, if necessary). Text is centered in the
+down to `min_size`, default `4`, if necessary). Text is centered in the
 rect by default; pass `anchor` (e.g. `"topleft"`) to change that. `textbox`
 does not accept `pos`, `width`, or the scalar position keywords — the rect
 defines its layout box.
@@ -194,6 +217,6 @@ defines its layout box.
 ```js
 screen.draw.textbox("You win!", [40, 60, 240, 80], {
   color: "white",
-  fontsize: 48, // upper bound; shrinks to fit if "You win!" would overflow
+  size: 48, // upper bound; shrinks to fit if "You win!" would overflow
 });
 ```
