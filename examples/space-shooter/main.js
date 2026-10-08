@@ -123,11 +123,8 @@ function movePlayer(dt) {
   const length = Math.hypot(vx, vy) || 1;
   player.x += (vx / length) * PLAYER_SPEED * dt;
   player.y += (vy / length) * PLAYER_SPEED * dt;
-  player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
-  player.top = Math.max(
-    PLAYER_TOP_LIMIT,
-    Math.min(HEIGHT - player.height, player.top),
-  );
+  // Stay inside the lower part of the screen.
+  player.clamp_ip([0, PLAYER_TOP_LIMIT, WIDTH, HEIGHT - PLAYER_TOP_LIMIT]);
 
   fireCooldown = Math.max(0, fireCooldown - dt);
   if (keyboard.space && fireCooldown <= 0) {

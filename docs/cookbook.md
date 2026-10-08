@@ -48,7 +48,7 @@ let player = new Actor("player.svg", { center: [72, 92] });
 function update(dt) {
   if (keyboard.right) player.x += 130 * dt;
   if (keyboard.left) player.x -= 130 * dt;
-  player.x = Math.max(18, Math.min(WIDTH - 18, player.x));
+  player.clamp_ip(screen.bounds()); // stay on screen
 }
 
 function draw() {

@@ -58,7 +58,7 @@ function startNewGame() {
 }
 
 function clampPaddle() {
-  paddle.left = Math.max(0, Math.min(WIDTH - paddle.width, paddle.left));
+  paddle.clamp_ip(screen.bounds());
 }
 
 function on_mouse_move(pos) {

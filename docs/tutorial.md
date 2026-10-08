@@ -123,7 +123,7 @@ let player = new Actor("player.svg", { midbottom: [240, 350] });
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 }
 
 function draw() {
@@ -138,8 +138,9 @@ of seconds since the last frame — multiplying a speed (pixels per second)
 by `dt` gives you frame-rate-independent movement, so the player moves at
 the same speed whether the game is running at 30fps or 144fps.
 `keyboard.left` and `keyboard.right` are `true` while those arrow keys are
-held down. The `Math.max`/`Math.min` line keeps the player from sliding off
-either edge of the window.
+held down. `player.clamp_ip(screen.bounds())` keeps the player from sliding
+off either edge of the window: `screen.bounds()` is a rectangle covering the
+whole game, and `clamp_ip` moves the player back inside it.
 
 Press Play, then **click the game canvas once** before pressing the arrow
 keys — the sandbox (like any web page with an embedded frame) only sends
@@ -172,7 +173,7 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   for (const comet of comets) {
     comet.y += 140 * dt;
@@ -220,7 +221,7 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -296,7 +297,7 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -363,7 +364,7 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -469,7 +470,7 @@ function update(dt) {
 
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {

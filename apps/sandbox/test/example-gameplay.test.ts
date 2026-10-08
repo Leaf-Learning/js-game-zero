@@ -99,6 +99,8 @@ async function game(slug: string) {
     screen: {
       fill: noop,
       blit: noop,
+      bounds: () =>
+        new Rect(0, 0, context.WIDTH as number, context.HEIGHT as number),
       draw: new Proxy(
         { text: (value: string) => text.push(value) },
         {

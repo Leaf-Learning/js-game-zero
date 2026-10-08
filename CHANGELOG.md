@@ -4,6 +4,15 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Actor
+
+- `Actor.clamp_ip(area)` moves the actor so its bounding box fits inside
+  `area`; `player.clamp_ip(screen.bounds())` keeps a player on screen in one
+  line. The Rect reference's "keep the player on screen" example, which only
+  clamped a copy of the player's rectangle, now shows the working form, and
+  the tutorial, cookbook and examples use it in place of hand-written
+  `Math.max`/`Math.min` clamps.
+
 ### Beginner-facing errors
 
 - Reading an undefined name in a game file now throws a `ReferenceError`

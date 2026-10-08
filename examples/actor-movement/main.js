@@ -8,8 +8,8 @@ const player = new Actor("player.svg", { center: [72, 92] });
 function update(dt) {
   if (keyboard.right) player.x += MOVE_SPEED * dt;
   if (keyboard.left) player.x -= MOVE_SPEED * dt;
-  // Use the Actor's bounds so this still works if you resize the sprite.
-  player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
+  // Keep the whole sprite on screen, whatever size it is.
+  player.clamp_ip(screen.bounds());
 }
 
 function draw() {

@@ -113,11 +113,20 @@ never the picture.
   `collidelistall(others)`, `contains(other)` — delegate to the actor's
   `rect()`. `other` can be a `Rect`, a plain `[left, top, width, height]`
   tuple, or another `Actor`.
+- `clamp_ip(area)` — moves the actor (without resizing it) so its bounding
+  box fits inside `area`. `player.clamp_ip(screen.bounds())` keeps the
+  player on screen.
 - `clamp(other)`, `clip(other)`, `union(other)`, `unionall(others)`,
   `fit(other)` — geometry helpers, same semantics as the matching `Rect`
-  methods, again accepting `Actor`s directly.
+  methods, again accepting `Actor`s directly. They return a new `Rect` and
+  leave the actor where it is.
 
 ```js
+function update(dt) {
+  if (keyboard.right) player.x += 120 * dt;
+  player.clamp_ip(screen.bounds()); // stop at the edges of the screen
+}
+
 function on_mouse_down(pos) {
   if (player.collidepoint(pos)) console.log("clicked the player");
 }

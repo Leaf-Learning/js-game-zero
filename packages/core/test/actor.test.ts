@@ -485,6 +485,45 @@ describe("Actor behavior", () => {
   });
 });
 
+describe("Actor clamp_ip", () => {
+  test("moves the actor itself so it fits inside an area", () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { center: [500, -40], loader });
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.rect()).toMatchObject({
+      left: 300,
+      top: 0,
+      width: 20,
+      height: 10,
+    });
+    expect(actor.pos).toEqual([310, 5]);
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.pos).toEqual([310, 5]);
+  });
+
+  test("keeps a rotated or scaled actor's whole bounding box inside", () => {
+    const actor = new Actor("hero.svg", {
+      pos: [0, 0],
+      scale: 2,
+      loader: loaderWithSprites(),
+    });
+    actor.angle = 90;
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.left).toBeCloseTo(0);
+    expect(actor.top).toBeCloseTo(0);
+    expect(actor.width).toBeCloseTo(20);
+    expect(actor.height).toBeCloseTo(40);
+  });
+
+  test("accepts another actor or a Rect as the area", () => {
+    const loader = loaderWithSprites();
+    const arena = new Actor("ship.svg", { topleft: [100, 100], loader });
+    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
+    actor.clamp_ip(arena);
+    expect(actor.topleft).toEqual([100, 100]);
+  });
+});
+
 describe("Actor sizing", () => {
   function drawWith(
     actor: Actor,

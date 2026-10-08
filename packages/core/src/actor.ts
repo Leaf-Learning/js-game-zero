@@ -512,6 +512,17 @@ export class Actor {
     return this.rect().clamp(other);
   }
 
+  /**
+   * Moves the actor (without resizing it) so its bounding box fits inside
+   * `other` — `player.clamp_ip(screen.bounds())` keeps it on screen.
+   */
+  clamp_ip(other: RectLike): void {
+    const current = this.rect();
+    const clamped = current.clamp(other);
+    const [x, y] = this.pos;
+    this.pos = [x + clamped.left - current.left, y + clamped.top - current.top];
+  }
+
   clip(other: RectLike): Rect {
     return this.rect().clip(other);
   }

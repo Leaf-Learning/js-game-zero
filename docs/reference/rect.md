@@ -85,8 +85,14 @@ rectangle itself instead of returning a new one:
   fit inside `other`.
 
 ```js
-player.rect().clamp_ip(screen.bounds()); // keep the player on screen
+let hitbox = new Rect(300, 60, 40, 40);
+hitbox.clamp_ip(screen.bounds()); // now fully on screen
 ```
+
+`Actor` has its own `clamp_ip`, which moves the actor itself:
+`player.clamp_ip(screen.bounds())` keeps the player on screen. (Calling
+`player.rect().clamp_ip(...)` would only move a copy of the player's
+rectangle, not the player.)
 
 ## Collision tests
 
