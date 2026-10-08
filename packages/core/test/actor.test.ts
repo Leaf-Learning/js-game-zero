@@ -581,6 +581,9 @@ describe("Actor sizing", () => {
     expect(
       () => new Actor("hero.svg", { scale: 2, width: 40, loader }),
     ).toThrow("at most one of scale, width and height");
+    expect(
+      () => new Actor("hero.svg", { centre: [1, 2], loader } as never),
+    ).toThrow("Actor has no option called centre. Did you mean center?");
     const actor = new Actor("hero.svg", { loader });
     expect(() => {
       actor.scale = Number.NaN;

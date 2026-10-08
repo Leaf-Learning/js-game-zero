@@ -33,6 +33,7 @@ export type RuntimeDiagnostic = {
     | "duplicate-config"
     | "duplicate-hook-alias"
     | "hook-arity"
+    | "hook-parameter"
     | "hook-typo"
     | "invalid-config"
     | "runtime-error";

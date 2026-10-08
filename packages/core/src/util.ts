@@ -52,6 +52,72 @@ export function editDistance(a: string, b: string): number {
   return rows[a.length]?.[b.length] ?? 0;
 }
 
+/**
+ * The candidate `name` most plausibly misspells, if any. Short names get one
+ * edit of slack and longer ones two (so `drow` and `on_key_dwon` match while
+ * `row` and `dow` do not), a transposition counts as one edit, comparison is
+ * case-insensitive, and a name that contains a candidate whole (`redraw`,
+ * `updates`) is taken as deliberately derived from it rather than mistyped.
+ */
+export function closestName(
+  name: string,
+  candidates: Iterable<string>,
+): string | undefined {
+  const lower = name.toLowerCase();
+  const threshold = lower.length < 6 ? 1 : 2;
+  let best: { name: string; distance: number; exact: number } | null = null;
+  for (const candidate of candidates) {
+    if (candidate === name) continue;
+    const candidateLower = candidate.toLowerCase();
+    if (lower !== candidateLower && lower.includes(candidateLower)) continue;
+    const distance = editDistance(lower, candidateLower);
+    if (distance > threshold) continue;
+    // Between equally close candidates, prefer the one whose capitals match
+    // too, so `scren` suggests `screen` rather than `Screen`.
+    const exact = editDistance(name, candidate);
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && exact < best.exact)
+    ) {
+      best = { name: candidate, distance, exact };
+    }
+  }
+  return best?.name;
+}
+
+/** ` Did you mean NAME?` for a likely misspelling, or an empty string. */
+export function didYouMean(name: string, candidates: Iterable<string>): string {
+  const suggestion = closestName(name, candidates);
+  return suggestion === undefined ? "" : ` Did you mean ${suggestion}?`;
+}
+
+/**
+ * Throws a TypeError naming the first key of `options` that `allowed` does
+ * not contain, with a suggestion when the key looks like a typo — so a
+ * misspelled option fails loudly instead of being silently ignored.
+ */
+export function rejectUnknownOptions(
+  options: object,
+  allowed: ReadonlySet<string>,
+  label: string,
+): void {
+  for (const key of Object.keys(options)) {
+    if (allowed.has(key)) continue;
+    // An abbreviation (`wave` for `waveform`) counts as a likely meaning too.
+    const suggestion =
+      closestName(key, allowed) ??
+      (key.length >= 3
+        ? [...allowed].find((option) => option.startsWith(key))
+        : undefined);
+    throw new TypeError(
+      `${label} has no option called ${key}.${
+        suggestion === undefined ? "" : ` Did you mean ${suggestion}?`
+      }`,
+    );
+  }
+}
+
 /** True when `value` is a thenable (a Promise or Promise-like object). */
 export function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
   return (

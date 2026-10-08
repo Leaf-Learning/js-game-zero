@@ -11,6 +11,7 @@ import {
   horizontalAnchorOffset,
   isPair,
   rectPositionKeys,
+  rejectUnknownOptions,
   requireFiniteNumber,
   requirePoint,
   verticalAnchorOffset,
@@ -681,11 +682,7 @@ function requireScale(value: number, name: string): number {
 }
 
 function validateActorOptions(options: ActorOptions): void {
-  for (const key of Object.keys(options)) {
-    if (!allowedOptionKeys.has(key)) {
-      throw new TypeError(`Unknown Actor option: ${key}`);
-    }
-  }
+  rejectUnknownOptions(options, allowedOptionKeys, "Actor");
 }
 
 function normalizeAnchor(value: ActorAnchor): ActorAnchor {

@@ -88,6 +88,14 @@ run(`
 
 `handle.mode` tells you which one was used (`"import"` or `"global"`).
 
+A global-mode game runs in its own scope rather than the page's. Reading a
+name nothing defines throws a `ReferenceError` with a suggestion
+(`scren is not defined. Did you mean screen?`); `typeof name` stays safe.
+Browser APIs a game can't reach say what to use instead — for example,
+`setTimeout` points at `clock.schedule(callback, seconds)`, and
+`localStorage` at `storage`. Standard JavaScript built-ins such as `Math`,
+`JSON`, `isNaN`, `Map` and `console` are available as usual.
+
 ## `RunOptions`
 
 | Option            | Purpose                                                                                                                                                                        |
@@ -187,6 +195,7 @@ Everything else is a warning:
 | `constant-typo`                             | A top-level assignment is named nearly like `WIDTH`/`HEIGHT`/`TITLE`/`ICON`.        |
 | `duplicate-config` / `duplicate-hook-alias` | The same setting or hook was given two ways.                                        |
 | `hook-arity`                                | `update` declares more than one parameter.                                          |
+| `hook-parameter`                            | An input hook parameter isn't one of its documented names; says what it receives.   |
 | `invalid-config`                            | `WIDTH`/`HEIGHT`/`ICON` isn't usable.                                               |
 | `asset-name`                                | A quoted string that looks like an asset filename doesn't match the naming grammar. |
 | `runtime-error`                             | An uncaught error, or a failure loading/saving storage.                             |

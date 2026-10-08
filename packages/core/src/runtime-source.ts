@@ -12,9 +12,10 @@ import {
   RUNTIME_SOURCE_HOOK_NAMES,
 } from "./runtime-diagnostics";
 import type { GameModule, RuntimeDiagnostic } from "./runtime-contracts";
-import { scanSource } from "./source-scan";
+import { scanSource, tokenizeSource } from "./source-scan";
 import { Storage } from "./storage";
 import type { ToneGenerator } from "./tone";
+import { didYouMean } from "./util";
 
 export type SourceEvaluationContext = {
   readonly screen: Screen;
@@ -29,10 +30,12 @@ export type SourceEvaluationContext = {
 
 const builtinGlobals: Record<string, unknown> = {
   Array,
+  BigInt,
   Boolean,
   Date,
   Error,
   Infinity,
+  Intl,
   JSON,
   Map,
   Math,
@@ -41,14 +44,57 @@ const builtinGlobals: Record<string, unknown> = {
   Object,
   Promise,
   RangeError,
+  ReferenceError,
   RegExp,
   Set,
   String,
+  Symbol,
+  SyntaxError,
   TypeError,
+  WeakMap,
+  WeakSet,
   console,
+  decodeURIComponent,
+  encodeURIComponent,
+  isFinite,
+  isNaN,
   parseFloat,
   parseInt,
   undefined,
+};
+
+/**
+ * Browser globals a game cannot reach, with what to use instead. Games run
+ * in their own scope, so without these hints `setTimeout(...)` would fail
+ * with a bare "setTimeout is not a function".
+ */
+const unavailableGlobalHints: Record<string, string> = {
+  setTimeout:
+    "Use clock.schedule(callback, seconds) instead. It takes seconds, not milliseconds, and pauses with the game.",
+  setInterval:
+    "Use clock.schedule_interval(callback, seconds) instead. It takes seconds, not milliseconds, and pauses with the game.",
+  clearTimeout:
+    "Use clock.unschedule(callback) to cancel something scheduled with clock.",
+  clearInterval:
+    "Use clock.unschedule(callback) to cancel something scheduled with clock.",
+  requestAnimationFrame:
+    "The game already calls update() and draw() for you on every frame.",
+  alert:
+    "Show a message with screen.draw.text() inside draw(), or print it with console.log().",
+  confirm:
+    "Show a question with screen.draw.text() and read the answer in on_key_down() or on_mouse_down().",
+  prompt:
+    "Show a question with screen.draw.text() and read the answer in on_key_down() or on_mouse_down().",
+  window:
+    "Games draw on their canvas with screen, and read input with keyboard and hooks like on_key_down().",
+  document:
+    "Games draw on their canvas with screen, and read input with keyboard and hooks like on_key_down().",
+  localStorage: 'Use storage instead, for example storage.set("score", 10).',
+  sessionStorage: 'Use storage instead, for example storage.set("score", 10).',
+  Image:
+    'Use new Actor("name") or screen.blit("name", [x, y]) to show a picture from images/.',
+  Audio:
+    'Use sounds.name.play() for a sound in sounds/, or music.play("name") for music.',
 };
 
 const sourceResultFields = [
@@ -131,6 +177,17 @@ export function executeZeroBoilerplateSource(
     exit: () => context.stop?.(),
   };
   const scopeTarget: Record<string, unknown> = { ...globals };
+  // Reading a name nothing defined is a ReferenceError, like in any other
+  // JavaScript, instead of a silent undefined that only fails later as
+  // "undefined is not an object". The runtime's own reads of optional hooks
+  // and settings, and the script's `typeof name` checks, stay quiet.
+  const optionalNames = new Set<string>([
+    ...RUNTIME_CONFIGURATION_NAMES,
+    ...RUNTIME_SOURCE_HOOK_NAMES,
+    ...bindingNames,
+    ...callableNames,
+    ...typeofOperands(source),
+  ]);
   const scope = new Proxy(scopeTarget, {
     has(_target, property) {
       return property !== Symbol.unscopables;
@@ -140,7 +197,8 @@ export function executeZeroBoilerplateSource(
       if (typeof property !== "string") return undefined;
       if (property in target) return target[property];
       if (property in builtinGlobals) return builtinGlobals[property];
-      return undefined;
+      if (optionalNames.has(property)) return undefined;
+      throw undefinedNameError(property, source, target);
     },
     set(target, property, value) {
       if (typeof property === "string") target[property] = value;
@@ -171,6 +229,46 @@ export function executeZeroBoilerplateSource(
       },
     },
   };
+}
+
+function typeofOperands(source: string): string[] {
+  const tokens = tokenizeSource(source) ?? [];
+  const operands: string[] = [];
+  tokens.forEach((token, index) => {
+    const next = tokens[index + 1];
+    if (token.value === "typeof" && next?.type === "identifier") {
+      operands.push(next.value);
+    }
+  });
+  return operands;
+}
+
+function undefinedNameError(
+  name: string,
+  source: string,
+  scope: Record<string, unknown>,
+): ReferenceError {
+  const hint = unavailableGlobalHints[name];
+  if (hint !== undefined) {
+    return new ReferenceError(
+      `${name} isn't available in js-game-zero games. ${hint}`,
+    );
+  }
+  const tokens = tokenizeSource(source) ?? [];
+  const sourceNames = tokens
+    .filter(
+      (token, index) =>
+        token.type === "identifier" && tokens[index - 1]?.value !== ".",
+    )
+    .map((token) => token.value);
+  const candidates = new Set([
+    ...Object.keys(scope),
+    ...Object.keys(builtinGlobals),
+    ...sourceNames,
+  ]);
+  return new ReferenceError(
+    `${name} is not defined.${didYouMean(name, candidates)}`,
+  );
 }
 
 /**

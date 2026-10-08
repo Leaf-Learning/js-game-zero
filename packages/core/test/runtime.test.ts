@@ -1856,3 +1856,110 @@ function draw() {}
     expect(failure?.line).toBe(3);
   });
 });
+
+describe("beginner mistakes in zero-boilerplate games", () => {
+  function start(source: string) {
+    const diagnostics: RuntimeDiagnostic[] = [];
+    const keyboardTarget = new EventTarget();
+    const target = canvas();
+    const handle = run(source, {
+      autostart: false,
+      canvas: target,
+      keyboardTarget,
+      diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+      storage: new MemoryAdapter(),
+    });
+    return { handle, diagnostics, keyboardTarget, target };
+  }
+
+  function startupError(source: string): string {
+    try {
+      start(source);
+    } catch (error) {
+      return `${(error as Error).name}: ${(error as Error).message}`;
+    }
+    throw new Error("expected the game to fail at startup");
+  }
+
+  test("camelCase input hooks run in a game file", async () => {
+    const { handle, keyboardTarget, target } = start(`
+let pressed = null;
+let clicked = null;
+function onKeyDown(key) { pressed = key; }
+function onMouseDown(pos) { clicked = pos; }
+function draw() {}
+`);
+    keyboardTarget.dispatchEvent(keyEvent("keydown", "Space", " "));
+    target.dispatchEvent(mouseEvent("mousedown"));
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("pressed")).toBe(keys.SPACE);
+    expect(inspector?.read("clicked")).toEqual([4, 6]);
+    await handle.dispose();
+  });
+
+  test("a hook parameter with another name still receives its value, with a hint", async () => {
+    const { handle, diagnostics, target } = start(`
+let clicked = null;
+function on_mouse_down(position) { clicked = position; }
+function draw() {}
+`);
+    target.dispatchEvent(mouseEvent("mousedown"));
+    expect(getGameInspector(handle)?.read("clicked")).toEqual([4, 6]);
+    expect(
+      diagnostics.find((diagnostic) => diagnostic.code === "hook-parameter"),
+    ).toMatchObject({ name: "on_mouse_down", suggestion: "pos" });
+    await handle.dispose();
+  });
+
+  test("a misspelled name fails as not defined, with a suggestion and line", () => {
+    const { handle, diagnostics } = start(`WIDTH = 320;
+let player = { x: 1 };
+function update() {
+  playr.x += 1;
+}
+function draw() {
+  scren.fill("red");
+}
+`);
+    handle.step(0.1);
+    expect(handle.failure?.message).toBe(
+      "playr is not defined. Did you mean player?",
+    );
+    expect(handle.failure?.cause).toBeInstanceOf(ReferenceError);
+    expect(handle.failure?.line).toBe(4);
+    expect(
+      diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("playr is not defined"),
+      ),
+    ).toBe(true);
+    expect(startupError(`scren.fill("red");`)).toBe(
+      "ReferenceError: scren is not defined. Did you mean screen?",
+    );
+  });
+
+  test("browser APIs games can't use point at what to use instead", () => {
+    expect(startupError("setTimeout(() => {}, 1000);")).toContain(
+      "setTimeout isn't available in js-game-zero games. Use clock.schedule(callback, seconds) instead.",
+    );
+    expect(startupError("document.body;")).toContain(
+      "document isn't available in js-game-zero games.",
+    );
+    expect(startupError('localStorage.setItem("a", "1");')).toContain(
+      "Use storage instead",
+    );
+  });
+
+  test("typeof checks, optional hooks and common builtins keep working", async () => {
+    const { handle } = start(`
+const missing = typeof somethingElse;
+const checks = [isNaN(NaN), isFinite(1), typeof Symbol.iterator];
+function draw() {}
+`);
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("missing")).toBe("undefined");
+    expect(inspector?.read("checks")).toEqual([true, true, "symbol"]);
+    handle.step(0.1);
+    expect(handle.failure).toBeNull();
+    await handle.dispose();
+  });
+});

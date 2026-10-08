@@ -45,8 +45,8 @@ Almost everything keeps its Pygame Zero name, including the snake_case
 hook and method names (`on_key_down`, `schedule_interval`, `angle_to`, ...)
 — this project keeps them deliberately rather than renaming to camelCase, so
 a Pygame Zero script's _shape_ is immediately recognizable. Where this
-project also offers a camelCase alias (import mode only, for hooks like
-`onKeyDown`), it's noted below.
+project also offers a camelCase alias (such as the `onKeyDown` hook), it's
+noted below.
 
 | Pygame Zero                                                                         | js-game-zero                                                            | Notes                                                                                         |
 | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |

@@ -2,7 +2,7 @@
 // module (LGPL-3.0), which in turn credits: "Easing Functions ported from
 // the Clutter Project via kivy.org".
 import { Clock, clock } from "./clock";
-import { levenshtein } from "./util";
+import { didYouMean, levenshtein } from "./util";
 
 export type TweenName = keyof typeof tweens;
 
@@ -133,7 +133,12 @@ export class Animation<T extends object = object> {
 
     for (const [property, targetValue] of targetEntries) {
       if (!(property in object)) {
-        throw new ValueError(`object has no attribute ${property} to animate`);
+        throw new ValueError(
+          `object has no attribute ${property} to animate.${didYouMean(
+            property,
+            ["duration", "tween", "on_finished", ...propertyNames(object)],
+          )}`,
+        );
       }
       const initialValue = normalizeTargetValue(
         (object as Record<string, unknown>)[property],
@@ -256,6 +261,19 @@ function replaceExistingAnimation(
     previous.removeTarget(property);
   }
   registry.set(property, animation);
+}
+
+/** Own and inherited property names, including an Actor's x/y/angle getters. */
+function propertyNames(object: object): string[] {
+  const names: string[] = [];
+  for (
+    let current: object | null = object;
+    current && current !== Object.prototype;
+    current = Object.getPrototypeOf(current) as object | null
+  ) {
+    names.push(...Object.getOwnPropertyNames(current));
+  }
+  return names;
 }
 
 function validateDuration(value: number): number {

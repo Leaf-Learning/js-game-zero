@@ -1,5 +1,11 @@
 import { validateAssetName } from "./assets";
-import { getParameterNames, HOOK_ALIASES, type Hook } from "./events";
+import {
+  getParameterNames,
+  HOOK_ALIASES,
+  HOOK_PARAMETERS,
+  resolveHookParameters,
+  type Hook,
+} from "./events";
 import type {
   GameModule,
   RunOptions,
@@ -7,7 +13,7 @@ import type {
   RuntimeMode,
 } from "./runtime-contracts";
 import { scanSource } from "./source-scan";
-import { editDistance, imageExtensions, soundExtensions } from "./util";
+import { closestName, imageExtensions, soundExtensions } from "./util";
 
 export const RUNTIME_CONFIGURATION_NAMES = [
   "WIDTH",
@@ -17,14 +23,18 @@ export const RUNTIME_CONFIGURATION_NAMES = [
   "TOUCH_CONTROLS",
 ] as const;
 
+/**
+ * Every hook a zero-boilerplate script can define. The camelCase input hooks
+ * are accepted too, since `function onKeyDown()` is what most JavaScript
+ * learners will try first.
+ */
 export const RUNTIME_SOURCE_HOOK_NAMES = [
   "draw",
   "update",
-  ...HOOK_ALIASES.map(([snakeName]) => snakeName),
+  ...HOOK_ALIASES.flat(),
 ] as const;
 
-const camelHookNames = HOOK_ALIASES.map(([, camelName]) => camelName);
-const hookNames = [...RUNTIME_SOURCE_HOOK_NAMES, ...camelHookNames] as const;
+const hookNames = RUNTIME_SOURCE_HOOK_NAMES;
 
 export const RUNTIME_MODULE_OPTION_NAMES = [
   ...RUNTIME_CONFIGURATION_NAMES,
@@ -68,6 +78,7 @@ export function diagnoseGameModule(
     }
   }
   warnDuplicateHookAliases(module, emit);
+  warnHookParameters(module, emit);
   warnHookArity("draw", module.draw, 0, emit);
   warnHookArity("update", module.update, 1, emit);
   if (module.WIDTH !== undefined && !isValidRuntimeDimension(module.WIDTH)) {
@@ -238,6 +249,43 @@ function warnDuplicateHookAliases(
   }
 }
 
+/**
+ * Input hooks are matched by parameter name, with any other name filled by
+ * its place in the list. That keeps `on_key_down(k)` working, but a learner
+ * who wrote `on_mouse_down(btn)` gets the position, not the button — so say
+ * which value each unfamiliar name receives.
+ */
+function warnHookParameters(
+  module: GameModule,
+  emit: (diagnostic: RuntimeDiagnostic) => void,
+): void {
+  for (const [snake, camel] of HOOK_ALIASES) {
+    for (const name of [snake, camel]) {
+      const hook = module[name];
+      if (typeof hook !== "function") continue;
+      const declared = getParameterNames(hook);
+      if (declared.length === 1 && declared[0] === "event") continue;
+      const known = HOOK_PARAMETERS[snake];
+      const resolved = resolveHookParameters(declared, known);
+      declared.forEach((parameter, index) => {
+        if ((known as readonly string[]).includes(parameter)) return;
+        const receives = resolved[index];
+        const knownList = known.length > 0 ? known.join(", ") : "nothing";
+        emit({
+          code: "hook-parameter",
+          severity: "warning",
+          name,
+          ...(receives === undefined ? {} : { suggestion: receives }),
+          message:
+            receives === undefined
+              ? `${name} receives ${knownList}, so its ${parameter} parameter will always be undefined.`
+              : `${name}'s ${parameter} parameter receives ${receives}, because it is in that place in the list. Rename it to ${receives} to make that clear (${name} receives ${knownList}).`,
+        });
+      });
+    }
+  }
+}
+
 function warnHookArity(
   name: "draw" | "update",
   hook: Hook | undefined,
@@ -257,28 +305,4 @@ function warnHookArity(
           : "update should accept either no parameters or one dt parameter.",
     });
   }
-}
-
-/**
- * The candidate `name` most plausibly misspells, if any. Short names get one
- * edit of slack and longer ones two (so `drow` and `on_key_dwon` match while
- * `row` and `dow` do not), a transposition counts as one edit, comparison is
- * case-insensitive, and a name that contains a candidate whole (`redraw`,
- * `updates`) is taken as deliberately derived from it rather than mistyped.
- */
-function closestName(
-  name: string,
-  candidates: readonly string[],
-): string | undefined {
-  const lower = name.toLowerCase();
-  const threshold = lower.length < 6 ? 1 : 2;
-  let best: { name: string; distance: number } | null = null;
-  for (const candidate of candidates) {
-    const candidateLower = candidate.toLowerCase();
-    if (lower !== candidateLower && lower.includes(candidateLower)) continue;
-    const distance = editDistance(lower, candidateLower);
-    if (distance > threshold) continue;
-    if (!best || distance < best.distance) best = { name: candidate, distance };
-  }
-  return best?.name;
 }

@@ -227,6 +227,62 @@ describe("Screen canvas drawing", () => {
     expect(() => normalizeColor([300, 0, 0])).toThrow(TypeError);
   });
 
+  test("accepts every way of writing a CSS color", () => {
+    for (const color of [
+      "white",
+      "LightBlue",
+      "rebeccapurple",
+      "transparent",
+      "#f80",
+      "#ff8800",
+      "#0b1220cc",
+      "rgb(20, 30, 40)",
+      "rgba(0, 0, 0, 0.5)",
+      "hsl(200 50% 40%)",
+      "oklch(70% 0.1 200)",
+    ]) {
+      expect(normalizeColor(color)).toBe(color);
+    }
+  });
+
+  test("rejects misspelled colors with a suggestion instead of drawing the wrong one", () => {
+    expect(() => normalizeColor("lightblu")).toThrow(
+      '"lightblu" isn\'t a color name. Did you mean "lightblue"?',
+    );
+    expect(() => normalizeColor("redd")).toThrow('Did you mean "red"?');
+    expect(() => normalizeColor("light blue")).toThrow(
+      'Did you mean "lightblue"?',
+    );
+    expect(() => normalizeColor("sparkly")).toThrow(
+      'Use a color name like "red"',
+    );
+    expect(() => normalizeColor("#12345")).toThrow("isn't a hex color");
+    expect(() => normalizeColor("")).toThrow(TypeError);
+  });
+
+  test("explains that tuple alpha is 0-255, not 0-1", () => {
+    expect(() => normalizeColor([255, 0, 0, 0.5])).toThrow(
+      "for half see-through use 128, not 0.5",
+    );
+    expect(() => normalizeColor([255, 0, 0, 300])).toThrow(
+      "goes from 0 (invisible) to 255 (solid)",
+    );
+    expect(normalizeColor([255, 0, 0, 0])).toBe("rgba(255, 0, 0, 0)");
+    expect(() => normalizeColor([1.5, 0, 0])).toThrow("whole numbers");
+  });
+
+  test("text and textbox reject options they don't have", () => {
+    const { screen } = mockScreen();
+    expect(() =>
+      screen.draw.text("hi", [0, 0], { colour: "red" } as never),
+    ).toThrow(
+      "screen.draw.text has no option called colour. Did you mean color?",
+    );
+    expect(() =>
+      screen.draw.textbox("hi", [0, 0, 40, 20], { width: 30 } as never),
+    ).toThrow("screen.draw.textbox has no option called width.");
+  });
+
   test("draw primitives validate inputs and call canvas operations", () => {
     const { screen, context } = mockScreen();
     screen.draw.line([1, 2], [10, 20], "red", 3);

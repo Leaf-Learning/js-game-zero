@@ -129,6 +129,21 @@ describe("Animation error paths and edge cases", () => {
     expect(() => new Animation({ x: 0 }, options)).toThrow(ValueError);
   });
 
+  test("suggests the option or property a misspelled key was meant to be", () => {
+    const options = { x: 1, duraton: 2 } as unknown as { x?: number };
+    expect(() => new Animation({ x: 0 }, options)).toThrow(
+      "Did you mean duration?",
+    );
+    const actorLike = new (class {
+      get angle() {
+        return 0;
+      }
+      set angle(_value: number) {}
+    })();
+    const typo = { angel: 90 } as unknown as { angle?: number };
+    expect(() => new Animation(actorLike, typo)).toThrow("Did you mean angle?");
+  });
+
   test("throws RangeError for a negative duration", () => {
     expect(() => new Animation({ x: 0 }, { x: 1, duration: -1 })).toThrow(
       RangeError,

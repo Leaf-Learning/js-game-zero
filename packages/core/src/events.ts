@@ -101,6 +101,21 @@ export const HOOK_ALIASES = [
 
 type SnakeHookName = (typeof HOOK_ALIASES)[number][0];
 
+/**
+ * The values each input hook can receive, in the order an ordinary
+ * (positional) reading of its parameter list hands them out.
+ */
+export const HOOK_PARAMETERS: Readonly<
+  Record<SnakeHookName, readonly string[]>
+> = {
+  on_mouse_down: ["pos", "button", "buttons", "rel"],
+  on_mouse_up: ["pos", "button", "buttons", "rel"],
+  on_mouse_move: ["pos", "rel", "buttons", "button"],
+  on_key_down: ["key", "mod", "unicode", "repeat"],
+  on_key_up: ["key", "mod", "unicode", "repeat"],
+  on_music_end: [],
+};
+
 const browserCodeToKey = new Map<string, number>([
   ["Backspace", keys.BACKSPACE],
   ["Tab", keys.TAB],
@@ -172,14 +187,44 @@ for (let code = "A".charCodeAt(0); code <= "Z".charCodeAt(0); code += 1) {
   browserCodeToKey.set(`Key${letter}`, keys[letter as keyof typeof keys]);
 }
 
-export function dispatchHook(handler: Hook | undefined, args: HookArgs): void {
+/**
+ * Calls `handler` with the values from `args` its parameters ask for. A
+ * parameter named like a value (`pos`, `key`, `mod`, ...) receives that
+ * value wherever it sits in the list, Pygame Zero style. Any other name
+ * receives the next value in `order` not already claimed by name, the way an
+ * ordinary JavaScript function would — so `on_key_down(k)` still gets the
+ * key. A lone `event` parameter receives the whole `args` object.
+ */
+export function dispatchHook(
+  handler: Hook | undefined,
+  args: HookArgs,
+  order: readonly string[] = Object.keys(args),
+): void {
   if (!handler) return;
   const parameters = getParameterNames(handler);
   if (parameters.length === 1 && parameters[0] === "event") {
     handler(args);
     return;
   }
-  handler(...parameters.map((name) => args[name]));
+  const names = resolveHookParameters(parameters, order);
+  handler(
+    ...names.map((name) => (name === undefined ? undefined : args[name])),
+  );
+}
+
+/**
+ * Which value each declared parameter receives: its own name when that is a
+ * known value, otherwise the next known value not claimed by name.
+ */
+export function resolveHookParameters(
+  declared: readonly string[],
+  known: readonly string[],
+): (string | undefined)[] {
+  const claimed = new Set(declared.filter((name) => known.includes(name)));
+  const unclaimed = known.filter((name) => !claimed.has(name));
+  return declared.map((name) =>
+    known.includes(name) ? name : unclaimed.shift(),
+  );
 }
 
 export function getHook(
@@ -296,7 +341,11 @@ export class InputDispatcher {
     this.physicalKeys.add(mapped.key);
     this.keyboard.press(mapped.key);
     if (![...this.virtualKeys.values()].includes(mapped.key) || mapped.repeat) {
-      dispatchHook(getHook(this.hooks, "on_key_down"), mapped);
+      dispatchHook(
+        getHook(this.hooks, "on_key_down"),
+        mapped,
+        HOOK_PARAMETERS.on_key_down,
+      );
     }
     return true;
   }
@@ -307,7 +356,11 @@ export class InputDispatcher {
     this.physicalKeys.delete(mapped.key);
     if ([...this.virtualKeys.values()].includes(mapped.key)) return true;
     this.keyboard.release(mapped.key);
-    dispatchHook(getHook(this.hooks, "on_key_up"), mapped);
+    dispatchHook(
+      getHook(this.hooks, "on_key_up"),
+      mapped,
+      HOOK_PARAMETERS.on_key_up,
+    );
     return true;
   }
 
@@ -325,12 +378,11 @@ export class InputDispatcher {
     const held = this.keyboard.isPressed(key);
     this.keyboard.press(key);
     if (!held) {
-      dispatchHook(getHook(this.hooks, "on_key_down"), {
-        key,
-        mod: keymods.NONE,
-        unicode: "",
-        repeat: false,
-      });
+      dispatchHook(
+        getHook(this.hooks, "on_key_down"),
+        { key, mod: keymods.NONE, unicode: "", repeat: false },
+        HOOK_PARAMETERS.on_key_down,
+      );
     }
   }
 
@@ -345,19 +397,22 @@ export class InputDispatcher {
       return;
     }
     this.keyboard.release(key);
-    dispatchHook(getHook(this.hooks, "on_key_up"), {
-      key,
-      mod: keymods.NONE,
-      unicode: "",
-      repeat: false,
-    });
+    dispatchHook(
+      getHook(this.hooks, "on_key_up"),
+      { key, mod: keymods.NONE, unicode: "", repeat: false },
+      HOOK_PARAMETERS.on_key_up,
+    );
   }
 
   handleMouseDown(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.lastMousePos = mapped.pos;
     if (mapped.button === null) return false;
-    dispatchHook(getHook(this.hooks, "on_mouse_down"), mapped);
+    dispatchHook(
+      getHook(this.hooks, "on_mouse_down"),
+      mapped,
+      HOOK_PARAMETERS.on_mouse_down,
+    );
     return true;
   }
 
@@ -365,14 +420,22 @@ export class InputDispatcher {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.lastMousePos = mapped.pos;
     if (mapped.button === null) return false;
-    dispatchHook(getHook(this.hooks, "on_mouse_up"), mapped);
+    dispatchHook(
+      getHook(this.hooks, "on_mouse_up"),
+      mapped,
+      HOOK_PARAMETERS.on_mouse_up,
+    );
     return true;
   }
 
   handleMouseMove(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.lastMousePos = mapped.pos;
-    dispatchHook(getHook(this.hooks, "on_mouse_move"), mapped);
+    dispatchHook(
+      getHook(this.hooks, "on_mouse_move"),
+      mapped,
+      HOOK_PARAMETERS.on_mouse_move,
+    );
     return true;
   }
 
@@ -385,7 +448,11 @@ export class InputDispatcher {
     const mapped = mapBrowserWheelEvent(event, target);
     if (!mapped) return false;
     this.lastMousePos = mapped.pos;
-    dispatchHook(getHook(this.hooks, "on_mouse_down"), mapped);
+    dispatchHook(
+      getHook(this.hooks, "on_mouse_down"),
+      mapped,
+      HOOK_PARAMETERS.on_mouse_down,
+    );
     return true;
   }
 

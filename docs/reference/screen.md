@@ -10,7 +10,17 @@ Every drawing method accepts a `Color`, which is either a CSS color string
 (`"white"`, `"#0f172a"`, `"rgb(20, 30, 40)"`) or an RGB/RGBA tuple of
 integers `0`–`255`: `[249, 115, 22]` or `[249, 115, 22, 128]` (the fourth
 value is alpha out of 255, not a `0`–`1` fraction). Passing anything else
-throws a `TypeError`.
+throws a `TypeError` that says what was wrong:
+
+- A misspelled color name suggests the right one: `"lightblu"` fails with
+  `Did you mean "lightblue"?`. (A canvas would otherwise ignore the color
+  and keep drawing in the previous one.)
+- A hex code needs 3 or 6 hex digits (or 4 or 8, with alpha).
+- A fractional alpha such as `[255, 0, 0, 0.5]` fails with the 0–255 value
+  to use instead (`128`).
+
+Drawing options are checked the same way: an option a method doesn't have,
+such as `{ colour: "red" }`, throws and names the closest real option.
 
 ## `screen.clear()`
 

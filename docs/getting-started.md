@@ -94,6 +94,12 @@ the tutorial's sound section for how to design around it.
 focus. Click the game canvas once (the focus overlay mentioned above will
 disappear) before pressing movement keys.
 
+**My game stopped with "… is not defined".** A name in your code doesn't
+match anything your game or js-game-zero defines — usually a typo. The
+message suggests the closest real name (`scren is not defined. Did you mean
+screen?`) and the Problems panel shows the line. Browser features games
+can't use, such as `setTimeout` or `document`, say what to use instead.
+
 **My code changes don't seem to take effect.** The sandbox auto-saves your
 file a moment after you stop typing (watch the save status next to the
 editor), but the _preview_ only reloads when you press Play or Restart —

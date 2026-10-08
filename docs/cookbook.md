@@ -264,7 +264,7 @@ run({
     screen.draw.filled_circle([160, 90], 32, "#38bdf8");
   },
   onKeyDown(key) {
-    /* camelCase hook aliases are only available in import mode */
+    /* camelCase hook names work here and in game files alike */
   },
 });
 ```

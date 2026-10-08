@@ -2,6 +2,32 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Beginner-facing errors
+
+- Reading an undefined name in a game file now throws a `ReferenceError`
+  with a suggestion (`scren is not defined. Did you mean screen?`) instead of
+  failing later as "undefined is not an object". `typeof` checks and the
+  runtime's own reads of optional hooks and settings are unaffected.
+- Browser APIs games can't reach (`setTimeout`, `setInterval`, `alert`,
+  `document`, `window`, `localStorage`, `Image`, `Audio`, ...) fail with a
+  hint naming the js-game-zero equivalent. `isNaN`, `isFinite`, `Symbol`,
+  `BigInt`, `Intl`, `WeakMap`, `WeakSet` and the URI helpers are now
+  available to game code.
+- camelCase input hooks (`onKeyDown`, `onMouseDown`, ...) now run in
+  zero-boilerplate game files, not just import mode.
+- A hook parameter that isn't one of the documented names now receives the
+  next unclaimed value by position (`on_key_down(k)` gets the key) instead of
+  `undefined`, and a new `hook-parameter` warning says which value it gets.
+- Colors are validated: a misspelled name throws with a suggestion
+  (`"lightblu"` → `"lightblue"`), malformed hex codes are rejected, and a
+  fractional tuple alpha (`[255, 0, 0, 0.5]`) explains the 0–255 range
+  instead of drawing an almost invisible color.
+- `screen.draw.text`, `screen.draw.textbox`, `tone`, and `Actor` reject
+  options they don't have, naming the closest real one; `animate()` suggests
+  the option or property a misspelled key was meant to be.
+
 ## 0.1.3 — 2026-09-07
 
 ### Diagnostics

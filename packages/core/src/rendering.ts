@@ -13,6 +13,7 @@ import {
   clamp,
   horizontalAnchorOffset,
   rectPositionKeys,
+  rejectUnknownOptions,
   requireFiniteNumber,
   requirePoint,
   verticalAnchorOffset,
@@ -128,6 +129,43 @@ type TextPositionKey =
   | "center";
 
 const textPositionKeys = ["pos", ...rectPositionKeys] as const;
+
+const textboxOptionKeys = new Set<string>([
+  ...rectPositionKeys,
+  "fontname",
+  "sysfontname",
+  "fontsize",
+  "min_fontsize",
+  "bold",
+  "italic",
+  "underline",
+  "color",
+  "background",
+  "lineheight",
+  "align",
+  "strip",
+  "owidth",
+  "ocolor",
+  "shadow",
+  "scolor",
+  "gcolor",
+  "alpha",
+  "anchor",
+  "angle",
+]);
+
+const textOptionKeys = new Set<string>([
+  ...[...textboxOptionKeys].filter((key) => key !== "min_fontsize"),
+  "pos",
+  "top",
+  "left",
+  "bottom",
+  "right",
+  "centerx",
+  "centery",
+  "width",
+  "widthem",
+]);
 
 let currentScreen: Screen | null = null;
 
@@ -325,6 +363,7 @@ export class Screen {
     pos: Point | undefined,
     options: TextOptions,
   ): void {
+    rejectUnknownOptions(options, textOptionKeys, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
     renderTextLayout(this.context, layout, options);
   }
@@ -334,6 +373,7 @@ export class Screen {
     rectLike: RectLike,
     options: TextboxOptions,
   ): void {
+    rejectUnknownOptions(options, textboxOptionKeys, "screen.draw.textbox");
     const rect = new Rect(rectLike);
     const fit = fitTextboxFontSize(this.context, text, rect, options);
     // pgzero's drawbox anchors the text on the rect at the anchor fraction

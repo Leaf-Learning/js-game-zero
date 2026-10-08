@@ -97,6 +97,19 @@ describe("tone note and frequency parsing", () => {
     expect(() => generator.create("A4", 0)).toThrow(RangeError);
     expect(() => generator.create("A4", 4.1)).toThrow(RangeError);
   });
+
+  test("rejects options tone doesn't have", () => {
+    const generator = createToneGenerator({
+      audioContext: new MockAudioContext(),
+    });
+    expect(() =>
+      generator.create("A4", 0.2, { wave: "square" } as never),
+    ).toThrow("tone has no option called wave. Did you mean waveform?");
+    const created = generator.create("A4", 0.2);
+    expect(() => created.play({ volum: 0.2 } as never)).toThrow(
+      "Did you mean volume?",
+    );
+  });
 });
 
 describe("tone Web Audio scheduling", () => {

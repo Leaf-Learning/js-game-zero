@@ -64,6 +64,45 @@ describe("hook dispatch", () => {
     expect(calls).toEqual([[mouse.LEFT, [1, 2]], [{ key: keys.A }]]);
   });
 
+  test("unfamiliar parameter names receive values by their place in the list", () => {
+    const calls: unknown[][] = [];
+    const order = ["pos", "button", "buttons", "rel"];
+    const args = { pos: [1, 2], button: mouse.LEFT, buttons: new Set() };
+    dispatchHook((position: unknown) => calls.push([position]), args, order);
+    dispatchHook((p: unknown, b: unknown) => calls.push([p, b]), args, order);
+    // Known names keep their value wherever they sit; others take the rest.
+    dispatchHook(
+      (button: unknown, where: unknown) => calls.push([button, where]),
+      args,
+      order,
+    );
+    expect(calls).toEqual([
+      [[1, 2]],
+      [[1, 2], mouse.LEFT],
+      [mouse.LEFT, [1, 2]],
+    ]);
+  });
+
+  test("InputDispatcher hands a positional parameter the documented value", () => {
+    const received: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      on_key_down(k: unknown) {
+        received.push(k);
+      },
+      on_mouse_move(where: unknown, moved: unknown) {
+        received.push(where, moved);
+      },
+    });
+    dispatcher.handleKeyDown({ code: "Space", key: " " });
+    dispatcher.handleMouseMove({
+      clientX: 5,
+      clientY: 6,
+      movementX: 1,
+      movementY: 2,
+    });
+    expect(received).toEqual([keys.SPACE, [5, 6], [1, 2]]);
+  });
+
   test("extracts parameter names from function and arrow forms", () => {
     expect(
       getParameterNames(function on_key_down(
