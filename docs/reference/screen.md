@@ -1,8 +1,44 @@
 # Screen And Drawing
 
 `screen` is the global canvas surface. Everything you draw happens inside
-`draw()`, using canvas pixel coordinates: `[0, 0]` is the top-left corner, x
-grows right, y grows down.
+`draw()`, in screen pixels: `[0, 0]` is the top-left corner, x grows right,
+y grows down, and `[WIDTH, HEIGHT]` is the bottom-right corner.
+
+## Short forms
+
+Four short calls draw the most common shapes, with each position given as
+separate numbers rather than an `[x, y]` list:
+
+| Call                                             | Draws                                              |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `screen.circle(x, y, radius, color)`             | a filled circle centered on `x, y`                 |
+| `screen.rect(x, y, width, height, color)`        | a filled rectangle whose top-left corner is `x, y` |
+| `screen.triangle(x1, y1, x2, y2, x3, y3, color)` | a filled triangle with those three corners         |
+| `screen.line(x1, y1, x2, y2, color, width = 1)`  | a line from `x1, y1` to `x2, y2`, `width` px thick |
+
+`color` is optional and defaults to `"white"`; it takes any of the
+[colors](#colors) below.
+
+```js
+function draw() {
+  screen.clear();
+  screen.rect(0, 220, 400, 80, "green");
+  screen.circle(200, 150, 25, "gold");
+  screen.triangle(160, 40, 120, 120, 200, 120);
+  screen.line(20, 20, 200, 120, "white", 3);
+}
+```
+
+The short forms fill their shapes. The outline versions, and the versions
+that take `[x, y]` lists, stay under `screen.draw` below. Mind the names:
+**`screen.circle` fills, but `screen.draw.circle` draws only an outline**,
+and the same goes for `screen.rect` and `screen.draw.rect`.
+
+A wrong call throws a `TypeError` that says what to change. A list, as in
+`screen.circle([200, 150], 25)`, points to the `screen.draw` method that
+takes lists (here `screen.draw.filled_circle`). A missing or non-number
+argument is named, and an extra one, such as an outline width, points to
+the outline method.
 
 ## Colors
 
@@ -21,6 +57,24 @@ throws a `TypeError` that says what was wrong:
 
 Drawing options are checked the same way: an option a method doesn't have,
 such as `{ colour: "red" }`, throws and names the closest real option.
+
+### `rgb(red, green, blue, alpha?)`
+
+Mixes a color from red, green and blue light, each `0`–`255`, with an
+optional alpha out of 255. It returns the matching list, so
+`rgb(255, 140, 105)` is `[255, 140, 105]` and works anywhere a color does.
+It's ready to use in a game file; in import mode, import it from
+`@js-game-zero/core`.
+
+```js
+let coral = rgb(255, 140, 105);
+let glass = rgb(120, 200, 255, 128); // half see-through
+screen.circle(200, 150, 25, coral);
+```
+
+Its numbers are checked like a list's, with the same hints (a fractional
+alpha such as `0.5` names `128` instead), and a missing one is named:
+`rgb(255, 140)` fails with `rgb is missing blue`.
 
 ## `screen.clear()`
 
@@ -72,6 +126,27 @@ if (!screen.bounds().contains(player.rect()))
   player.center = [WIDTH / 2, HEIGHT / 2];
 ```
 
+## `PIXEL_DENSITY` and `screen.density`
+
+On a phone, one screen pixel covers several of the device's own pixels.
+The canvas has a pixel for each of them, so text, outlines and SVG pictures
+stay sharp. `screen.density` says how many canvas pixels make up one screen
+pixel along each side: between 2 and 3 on most phones and 1 on a computer
+monitor. Your game's numbers don't change with it: a game 360 pixels wide
+is 360 wide at any density.
+
+Set `PIXEL_DENSITY` next to `WIDTH` and `HEIGHT` to choose the density
+yourself. Without it, the game uses the device's own, up to 3.
+
+```js
+WIDTH = 360;
+HEIGHT = 640;
+PIXEL_DENSITY = 1; // one canvas pixel per screen pixel, even on a phone
+```
+
+See [pixel density](runtime.md#pixel-density) for how hosts size and read
+the canvas.
+
 ## `screen.draw.line(start, end, color, width = 1)`
 
 ```js
@@ -79,6 +154,9 @@ screen.draw.line([20, 20], [200, 120], "white", 3);
 ```
 
 ## `screen.draw.circle(pos, radius, color, width = 1)` / `filled_circle(pos, radius, color)`
+
+`screen.draw.circle` draws an outline; `filled_circle` and the short form
+[`screen.circle`](#short-forms) fill.
 
 ```js
 screen.draw.circle([160, 90], 40, "#38bdf8", 2); // outline

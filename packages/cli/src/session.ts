@@ -30,7 +30,11 @@ type DriverStatus = {
   readonly state: string;
   readonly elapsed: number;
   readonly frames: number;
-  readonly canvas: { readonly width: number; readonly height: number };
+  readonly canvas: {
+    readonly width: number;
+    readonly height: number;
+    readonly density: number;
+  };
   readonly diagnostics: readonly unknown[];
   readonly failure: unknown;
   readonly startupError: string | null;
@@ -98,8 +102,12 @@ export class GameSession {
     }
     let context: BrowserContext | undefined;
     try {
+      // Device pixel ratio 1 keeps games at pixel density 1, so screenshots
+      // and pixel summaries are WIDTH × HEIGHT unless a game sets
+      // PIXEL_DENSITY itself.
       context = await browser.newContext({
         viewport: { width: 1280, height: 800 },
+        deviceScaleFactor: 1,
       });
       if (options.seed !== undefined) {
         await context.addInitScript(seedRandom, hashSeed(options.seed));
@@ -313,13 +321,15 @@ export class GameSession {
         document.querySelector<HTMLCanvasElement>("[data-jgz-canvas]");
       if (!canvas) return null;
       const box = canvas.getBoundingClientRect();
+      // The logical screen size: density multiplies canvas.width/height.
+      const logical = (window as DriverWindow).__jgzDriver?.status().canvas;
       return {
         left: box.left,
         top: box.top,
         displayedWidth: box.width,
         displayedHeight: box.height,
-        width: canvas.width,
-        height: canvas.height,
+        width: logical?.width ?? canvas.width,
+        height: logical?.height ?? canvas.height,
       };
     });
     if (!dimensions) throw new Error("Game canvas is unavailable.");

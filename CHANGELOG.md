@@ -4,6 +4,51 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Pixel density
+
+- Games are sharp on high-density screens. The canvas holds
+  `WIDTH × HEIGHT × density` pixels, where density is the device's
+  `devicePixelRatio` from 1 to 3, and the screen scales its drawing to
+  match. Text, outlines and SVG Actors no longer look soft on phones.
+- Game code stays in logical pixels: drawing calls, text, images, Actors,
+  `screen.width`/`height`, `screen.bounds()`, mouse and touch positions and
+  hit tests are unchanged. `screen.density` reports the density.
+- `PIXEL_DENSITY` in a game file, or as a `RunOptions` option, sets the
+  density. A value that isn't a positive number warns and uses the
+  device's; a canvas too big for iOS Safari (over 4096² pixels) gets a
+  lower density, with a warning when the game asked for more.
+- A denser canvas gets its logical CSS width through a zero-specificity
+  `:where(canvas[data-jgz-density])` rule, so page CSS still wins. The
+  touch-control dock and the sandbox preview fit the canvas by its logical
+  size.
+- Before each frame the runtime follows changes to `devicePixelRatio`
+  (keeping what's drawn), adopts a size a host sets on the canvas as the
+  logical size, and restores the density scale after a canvas reset.
+- The `jgz` CLI's browser runs at device pixel ratio 1, so games run at
+  density 1 there unless they set `PIXEL_DENSITY`. `status` reports the
+  logical canvas size with its `density`, and the pixel summary samples a
+  grid over the logical screen.
+
+### Short drawing calls
+
+- Short forms take positions as separate numbers instead of `[x, y]`
+  lists, so a call fits on a phone-width line:
+  `screen.circle(x, y, radius, color)`,
+  `screen.rect(x, y, width, height, color)`,
+  `screen.triangle(x1, y1, x2, y2, x3, y3, color)` and
+  `screen.line(x1, y1, x2, y2, color, width)`. The shapes are filled and
+  the color defaults to `"white"`; the outline versions stay under
+  `screen.draw`, whose list signatures are unchanged.
+- A wrong short call explains itself: a list points to the `screen.draw`
+  method that takes lists, a missing or non-number argument is named, and an
+  extra argument (usually an outline width) points to the outline method.
+  `screen.circel` suggests `screen.circle`, and `screen.draw.triangle`
+  suggests `screen.triangle`.
+- `rgb(red, green, blue, alpha?)` returns the matching color list, so
+  `rgb(255, 140, 105)` works anywhere a color does. It's a game-file global
+  and package export, checked like a color list, with each missing or
+  non-number argument named.
+
 ### Helpers
 
 - `random_int(min, max)` (both ends included), `random_choice(list)` and

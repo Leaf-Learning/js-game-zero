@@ -1,4 +1,4 @@
-import { editDistance } from "./util";
+import { describeValue, editDistance } from "./util";
 
 export type Color =
   | string
@@ -46,7 +46,7 @@ export function normalizeColor(color: Color): string {
     return colorFromTuple(color);
   }
   throw new TypeError(
-    `${describe(color)} isn't a color. Use a color name like "red", a hex code like "#ff8800", or a list of red, green and blue numbers like [255, 136, 0].`,
+    `${describeValue(color)} isn't a color. Use a color name like "red", a hex code like "#ff8800", or a list of red, green and blue numbers like [255, 136, 0].`,
   );
 }
 
@@ -74,30 +74,75 @@ function requireColorString(color: string): string {
 }
 
 function colorFromTuple(color: readonly number[]): string {
+  const problem = tupleProblem(color);
+  if (problem !== undefined) {
+    throw new TypeError(`${describeValue(color)} isn't a color: ${problem}.`);
+  }
+  const [red, green, blue, alpha] = color;
+  if (alpha === undefined) return `rgb(${red}, ${green}, ${blue})`;
+  return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
+}
+
+/**
+ * What's wrong with an RGB or RGBA list, if anything. Shared by color lists
+ * and `rgb()`, so both explain a bad number the same way.
+ */
+function tupleProblem(color: readonly number[]): string | undefined {
   const [red, green, blue] = color;
   const alpha = color[3];
-  const values = [red, green, blue];
   const isChannel = (value: unknown) =>
     Number.isInteger(value) &&
     (value as number) >= 0 &&
     (value as number) <= 255;
-  if (!values.every(isChannel)) {
-    throw new TypeError(
-      `${describe(color)} isn't a color: red, green and blue must be whole numbers from 0 to 255.`,
-    );
+  if (![red, green, blue].every(isChannel)) {
+    return "red, green and blue must be whole numbers from 0 to 255";
   }
-  if (alpha === undefined) return `rgb(${red}, ${green}, ${blue})`;
+  if (alpha === undefined) return undefined;
   if (typeof alpha === "number" && alpha > 0 && alpha < 1) {
-    throw new TypeError(
-      `${describe(color)} isn't a color: the fourth number (alpha) goes from 0 (invisible) to 255 (solid), so for half see-through use ${Math.round(alpha * 255)}, not ${alpha}.`,
-    );
+    return `the fourth number (alpha) goes from 0 (invisible) to 255 (solid), so for half see-through use ${Math.round(alpha * 255)}, not ${alpha}`;
   }
   if (!Number.isFinite(alpha) || alpha < 0 || alpha > 255) {
+    return "the fourth number (alpha) goes from 0 (invisible) to 255 (solid)";
+  }
+  return undefined;
+}
+
+/**
+ * A color mixed from red, green and blue light, each 0 to 255, with an
+ * optional alpha from 0 (invisible) to 255 (solid). It returns the matching
+ * list, so it works anywhere a color does, but `rgb(255, 140, 105)` reads
+ * plainly to learners who haven't met lists yet.
+ */
+export function rgb(
+  red: number,
+  green: number,
+  blue: number,
+  alpha?: number,
+): [number, number, number] | [number, number, number, number] {
+  for (const [label, value] of Object.entries({ red, green, blue })) {
+    if (value === undefined) {
+      throw new TypeError(
+        `rgb is missing ${label}: rgb(red, green, blue), each from 0 to 255.`,
+      );
+    }
+    requireRgbNumber(value, label);
+  }
+  if (alpha !== undefined) requireRgbNumber(alpha, "alpha");
+  const color: [number, number, number] | [number, number, number, number] =
+    alpha === undefined ? [red, green, blue] : [red, green, blue, alpha];
+  const problem = tupleProblem(color);
+  if (problem !== undefined) {
+    throw new TypeError(`rgb(${color.join(", ")}) isn't a color: ${problem}.`);
+  }
+  return color;
+}
+
+function requireRgbNumber(value: unknown, label: string): void {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new TypeError(
-      `${describe(color)} isn't a color: the fourth number (alpha) goes from 0 (invisible) to 255 (solid).`,
+      `rgb's ${label} must be a number, but got ${describeValue(value)}.`,
     );
   }
-  return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`;
 }
 
 /** The named color `value` most plausibly misspells (`"light blue"`, `"redd"`). */
@@ -124,15 +169,6 @@ function browserSupportsColor(value: string): boolean {
     return css?.supports?.("color", value) === true;
   } catch {
     return false;
-  }
-}
-
-function describe(value: unknown): string {
-  if (typeof value === "string") return `"${value}"`;
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
   }
 }
 

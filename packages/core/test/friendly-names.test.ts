@@ -125,6 +125,17 @@ describe("friendly services", () => {
     expect(() => friendly.sparkle).toThrow("screen.sparkle doesn't exist.");
   });
 
+  test("the short forms answer to any capitalization, and suggest themselves", () => {
+    const { friendly, context } = screen();
+    friendly.Circle!(10, 10, 4, "red");
+    expect(context.operations).toEqual(["arc", "fill"]);
+    expect(() => friendly.circel).toThrow(
+      "screen.circel doesn't exist. Did you mean screen.circle?",
+    );
+    expect(() => friendly.triangel).toThrow("Did you mean screen.triangle?");
+    expect(() => friendly.rec).toThrow("Did you mean screen.rect?");
+  });
+
   test("hidden internals fail with a hint at the real method", () => {
     const { friendly } = screen();
     expect(() => friendly.drawRect).toThrow(

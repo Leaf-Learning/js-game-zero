@@ -62,7 +62,8 @@ type TargetBounds = {
 
 type BoundsTarget = {
   /**
-   * Logical drawing-buffer size (`canvas.width`/`canvas.height`). When the
+   * Logical screen size (the game's WIDTH/HEIGHT; the runtime passes its
+   * screen's, since pixel density multiplies `canvas.width`). When the
    * canvas is displayed at a different CSS size (e.g. the sandbox preview
    * scales it to fit its pane), positions are mapped back into game
    * coordinates so `pos` always matches what the game draws with.

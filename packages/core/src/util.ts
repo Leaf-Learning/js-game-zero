@@ -86,6 +86,20 @@ export function closestName(
   return best?.name;
 }
 
+/**
+ * A value as an error message should show it: strings quoted, lists as
+ * lists, and numbers as written (`NaN`, not JSON's `null`).
+ */
+export function describeValue(value: unknown): string {
+  if (typeof value === "string") return `"${value}"`;
+  if (typeof value === "number") return String(value);
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
 /** ` Did you mean NAME?` for a likely misspelling, or an empty string. */
 export function didYouMean(name: string, candidates: Iterable<string>): string {
   const suggestion = closestName(name, candidates);

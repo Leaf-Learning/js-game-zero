@@ -18,6 +18,7 @@ import { closestName, imageExtensions, soundExtensions } from "./util";
 export const RUNTIME_CONFIGURATION_NAMES = [
   "WIDTH",
   "HEIGHT",
+  "PIXEL_DENSITY",
   "TITLE",
   "ICON",
   "TOUCH_CONTROLS",

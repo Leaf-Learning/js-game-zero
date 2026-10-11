@@ -33,7 +33,8 @@ import {
   createMusicPlayer,
   setActiveMusicPlayer,
 } from "./audio";
-import { Screen, setScreen } from "./rendering";
+import { devicePixelRatioOf, resolvePixelDensity } from "./pixel-density";
+import { resizeScreen, Screen, setScreen, syncScreen } from "./rendering";
 import {
   attachAutosave,
   primeStorage,
@@ -221,7 +222,7 @@ export function run(
     diagnoseGameModule(module, options, emit, mode);
     game = mergeModuleOptions(module, options);
     requireDrawArity(game.draw);
-    applyCanvasConfiguration(context.canvas, game, emit);
+    applyCanvasConfiguration(context, game, emit);
     configureDocumentTitle(game);
     applyFavicon(context, game.ICON, emit);
     touchControls = normalizeTouchControls(game.TOUCH_CONTROLS);
@@ -647,6 +648,9 @@ function adaptDefinedGame(module: DefinedGameModule): GameModule {
   const adapted: GameModule = {
     ...(module.WIDTH === undefined ? {} : { WIDTH: module.WIDTH }),
     ...(module.HEIGHT === undefined ? {} : { HEIGHT: module.HEIGHT }),
+    ...(module.PIXEL_DENSITY === undefined
+      ? {}
+      : { PIXEL_DENSITY: module.PIXEL_DENSITY }),
     ...(module.TITLE === undefined ? {} : { TITLE: module.TITLE }),
     ...(module.ICON === undefined ? {} : { ICON: module.ICON }),
     ...(module.TOUCH_CONTROLS === undefined
@@ -693,6 +697,7 @@ function runFrame(
   onFailure: (phase: RuntimeFailurePhase, error: unknown) => void,
 ): void {
   try {
+    syncScreenDensity(module, context);
     withRuntimeContext(context, () => {
       try {
         context.clock.tick(dt);
@@ -883,13 +888,48 @@ function applyFavicon(
   link.href = href;
 }
 
+/**
+ * Sizes the canvas to WIDTH × HEIGHT logical pixels at the game's pixel
+ * density. The canvas holds density × as many pixels along each side, and
+ * the screen scales its drawing to match.
+ */
 function applyCanvasConfiguration(
-  canvas: RuntimeCanvas,
+  context: RuntimeContext,
   module: GameModule,
   emit: (diagnostic: RuntimeDiagnostic) => void,
 ): void {
-  canvas.width = readDimension(module.WIDTH, 800, "WIDTH", emit);
-  canvas.height = readDimension(module.HEIGHT, 600, "HEIGHT", emit);
+  const width = readDimension(module.WIDTH, 800, "WIDTH", emit);
+  const height = readDimension(module.HEIGHT, 600, "HEIGHT", emit);
+  const density = resolvePixelDensity(
+    module.PIXEL_DENSITY,
+    width,
+    height,
+    devicePixelRatioOf(context.canvas),
+    emit,
+  );
+  resizeScreen(context.screen, width, height, density);
+}
+
+/**
+ * Keeps the canvas matched to the screen before each frame: it adopts a
+ * size set on the canvas from outside, restores a reset scale, and, with no
+ * PIXEL_DENSITY, follows the device's pixel ratio, which changes when the
+ * page is zoomed or moved to another display.
+ */
+function syncScreenDensity(module: GameModule, context: RuntimeContext): void {
+  const { screen } = context;
+  syncScreen(screen);
+  if (module.PIXEL_DENSITY !== undefined) return;
+  const density = resolvePixelDensity(
+    undefined,
+    screen.width,
+    screen.height,
+    devicePixelRatioOf(context.canvas),
+    context.emit,
+  );
+  if (density !== screen.density) {
+    resizeScreen(screen, screen.width, screen.height, density);
+  }
 }
 
 function configureDocumentTitle(module: GameModule): void {
@@ -939,25 +979,40 @@ function attachDispatcher(
       onFailure(error);
     }
   };
+  // Pointer positions map from the canvas's displayed box onto the logical
+  // screen, not onto the canvas's pixels, which density multiplies.
+  const { screen } = context;
+  const pointer = {
+    get width() {
+      return screen.width;
+    },
+    get height() {
+      return screen.height;
+    },
+    ...(typeof canvas.getBoundingClientRect === "function"
+      ? { getBoundingClientRect: () => canvas.getBoundingClientRect() }
+      : {}),
+  };
   const keyDown = (event: Event) =>
     invoke(() => void dispatcher.handleKeyDown(event as KeyboardEvent));
   const keyUp = (event: Event) =>
     invoke(() => void dispatcher.handleKeyUp(event as KeyboardEvent));
   const mouseDown = (event: Event) =>
-    invoke(() => void dispatcher.handleMouseDown(event as MouseEvent, canvas));
+    invoke(() => void dispatcher.handleMouseDown(event as MouseEvent, pointer));
   const mouseUp = (event: Event) =>
-    invoke(() => void dispatcher.handleMouseUp(event as MouseEvent, canvas));
+    invoke(() => void dispatcher.handleMouseUp(event as MouseEvent, pointer));
   const mouseMove = (event: Event) =>
-    invoke(() => void dispatcher.handleMouseMove(event as MouseEvent, canvas));
+    invoke(() => void dispatcher.handleMouseMove(event as MouseEvent, pointer));
   const wheel = (event: Event) =>
-    invoke(() => void dispatcher.handleWheel(event as WheelEvent, canvas));
+    invoke(() => void dispatcher.handleWheel(event as WheelEvent, pointer));
   const controls = mountTouchControls(
     canvas,
     touchControls,
     dispatcher,
     invoke,
+    pointer,
   );
-  const touchPointer = attachTouchPointer(canvas, dispatcher, invoke);
+  const touchPointer = attachTouchPointer(canvas, dispatcher, invoke, pointer);
   const clearKeyboard = (): void => {
     controls.reset();
     touchPointer.reset();

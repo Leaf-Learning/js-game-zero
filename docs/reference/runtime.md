@@ -119,11 +119,12 @@ don't have throws with a suggestion
 | `loaders`         | Override one or more of the `images`/`sounds`/`music`/`fonts` loader instances.                                                                                                |
 | `keyboardTarget`  | The `EventTarget` that receives keyboard events (default `window`).                                                                                                            |
 | `TOUCH_CONTROLS`  | `true` for the full touch-control preset, `false` to disable it, or a button mapping with optional `show: "auto"` / `"always"`. See [touch controls](hooks.md#touch-controls). |
+| `PIXEL_DENSITY`   | Canvas pixels per logical pixel. Defaults to the device's pixel ratio, from 1 to 3. See [pixel density](#pixel-density).                                                       |
 | `scheduler`       | Override `requestAnimationFrame`/`cancelAnimationFrame` (for tests).                                                                                                           |
 | `diagnostics`     | `(diagnostic) => void` — called for every diagnostic warning (see below).                                                                                                      |
 
-Any hook or `WIDTH`/`HEIGHT`/`TITLE`/`ICON`/`TOUCH_CONTROLS` config can also be passed
-directly on `RunOptions`; if the same one is also present on the module
+Any hook or `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`TITLE`/`ICON`/`TOUCH_CONTROLS`
+config can also be passed directly on `RunOptions`; if the same one is also present on the module
 object, the option wins and a diagnostic warns about the duplicate.
 
 ## `GameHandle`
@@ -171,6 +172,55 @@ are recoverable: they report a warning but never freeze another run or stop
 rendering. `handle.ready` lets hosts await startup explicitly instead of
 polling.
 
+## Pixel density
+
+The canvas holds `WIDTH × HEIGHT × density` pixels, so a game is as sharp
+as the screen it's on. Density is the device's `devicePixelRatio`, from 1
+to 3, unless the game file or `RunOptions` sets `PIXEL_DENSITY`. A
+`PIXEL_DENSITY` that isn't a positive number warns and uses the device's
+ratio.
+
+Game code works in logical pixels at any density; only reading the
+canvas itself sees its real pixels:
+
+| Logical pixels                                           | Canvas pixels (logical × density) |
+| -------------------------------------------------------- | --------------------------------- |
+| `screen.width`, `screen.height`, `screen.bounds()`       | `canvas.width`, `canvas.height`   |
+| Every drawing call, text, images and Actors              | `getImageData()`, `toDataURL()`   |
+| Mouse and touch positions, Actor positions and hit tests |                                   |
+
+`screen.density` reports the density in use, so a host reading pixels back
+multiplies logical coordinates by it.
+
+**CSS size.** A denser canvas would show at its pixel size, so the runtime
+gives it a CSS width of `WIDTH` px through a `:where(canvas[data-jgz-density])`
+rule; its height follows the aspect ratio. The rule has no specificity, so
+CSS the page sets on the canvas wins. A page that sizes the canvas should
+set its width, or both width and height: a height alone keeps the rule's
+width. The touch-control dock and the sandbox preview fit the canvas by its
+logical size. At density 1 the canvas gets no rule and shows at its own
+size.
+
+**Changes.** Before each frame the runtime checks the canvas against the
+screen:
+
+- With no `PIXEL_DENSITY`, density follows `devicePixelRatio`, which
+  changes when the page is zoomed or moved to another display. The canvas
+  keeps what it shows, rescaled, for games that don't redraw everything.
+- A host that sets `canvas.width` or `canvas.height` sets the logical size,
+  and the runtime multiplies it by the density.
+- Setting a canvas's size resets its context, so the runtime restores the
+  density scale.
+
+**Limit.** iOS Safari leaves a canvas over 16,777,216 pixels (4096²)
+blank, so density comes down until the canvas fits, though never below 1
+unless the game asks for less. A `PIXEL_DENSITY` that doesn't fit warns
+and uses the most that does.
+
+Raster images (PNG, JPEG) can't hold more detail than their own pixels. In
+Chromium, SVG images draw from their vectors at the canvas's density, so an
+SVG Actor stays sharp at any size.
+
 ## Package boundaries
 
 Games import learner-facing values from `@js-game-zero/core`. Embedders should
@@ -200,11 +250,11 @@ Everything else is a warning:
 | `code`                                      | Meaning                                                                             |
 | ------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `hook-typo`                                 | A top-level function is named nearly like a hook (e.g. `on_key_dwon`).              |
-| `constant-typo`                             | A top-level assignment is named nearly like `WIDTH`/`HEIGHT`/`TITLE`/`ICON`.        |
+| `constant-typo`                             | A top-level assignment is named nearly like a setting, such as `WIDTH` or `TITLE`.  |
 | `duplicate-config` / `duplicate-hook-alias` | The same setting or hook was given two ways.                                        |
 | `hook-arity`                                | `update` declares more than one parameter.                                          |
 | `hook-parameter`                            | An input hook parameter isn't one of its documented names; says what it receives.   |
-| `invalid-config`                            | `WIDTH`/`HEIGHT`/`ICON` isn't usable.                                               |
+| `invalid-config`                            | `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`ICON` isn't usable.                               |
 | `asset-name`                                | A quoted string that looks like an asset filename doesn't match the naming grammar. |
 | `runtime-error`                             | An uncaught error, or a failure loading/saving storage.                             |
 

@@ -1989,6 +1989,38 @@ function draw() {
     );
   });
 
+  test("game files get the short drawing calls and rgb, with typo suggestions", async () => {
+    const { handle } = start(`WIDTH = 320;
+const kinds = [screen.circle, screen.rect, screen.triangle, screen.line].map(
+  (call) => typeof call,
+);
+const mix = rgb(255, 140, 105);
+function draw() {
+  screen.circel(200, 150, 25, mix);
+}
+`);
+    const inspector = getGameInspector(handle);
+    expect(inspector?.read("kinds")).toEqual([
+      "function",
+      "function",
+      "function",
+      "function",
+    ]);
+    expect(inspector?.read("mix")).toEqual([255, 140, 105]);
+    handle.step(0.1);
+    expect(handle.failure?.message).toBe(
+      "screen.circel doesn't exist. Did you mean screen.circle?",
+    );
+    expect(handle.failure?.line).toBe(7);
+    expect(startupError("screen.draw.triangle(0, 0, 4, 0, 2, 3);")).toContain(
+      "screen.draw.triangle doesn't exist. Did you mean screen.triangle?",
+    );
+    expect(startupError("rgb(255, 140);")).toBe(
+      "TypeError: rgb is missing blue: rgb(red, green, blue), each from 0 to 255.",
+    );
+    await handle.dispose();
+  });
+
   test("game files get random_int, random_choice, clamp and a live mouse", async () => {
     const { handle, target } = start(`WIDTH = 320;
 HEIGHT = 180;

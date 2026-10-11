@@ -96,12 +96,17 @@ const controlStyles = `
 }
 `;
 
-/** Mount a responsive control dock at the bottom of the game's available space. */
+/**
+ * Mount a responsive control dock at the bottom of the game's available
+ * space. The canvas is fitted by its logical `screen` size, since density
+ * multiplies its pixel size.
+ */
 export function mountTouchControls(
   canvas: HTMLCanvasElement,
   settings: TouchControlsSettings | null,
   dispatcher: InputDispatcher,
   invoke: (callback: () => void) => void,
+  screen: { readonly width: number; readonly height: number } = canvas,
 ): { reset(): void; detach(): void } {
   const noop = { reset() {}, detach() {} };
   const parent = canvas.parentElement;
@@ -327,14 +332,16 @@ export function mountTouchControls(
     const dockHeight = root.getBoundingClientRect().height;
     const minimumGap = pixels(view.getComputedStyle(surface).rowGap);
     const height = surfaceHeight - dockHeight - minimumGap - verticalEdges;
+    const logicalWidth = screen.width || 1;
+    const logicalHeight = screen.height || 1;
     const scale = Math.max(
       0,
-      Math.min(width / (canvas.width || 1), height / (canvas.height || 1)),
+      Math.min(width / logicalWidth, height / logicalHeight),
     );
     const setScale = (value: number): void => {
       const borderBox = canvasStyle.boxSizing === "border-box";
-      canvas.style.width = `${canvas.width * value + (borderBox ? horizontalEdges : 0)}px`;
-      canvas.style.height = `${canvas.height * value + (borderBox ? verticalEdges : 0)}px`;
+      canvas.style.width = `${logicalWidth * value + (borderBox ? horizontalEdges : 0)}px`;
+      canvas.style.height = `${logicalHeight * value + (borderBox ? verticalEdges : 0)}px`;
     };
     setScale(scale);
     // A host's max-width/max-height can constrain only one CSS dimension.
@@ -347,8 +354,8 @@ export function mountTouchControls(
       0,
       Math.min(
         scale,
-        contentWidth / (canvas.width || 1),
-        contentHeight / (canvas.height || 1),
+        contentWidth / logicalWidth,
+        contentHeight / logicalHeight,
       ),
     );
     if (constrainedScale < scale) {

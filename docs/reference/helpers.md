@@ -40,4 +40,9 @@ plane.angle = clamp(-plane.vy / 8, -25, 75);
 To keep a whole sprite on screen, `player.clamp_ip(screen.bounds())` (see
 [`actor.md`](actor.md)) uses the sprite's real edges.
 
+## `rgb(red, green, blue, alpha?)`
+
+A color mixed from red, green and blue, each `0`–`255`, as in
+`rgb(255, 140, 105)`. See [Colors](screen.md#colors).
+
 camelCase spellings (`randomInt`, `randomChoice`) work too.

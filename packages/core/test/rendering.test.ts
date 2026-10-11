@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { chromium } from "@playwright/test";
-import { ImageSurface, Screen, type SurfaceLike } from "@js-game-zero/core";
+import {
+  ImageSurface,
+  Screen,
+  rgb,
+  type SurfaceLike,
+} from "@js-game-zero/core";
 import {
   createImageLoader,
   getScreen,
@@ -405,6 +410,211 @@ describe("Screen canvas drawing", () => {
       name: "drawImage",
       args: [expect.anything(), 0, 0],
     });
+  });
+});
+
+/** The short forms take values the typed API rejects, so tests reach them untyped. */
+type Loose = Record<string, (...args: unknown[]) => unknown>;
+
+/** What a drawing call leaves on the canvas: its operations and styles. */
+function drawn(draw: (screen: Screen) => void) {
+  const { screen, context } = mockScreen();
+  draw(screen);
+  return {
+    operations: context.operations,
+    fillStyle: context.fillStyle,
+    strokeStyle: context.strokeStyle,
+    lineWidth: context.lineWidth,
+  };
+}
+
+describe("Screen short forms", () => {
+  test("draw exactly what the screen.draw long forms draw", () => {
+    expect(drawn((screen) => screen.circle(200, 150, 25, "gold"))).toEqual(
+      drawn((screen) => screen.draw.filled_circle([200, 150], 25, "gold")),
+    );
+    expect(drawn((screen) => screen.rect(10, 20, 30, 40, "red"))).toEqual(
+      drawn((screen) => screen.draw.filled_rect([10, 20, 30, 40], "red")),
+    );
+    expect(
+      drawn((screen) => screen.triangle(160, 40, 120, 120, 200, 120, "lime")),
+    ).toEqual(
+      drawn((screen) =>
+        screen.draw.filled_polygon(
+          [
+            [160, 40],
+            [120, 120],
+            [200, 120],
+          ],
+          "lime",
+        ),
+      ),
+    );
+    expect(drawn((screen) => screen.line(1, 2, 10, 20, "blue", 3))).toEqual(
+      drawn((screen) => screen.draw.line([1, 2], [10, 20], "blue", 3)),
+    );
+  });
+
+  test("fill their shapes, with x, y as the rect's top-left corner", () => {
+    const circle = drawn((screen) => screen.circle(200, 150, 25, "gold"));
+    expect(circle.operations.map((op) => op.name)).toContain("fill");
+    expect(circle.operations.map((op) => op.name)).not.toContain("stroke");
+    expect(circle.operations).toContainEqual({
+      name: "arc",
+      args: [200, 150, 25, 0, Math.PI * 2],
+    });
+    expect(
+      drawn((screen) => screen.rect(10, 20, 30, 40)).operations,
+    ).toContainEqual({ name: "fillRect", args: [10, 20, 30, 40] });
+    const triangle = drawn((screen) => screen.triangle(0, 0, 10, 0, 5, 8));
+    expect(triangle.operations.map((op) => op.name)).toEqual([
+      "save",
+      "beginPath",
+      "moveTo",
+      "lineTo",
+      "lineTo",
+      "closePath",
+      "fill",
+      "restore",
+    ]);
+  });
+
+  test("default to white, and a line to width 1", () => {
+    expect(drawn((screen) => screen.circle(5, 5, 2)).fillStyle).toBe("white");
+    expect(drawn((screen) => screen.rect(0, 0, 4, 4)).fillStyle).toBe("white");
+    expect(drawn((screen) => screen.triangle(0, 0, 4, 0, 2, 3)).fillStyle).toBe(
+      "white",
+    );
+    const line = drawn((screen) => screen.line(0, 0, 9, 9));
+    expect(line.strokeStyle).toBe("white");
+    expect(line.lineWidth).toBe(1);
+  });
+
+  test("take every color the long forms take, checked the same way", () => {
+    expect(drawn((screen) => screen.circle(5, 5, 2, "#ff8800")).fillStyle).toBe(
+      "#ff8800",
+    );
+    expect(
+      drawn((screen) => screen.rect(0, 0, 4, 4, [10, 20, 30])).fillStyle,
+    ).toBe("rgb(10, 20, 30)");
+    expect(
+      drawn((screen) => screen.line(0, 0, 9, 9, [255, 0, 0, 51])).strokeStyle,
+    ).toBe("rgba(255, 0, 0, 0.2)");
+    const { screen } = mockScreen();
+    expect(() => screen.circle(5, 5, 2, "lightblu")).toThrow(
+      'Did you mean "lightblue"?',
+    );
+    expect(() => screen.rect(0, 0, 4, 4, [255, 0, 0, 0.5])).toThrow(
+      "for half see-through use 128, not 0.5",
+    );
+    expect(() => screen.circle(5, 5, 0)).toThrow(
+      "radius must be a positive finite number.",
+    );
+    expect(() => screen.line(0, 0, 9, 9, "red", 0)).toThrow(
+      "width must be a positive finite number.",
+    );
+  });
+
+  test("a list where numbers belong points to the screen.draw method for lists", () => {
+    const screen = mockScreen().screen as unknown as Loose;
+    expect(() => screen.circle!([200, 150], 25)).toThrow(
+      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filled_circle([x, y], radius, color).',
+    );
+    expect(() => screen.circle!([200, 150], 25)).toThrow(TypeError);
+    expect(() => screen.rect!([10, 20, 30, 40], "red")).toThrow(
+      "For a list or a Rect, use screen.draw.filled_rect([x, y, width, height], color).",
+    );
+    expect(() =>
+      screen.rect!({ left: 0, top: 0, width: 4, height: 4 }),
+    ).toThrow("screen.rect takes x, y, width, height as four numbers");
+    expect(() => screen.triangle!([0, 0], [10, 0], [5, 8])).toThrow(
+      "use screen.draw.filled_polygon([[x1, y1], [x2, y2], [x3, y3]], color)",
+    );
+    expect(() => screen.line!([0, 0], [10, 10], "red")).toThrow(
+      "use screen.draw.line([x1, y1], [x2, y2], color, width)",
+    );
+  });
+
+  test("a missing or non-number argument is named", () => {
+    const screen = mockScreen().screen as unknown as Loose;
+    expect(() => screen.circle!(200, 150)).toThrow(
+      "screen.circle is missing radius: screen.circle(x, y, radius, color).",
+    );
+    expect(() => screen.rect!(10, 20, 30)).toThrow(
+      "screen.rect is missing height: screen.rect(x, y, width, height, color).",
+    );
+    expect(() => screen.triangle!(0, 0, 10, 0, 5)).toThrow(
+      "screen.triangle is missing y3",
+    );
+    expect(() => screen.line!(0, 0, 10)).toThrow("screen.line is missing y2");
+    expect(() => screen.circle!("200", 150, 25)).toThrow(
+      'screen.circle\'s x must be a number, but got "200".',
+    );
+    expect(() => screen.line!(0, Number.NaN, 10, 10)).toThrow(
+      "screen.line's y1 must be a number, but got NaN.",
+    );
+  });
+
+  test("an outline width points to the outline method, since short forms fill", () => {
+    const screen = mockScreen().screen as unknown as Loose;
+    expect(() => screen.circle!(200, 150, 25, "gold", 2)).toThrow(
+      "screen.circle always fills, so it has no outline width. For an outline, use screen.draw.circle([x, y], radius, color, width).",
+    );
+    expect(() => screen.rect!(0, 0, 4, 4, "red", 2)).toThrow(
+      "use screen.draw.rect([x, y, width, height], color, width)",
+    );
+    expect(() => screen.triangle!(0, 0, 4, 0, 2, 3, "red", 2)).toThrow(
+      "use screen.draw.polygon(",
+    );
+    expect(() => screen.line!(0, 0, 9, 9, "red", 2, 3)).toThrow(
+      "screen.line takes at most six values",
+    );
+  });
+
+  test("leave the canvas untouched when a call is wrong", () => {
+    const { screen, context } = mockScreen();
+    expect(() => (screen as unknown as Loose).circle!([1, 2], 3)).toThrow();
+    expect(context.operations).toEqual([]);
+  });
+});
+
+describe("rgb", () => {
+  test("returns the matching RGB or RGBA list, which drawing calls accept", () => {
+    expect(rgb(255, 140, 105)).toEqual([255, 140, 105]);
+    expect(rgb(255, 140, 105, 128)).toEqual([255, 140, 105, 128]);
+    expect(rgb(0, 0, 0, 0)).toEqual([0, 0, 0, 0]);
+    expect(normalizeColor(rgb(255, 140, 105))).toBe("rgb(255, 140, 105)");
+    expect(
+      drawn((screen) => screen.circle(5, 5, 2, rgb(1, 2, 3))).fillStyle,
+    ).toBe("rgb(1, 2, 3)");
+  });
+
+  test("checks each number like a color list does", () => {
+    expect(() => rgb(300, 0, 0)).toThrow(
+      "rgb(300, 0, 0) isn't a color: red, green and blue must be whole numbers from 0 to 255.",
+    );
+    expect(() => rgb(127.5, 0, 0)).toThrow("whole numbers from 0 to 255");
+    expect(() => rgb(255, 0, 0, 0.5)).toThrow(
+      "rgb(255, 0, 0, 0.5) isn't a color: the fourth number (alpha) goes from 0 (invisible) to 255 (solid), so for half see-through use 128, not 0.5.",
+    );
+    expect(() => rgb(255, 0, 0, 300)).toThrow(
+      "goes from 0 (invisible) to 255 (solid).",
+    );
+  });
+
+  test("names a missing or non-number argument", () => {
+    const loose = rgb as unknown as (...args: unknown[]) => unknown;
+    expect(() => loose(255, 140)).toThrow(
+      "rgb is missing blue: rgb(red, green, blue), each from 0 to 255.",
+    );
+    expect(() => loose()).toThrow("rgb is missing red");
+    expect(() => loose(255, "140", 105)).toThrow(
+      'rgb\'s green must be a number, but got "140".',
+    );
+    expect(() => loose(255, 140, 105, null)).toThrow(
+      "rgb's alpha must be a number, but got null.",
+    );
+    expect(() => loose(255, 140, 105)).not.toThrow();
   });
 });
 

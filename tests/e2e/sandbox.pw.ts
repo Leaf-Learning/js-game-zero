@@ -862,9 +862,8 @@ test("panel dividers resize the layout, scale the game, and persist", async ({
   );
 });
 
-test("mouse positions map to game coordinates on the scaled preview", async ({
-  page,
-}) => {
+/** Clicks the scaled preview's center, which the game must see as ~(400, 240). */
+async function clickPreviewCenter(page: Page, density: number): Promise<void> {
   const name = uniqueName("mousemap");
   await page.goto("/");
   await createBlankProject(page, name);
@@ -885,6 +884,13 @@ test("mouse positions map to game coordinates on the scaled preview", async ({
   await expect
     .poll(() => canvasIsNonblank(canvas), { timeout: 8_000 })
     .toBe(true);
+  // The canvas holds the game's pixels at the screen's density.
+  expect(
+    await canvas.evaluate((node) => [
+      (node as HTMLCanvasElement).width,
+      (node as HTMLCanvasElement).height,
+    ]),
+  ).toEqual([800 * density, 480 * density]);
 
   // The first click lands on the focus overlay; it only claims focus.
   const overlay = page.locator("[data-jgz-focus-overlay]");
@@ -897,10 +903,27 @@ test("mouse positions map to game coordinates on the scaled preview", async ({
   // unscaled mapping would report the raw CSS offset instead of the game
   // coordinate. Click the displayed center: the game must see ~(400, 240).
   expect(box.width).toBeLessThan(700);
+  expect(box.width / box.height).toBeCloseTo(800 / 480, 2);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.locator(".console-line").first()).toHaveText(
     /^POS (399|400|401),(239|240|241)$/,
   );
+}
+
+test("mouse positions map to game coordinates on the scaled preview", async ({
+  page,
+}) => {
+  await clickPreviewCenter(page, 1);
+});
+
+test.describe("on a 2x screen", () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  test("the preview draws at density 2 and maps the mouse to game coordinates", async ({
+    page,
+  }) => {
+    await clickPreviewCenter(page, 2);
+  });
 });
 
 test("the tutorial's finished game runs from a clean sandbox project", async ({

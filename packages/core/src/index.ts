@@ -7,6 +7,7 @@ import * as animationModule from "./animation";
 import * as assetsModule from "./assets";
 import * as audioModule from "./audio";
 import * as clockModule from "./clock";
+import * as colorModule from "./color";
 import * as eventsModule from "./events";
 import * as geometryModule from "./geometry";
 import * as helpersModule from "./helpers";
@@ -95,6 +96,7 @@ export type {
 export const Screen = renderingModule.Screen;
 export type Screen = renderingModule.Screen;
 export const screen = renderingModule.screen;
+export const rgb = colorModule.rgb;
 export type {
   CanvasLike,
   Color,

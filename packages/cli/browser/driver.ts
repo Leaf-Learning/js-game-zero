@@ -23,7 +23,12 @@ type DriverStatus = {
   readonly state: string;
   readonly elapsed: number;
   readonly frames: number;
-  readonly canvas: { readonly width: number; readonly height: number };
+  /** The logical screen size, and the canvas pixels per logical pixel. */
+  readonly canvas: {
+    readonly width: number;
+    readonly height: number;
+    readonly density: number;
+  };
   readonly diagnostics: readonly RuntimeDiagnostic[];
   readonly failure: {
     readonly phase: string;
@@ -182,10 +187,13 @@ const samplerContext = sampler.getContext("2d", { willReadFrequently: true });
 /** Distinct colours and a hash over a sparse pixel grid: enough to tell a
  * blank canvas from a painted one and one frame from the next. The game
  * canvas is copied unsmoothed onto a small sampler canvas, which keeps one
- * pixel per grid cell and keeps readback off the game's own context. */
+ * pixel per grid cell and keeps readback off the game's own context. The
+ * grid is laid over the logical screen, so it has the same cells at any
+ * pixel density. */
 function pixelSummary(): PixelSummary {
-  const width = Math.ceil(canvas.width / PIXEL_SAMPLE_STEP);
-  const height = Math.ceil(canvas.height / PIXEL_SAMPLE_STEP);
+  const { width: logicalWidth, height: logicalHeight } = logicalSize();
+  const width = Math.ceil(logicalWidth / PIXEL_SAMPLE_STEP);
+  const height = Math.ceil(logicalHeight / PIXEL_SAMPLE_STEP);
   if (!samplerContext || width === 0 || height === 0) {
     return { distinctColors: 0, frameHash: "" };
   }
@@ -219,7 +227,7 @@ function status(options?: { pixels?: boolean }): DriverStatus {
     state: handle?.state ?? (startupError ? "failed" : "starting"),
     elapsed,
     frames,
-    canvas: { width: canvas.width, height: canvas.height },
+    canvas: logicalSize(),
     diagnostics: [...diagnostics],
     failure: failure
       ? {
@@ -230,6 +238,13 @@ function status(options?: { pixels?: boolean }): DriverStatus {
       : null,
     startupError,
   };
+}
+
+function logicalSize(): DriverStatus["canvas"] {
+  const screen = handle?.screen;
+  return screen
+    ? { width: screen.width, height: screen.height, density: screen.density }
+    : { width: canvas.width, height: canvas.height, density: 1 };
 }
 
 function requireHandle(): GameHandle {

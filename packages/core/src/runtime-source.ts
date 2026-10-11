@@ -3,6 +3,7 @@ import { Animation, animate } from "./animation";
 import type { AssetLoaders } from "./assets";
 import { createBrowserSoundAsset, type MusicPlayer } from "./audio";
 import { Clock } from "./clock";
+import { rgb } from "./color";
 import { friendlyService } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
 import { clamp, random_choice, random_int } from "./helpers";
@@ -86,8 +87,11 @@ const drawMethods = [
 ];
 
 /**
- * Where guesses at drawing methods belong: `screen.drawRect`, `screen.circle`
- * and `screen.draw.fillRect` all point at the real `screen.draw` method.
+ * Where guesses at drawing methods belong: `screen.drawRect`,
+ * `screen.polygon` and `screen.draw.fillRect` all point at the real
+ * `screen.draw` method. (Bare `screen.circle`, `screen.rect` and
+ * `screen.line` are real short forms, so their entries never fire.) There
+ * is no `screen.draw.triangle`, so it points at the short form.
  */
 const screenHints: Record<string, string> = Object.fromEntries([
   ...drawMethods.flatMap((name) => {
@@ -104,6 +108,8 @@ const screenHints: Record<string, string> = Object.fromEntries([
   ["filledrectangle", "screen.draw.filled_rect"],
   ["fillrectangle", "screen.draw.filled_rect"],
   ["drawrectangle", "screen.draw.rect"],
+  ["triangle", "screen.triangle"],
+  ["filledtriangle", "screen.triangle"],
 ]);
 
 /** Screen's internal drawing helpers, which take different arguments. */
@@ -246,6 +252,7 @@ export function executeZeroBoilerplateSource(
     random_int,
     random_choice,
     clamp,
+    rgb,
     run: runFunction,
     exit: () => context.stop?.(),
   };

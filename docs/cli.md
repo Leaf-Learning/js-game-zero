@@ -161,6 +161,15 @@ each restart. Without it, Chromium's normal randomness is used. Manual steps
 control the js-game-zero clock and `update`/`draw` cycle; they do not virtualize
 `Date`, timers, network requests, or audio playback time.
 
-Screenshots contain the logical canvas pixels rather than the scaled browser
-element. With no path they are written to a numbered file in a temporary
+The CLI's browser has a device pixel ratio of 1, so games run at
+[pixel density](reference/runtime.md#pixel-density) 1 unless the game sets
+`PIXEL_DENSITY` itself. `status` reports the logical `canvas` size with its
+`density`, and mouse and wheel coordinates are always logical.
+
+Screenshots contain the canvas's own pixels rather than the scaled browser
+element: `WIDTH × HEIGHT` at density 1, and that size times the density
+when a game sets `PIXEL_DENSITY`. The response gives the logical `width`
+and `height` with the `density`. The pixel summary samples a grid over the
+logical screen, so it has the same number of cells at any density. With no
+path, screenshots are written to a numbered file in a temporary
 per-session directory, and the response reports its absolute path.

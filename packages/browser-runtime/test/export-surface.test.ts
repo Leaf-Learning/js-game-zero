@@ -36,6 +36,7 @@ const learnerValues = [
   "music",
   "random_choice",
   "random_int",
+  "rgb",
   "run",
   "screen",
   "sounds",
