@@ -6,6 +6,7 @@ import {
   loadSoundAsset,
 } from "./browser-asset-backends";
 import { createActiveServiceProxy } from "./active-service";
+import { addCamelCaseAliases } from "./friendly-names";
 import { Rect, type Point, type RectLike } from "./geometry";
 import {
   imageExtensions,
@@ -56,6 +57,8 @@ export type LoadedAsset = {
 
 export type SoundAsset = LoadedAsset & {
   play(loops?: number): void;
+  /** Plays the sound over and over until `stop()`. */
+  loop(): void;
   stop(): void;
   get_length(): number;
   set_volume(volume: number): void;
@@ -184,6 +187,8 @@ export class ImageSurface implements SurfaceLike {
     return rect;
   }
 }
+
+addCamelCaseAliases(ImageSurface.prototype);
 
 export function createImageLoader(
   options: AssetLoaderOptions<SurfaceLike> = {},
@@ -586,7 +591,7 @@ function createLazySurface(
     return asset;
   };
 
-  return {
+  const surface: SurfaceLike = {
     get source(): DrawableImage {
       return loaded().source;
     },
@@ -603,6 +608,8 @@ function createLazySurface(
       return loaded().get_rect(options);
     },
   };
+  addCamelCaseAliases(surface);
+  return surface;
 }
 
 function createLazySoundAsset(
@@ -636,7 +643,7 @@ function createLazySoundAsset(
       .catch(() => undefined);
   };
 
-  return {
+  const sound: SoundAsset = {
     kind: "sound",
     name: context.requested,
     get url(): string {
@@ -644,6 +651,12 @@ function createLazySoundAsset(
     },
     play(loops = 0): void {
       whenLoaded((asset) => asset.play(loops));
+    },
+    loop(): void {
+      // Host-built sound assets that predate loop() still loop via play(-1).
+      whenLoaded((asset) =>
+        typeof asset.loop === "function" ? asset.loop() : asset.play(-1),
+      );
     },
     stop(): void {
       const asset = current();
@@ -666,6 +679,8 @@ function createLazySoundAsset(
       return current()?.get_volume() ?? 1;
     },
   };
+  addCamelCaseAliases(sound);
+  return sound;
 }
 
 function createLazyLoadedAsset<T>(context: LazyAssetContext<T>): T {

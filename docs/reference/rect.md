@@ -85,8 +85,14 @@ rectangle itself instead of returning a new one:
   fit inside `other`.
 
 ```js
-player.rect().clamp_ip(screen.bounds()); // keep the player on screen
+let hitbox = new Rect(300, 60, 40, 40);
+hitbox.clamp_ip(screen.bounds()); // now fully on screen
 ```
+
+`Actor` has its own `clamp_ip`, which moves the actor itself:
+`player.clamp_ip(screen.bounds())` keeps the player on screen. (Calling
+`player.rect().clamp_ip(...)` would only move a copy of the player's
+rectangle, not the player.)
 
 ## Collision tests
 
@@ -94,6 +100,9 @@ Collision uses **half-open bounds**: the left and top edges are inclusive,
 the right and bottom edges are exclusive — a point exactly on the right or
 bottom edge does not count as colliding. This matches pygame's `Rect`.
 
+- `touches(target): boolean` — the one test most games need: `target` is an
+  `[x, y]` point (does the rect contain it?) or any rect-like value, such as
+  another `Rect` or an `Actor` (do they overlap?).
 - `contains(other): boolean`
 - `collidepoint(point)` / `collidepoint(x, y): boolean`
 - `colliderect(other): boolean`

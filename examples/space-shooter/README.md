@@ -14,7 +14,7 @@ reach you, and survive as the waves get faster and bigger.
 ## What it teaches
 
 - `Actor` sprites, group movement (the whole enemy formation shares one
-  velocity, like the paddle/ball in Breakout), and `colliderect()`.
+  velocity, like the paddle/ball in Breakout), and `touches()`.
 - Frame-rate independent movement and timers with `update(dt)` - firing
   has a cooldown, and hits make the ship flash using `opacity`.
 - Normalizing diagonal input so moving in two directions does not increase

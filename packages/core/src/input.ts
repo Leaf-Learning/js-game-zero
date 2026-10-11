@@ -169,6 +169,52 @@ export const mouse = Object.freeze({
   WHEEL_DOWN: 5,
 });
 
+/** Where the mouse (or a touch) last was over the canvas, and what's held. */
+export class MouseState {
+  pos: readonly [number, number] | null = null;
+  buttons: ReadonlySet<number> = new Set();
+
+  clearButtons(): void {
+    this.buttons = new Set();
+  }
+}
+
+/**
+ * The `mouse` a game sees: the button constants, plus where the mouse is now
+ * and which buttons are held, for code in `update()` that follows or aims at
+ * the mouse. Before the mouse first moves over the game, `pos` is the center
+ * of the screen.
+ */
+export type LiveMouse = typeof mouse & {
+  readonly pos: [number, number];
+  readonly x: number;
+  readonly y: number;
+  readonly buttons: Set<number>;
+};
+
+export function createLiveMouse(
+  state: MouseState,
+  center: () => readonly [number, number],
+): LiveMouse {
+  const current = () => state.pos ?? center();
+  const live = { ...mouse };
+  Object.defineProperties(live, {
+    pos: {
+      get: () => [current()[0], current()[1]],
+      enumerable: true,
+      configurable: true,
+    },
+    x: { get: () => current()[0], enumerable: true, configurable: true },
+    y: { get: () => current()[1], enumerable: true, configurable: true },
+    buttons: {
+      get: () => new Set(state.buttons),
+      enumerable: true,
+      configurable: true,
+    },
+  });
+  return live as LiveMouse;
+}
+
 const keyValues = new Set<number>(Object.values(keys));
 const keyCodesByAttribute = new Map<string, number>();
 for (const [name, value] of Object.entries(keys)) {

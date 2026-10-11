@@ -92,16 +92,21 @@ window.addEventListener("unhandledrejection", (event) => {
   postRuntimeErrorOnce(messageOf(event.reason));
 });
 
+/** The running game's screen, whose size is in logical pixels. */
+let gameScreen: { readonly width: number; readonly height: number } | null =
+  null;
+
 /**
  * Letterboxes the canvas inside the iframe: largest size that fits the
  * viewport while keeping the game's aspect ratio. Done by sizing the
  * element itself (rather than object-fit) so the element box always equals
  * the drawn content, which the runtime's mouse mapping relies on to
- * translate clicks back into game coordinates.
+ * translate clicks back into game coordinates. It fits the logical
+ * WIDTH × HEIGHT, since pixel density multiplies `canvas.width`.
  */
 function fitCanvasToViewport(): void {
-  const logicalWidth = canvas.width || 1;
-  const logicalHeight = canvas.height || 1;
+  const logicalWidth = gameScreen?.width || canvas.width || 1;
+  const logicalHeight = gameScreen?.height || canvas.height || 1;
   const scale = Math.min(
     document.documentElement.clientWidth / logicalWidth,
     document.documentElement.clientHeight / logicalHeight,
@@ -192,7 +197,7 @@ try {
     getProject(project),
   ]);
   const { images, preload } = await preloadAssets(projectSummary.files);
-  run(source, {
+  gameScreen = run(source, {
     canvas,
     projectId: project,
     assetBaseUrl: "/assets",
@@ -201,7 +206,8 @@ try {
     diagnostics(diagnostic) {
       postDiagnosticOnce(diagnostic);
     },
-  });
+  }).screen;
+  fitCanvasToViewport();
 } catch (error) {
   postRuntimeErrorOnce(messageOf(error));
 }

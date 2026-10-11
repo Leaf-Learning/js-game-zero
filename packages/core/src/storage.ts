@@ -1,4 +1,5 @@
 import { createActiveServiceProxy } from "./active-service";
+import { addCamelCaseAliases } from "./friendly-names";
 import { normalizeStoragePath } from "./storage-path";
 
 export type JsonValue =
@@ -178,6 +179,8 @@ export class Storage {
     return object as Record<string, JsonValue>;
   }
 }
+
+addCamelCaseAliases(Storage.prototype);
 
 export function createStorage(options: StorageOptions = {}): Storage {
   return new Storage(options);

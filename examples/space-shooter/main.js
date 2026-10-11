@@ -14,7 +14,7 @@ const PLAYER_SPEED = 260; // pixels per second
 const FIRE_COOLDOWN = 0.28; // seconds between shots
 const LASER_SPEED = 420;
 const INVULNERABLE_TIME = 1.4; // seconds of flashing after getting hit
-const EXPLOSION_FRAME_TIME = 0.06;
+const EXPLOSION_FPS = 16; // pictures per second in an explosion
 const EXPLOSION_FRAMES = [
   "explosion_0",
   "explosion_1",
@@ -33,16 +33,16 @@ const PLAYER_TOP_LIMIT = HEIGHT * 0.55; // player can't fly above this line
 // A starfield drawn with plain rectangles instead of an image - it scrolls
 // slowly downward to sell the feeling of flying through space.
 const stars = Array.from({ length: 70 }, () => ({
-  x: Math.random() * WIDTH,
-  y: Math.random() * HEIGHT,
-  size: Math.random() < 0.15 ? 2 : 1,
-  speed: 30 + Math.random() * 60,
+  x: random_int(0, WIDTH),
+  y: random_int(0, HEIGHT),
+  size: Math.random() < 0.15 ? 2 : 1, // a few bigger stars
+  speed: random_int(30, 90),
 }));
 
 const player = new Actor("player_ship", { center: [WIDTH / 2, HEIGHT - 70] });
 let lasers = []; // player shots, each an Actor moving upward
 let enemies = []; // the current wave, each an Actor moving as a group
-let explosions = []; // { actor, frame, timer } - little animated bursts
+let explosions = []; // little animated bursts, each an Actor
 let enemyVX = BASE_ENEMY_VX;
 let enemyDropSpeed = BASE_ENEMY_DROP_SPEED;
 let wave = 0;
@@ -92,11 +92,16 @@ function resetGame() {
 resetGame();
 
 function explodeAt(pos) {
-  explosions.push({
-    actor: new Actor("explosion_0", { center: pos }),
-    frame: 0,
-    timer: 0,
-  });
+  // `images` flips through the pictures on its own; `loop: false` stops on
+  // the last one, and `finished` says when it's done.
+  explosions.push(
+    new Actor("explosion_0", {
+      center: pos,
+      images: EXPLOSION_FRAMES,
+      fps: EXPLOSION_FPS,
+      loop: false,
+    }),
+  );
 }
 
 function fireLaser() {
@@ -123,11 +128,8 @@ function movePlayer(dt) {
   const length = Math.hypot(vx, vy) || 1;
   player.x += (vx / length) * PLAYER_SPEED * dt;
   player.y += (vy / length) * PLAYER_SPEED * dt;
-  player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
-  player.top = Math.max(
-    PLAYER_TOP_LIMIT,
-    Math.min(HEIGHT - player.height, player.top),
-  );
+  // Stay inside the lower part of the screen.
+  player.clamp_ip([0, PLAYER_TOP_LIMIT, WIDTH, HEIGHT - PLAYER_TOP_LIMIT]);
 
   fireCooldown = Math.max(0, fireCooldown - dt);
   if (keyboard.space && fireCooldown <= 0) {
@@ -169,7 +171,7 @@ function moveEnemies(dt) {
     const enemy = enemies[index];
     enemy.x += enemyVX * dt;
     enemy.y += enemyDropSpeed * dt;
-    if (enemy.colliderect(player)) {
+    if (enemy.touches(player)) {
       hitPlayer(index);
       continue;
     }
@@ -189,7 +191,7 @@ function moveLasers(dt) {
       lasers.splice(index, 1);
       continue;
     }
-    const hitIndex = enemies.findIndex((enemy) => enemy.colliderect(laser));
+    const hitIndex = enemies.findIndex((enemy) => enemy.touches(laser));
     if (hitIndex !== -1) {
       explodeAt(enemies[hitIndex].pos);
       enemies.splice(hitIndex, 1);
@@ -197,23 +199,6 @@ function moveLasers(dt) {
       score += 10;
       sounds.explosion.play();
     }
-  }
-}
-
-function moveExplosions(dt) {
-  for (let index = explosions.length - 1; index >= 0; index -= 1) {
-    const explosion = explosions[index];
-    explosion.timer += dt;
-    if (explosion.timer < EXPLOSION_FRAME_TIME) continue;
-    // Advance every elapsed frame, including after a slow browser frame.
-    const elapsedFrames = Math.floor(explosion.timer / EXPLOSION_FRAME_TIME);
-    explosion.timer -= elapsedFrames * EXPLOSION_FRAME_TIME;
-    explosion.frame += elapsedFrames;
-    if (explosion.frame >= EXPLOSION_FRAMES.length) {
-      explosions.splice(index, 1);
-      continue;
-    }
-    explosion.actor.image = EXPLOSION_FRAMES[explosion.frame];
   }
 }
 
@@ -226,7 +211,8 @@ function moveStars(dt) {
 
 function update(dt) {
   moveStars(dt);
-  moveExplosions(dt); // let the final hit finish animating after game over
+  // Finished explosions disappear, even after game over.
+  explosions = explosions.filter((explosion) => !explosion.finished);
   if (state !== "playing") return;
   movePlayer(dt);
   moveLasers(dt);
@@ -243,34 +229,34 @@ function draw() {
 
   for (const laser of lasers) laser.draw();
   for (const enemy of enemies) enemy.draw();
-  for (const explosion of explosions) explosion.actor.draw();
+  for (const explosion of explosions) explosion.draw();
   if (state === "playing" || invulnerableTime > 0) player.draw();
 
   screen.draw.text(`Score: ${score}`, [12, 10], {
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
-  screen.draw.text(`Wave: ${wave}`, undefined, {
+  screen.draw.text(`Wave: ${wave}`, {
     midtop: [WIDTH / 2, 10],
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
-  screen.draw.text(`Lives: ${lives}`, undefined, {
+  screen.draw.text(`Lives: ${lives}`, {
     topright: [WIDTH - 12, 10],
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
 
   if (state === "gameover") {
-    screen.draw.text("Game Over", undefined, {
+    screen.draw.text("Game Over", {
       center: [WIDTH / 2, HEIGHT / 2 - 20],
-      fontsize: 48,
+      size: 48,
       color: "#f87171",
       shadow: 2,
     });
-    screen.draw.text("Click or press space to try again", undefined, {
+    screen.draw.text("Click or press space to try again", {
       center: [WIDTH / 2, HEIGHT / 2 + 30],
-      fontsize: 20,
+      size: 20,
       color: "white",
       shadow: 1,
     });

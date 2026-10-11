@@ -48,7 +48,7 @@ let player = new Actor("player.svg", { center: [72, 92] });
 function update(dt) {
   if (keyboard.right) player.x += 130 * dt;
   if (keyboard.left) player.x -= 130 * dt;
-  player.x = Math.max(18, Math.min(WIDTH - 18, player.x));
+  player.clamp_ip(screen.bounds()); // stay on screen
 }
 
 function draw() {
@@ -78,7 +78,7 @@ let x = WIDTH / 2;
 function update(dt) {
   if (keyboard.left) x -= 180 * dt;
   if (keyboard.right) x += 180 * dt;
-  x = Math.max(20, Math.min(WIDTH - 20, x));
+  x = clamp(x, 20, WIDTH - 20); // stay on screen
 }
 
 function draw() {
@@ -110,7 +110,7 @@ function draw() {
   screen.fill("#1f2937");
   screen.draw.filled_circle([160, 82], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click to play a sound", [76, 134], {
-    fontsize: 16,
+    size: 16,
     color: "#f8fafc",
   });
 }
@@ -147,7 +147,7 @@ function update() {
 function draw() {
   screen.fill("#12312b");
   screen.draw.text(`score ${score}`, [92, 76], {
-    fontsize: 28,
+    size: 28,
     color: "#ffffff",
   });
 }
@@ -157,6 +157,57 @@ Storage loads automatically before your code runs and saves automatically
 after each change — no explicit `save()`/`load()` calls needed for normal
 use. See it running: `/examples/storage-save`. Full API:
 [`docs/reference/storage.md`](reference/storage.md).
+
+## Follow the mouse
+
+`mouse.pos` is where the mouse is right now, so `update()` can chase it:
+
+```js
+WIDTH = 480;
+HEIGHT = 320;
+TITLE = "Follow The Mouse";
+
+let x = WIDTH / 2;
+let y = HEIGHT / 2;
+
+function update(dt) {
+  // Ease toward the mouse; a bigger number than 5 follows faster.
+  x += (mouse.x - x) * 5 * dt;
+  y += (mouse.y - y) * 5 * dt;
+}
+
+function draw() {
+  screen.fill("#152638");
+  screen.draw.filled_circle([x, y], 16, "gold");
+}
+```
+
+Full API: [`docs/reference/hooks.md`](reference/hooks.md#mouse).
+
+## Animate a sprite with several pictures
+
+Give an `Actor` a list of `images` and it flips through them on its own:
+
+```js
+WIDTH = 320;
+HEIGHT = 180;
+TITLE = "Flip Book";
+
+let coin = new Actor("coin_0", {
+  center: [160, 90],
+  images: ["coin_0", "coin_1", "coin_2", "coin_3"],
+  fps: 8,
+});
+
+function draw() {
+  screen.fill("#1f2937");
+  coin.draw();
+}
+```
+
+Add `loop: false` for a one-shot effect, and check `coin.finished` to know
+when it's over. Full API:
+[`docs/reference/actor.md`](reference/actor.md#flip-book-animation-images-and-fps).
 
 ## Animate properties
 
@@ -200,7 +251,7 @@ clock.schedule_interval(spawnEnemy, 2); // then again every 2 seconds
 function draw() {
   screen.fill("#1c1330");
   screen.draw.text(`Enemies spawned: ${enemies}`, [24, 24], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
@@ -228,7 +279,7 @@ function draw() {
   screen.fill("#0b1220");
   screen.draw.filled_circle([160, 90], 30 * zoom, "#38bdf8");
   screen.draw.text(`zoom: ${zoom.toFixed(1)}`, [16, 16], {
-    fontsize: 16,
+    size: 16,
     color: "white",
   });
 }
@@ -264,7 +315,7 @@ run({
     screen.draw.filled_circle([160, 90], 32, "#38bdf8");
   },
   onKeyDown(key) {
-    /* camelCase hook aliases are only available in import mode */
+    /* camelCase hook names work here and in game files alike */
   },
 });
 ```

@@ -44,7 +44,7 @@ buildBricks();
 
 function resetBall() {
   ball.center = [WIDTH / 2, HEIGHT / 2];
-  ball.vx = Math.random() < 0.5 ? -220 : 220;
+  ball.vx = random_choice([-220, 220]);
   ball.vy = -320;
 }
 
@@ -58,7 +58,7 @@ function startNewGame() {
 }
 
 function clampPaddle() {
-  paddle.left = Math.max(0, Math.min(WIDTH - paddle.width, paddle.left));
+  paddle.clamp_ip(screen.bounds());
 }
 
 function on_mouse_move(pos) {
@@ -91,7 +91,7 @@ function moveBall(dt) {
     ball.vy = Math.abs(ball.vy);
   }
 
-  if (ball.vy > 0 && ball.colliderect(paddle)) {
+  if (ball.vy > 0 && ball.touches(paddle)) {
     ball.bottom = paddle.top; // step out of the paddle so it can't re-hit next frame
     ball.vy = -Math.abs(ball.vy);
     // Where the ball hit the paddle (-1 left edge .. 1 right edge) steers
@@ -102,7 +102,7 @@ function moveBall(dt) {
     return;
   }
 
-  const hitIndex = bricks.findIndex((brick) => ball.colliderect(brick));
+  const hitIndex = bricks.findIndex((brick) => ball.touches(brick));
   if (hitIndex !== -1) {
     const brick = bricks[hitIndex];
     bricks.splice(hitIndex, 1);
@@ -153,32 +153,28 @@ function draw() {
   ball.draw();
 
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
-  screen.draw.text(`Lives: ${lives}`, undefined, {
+  screen.draw.text(`Lives: ${lives}`, {
     topright: [WIDTH - 16, 16],
-    fontsize: 22,
+    size: 22,
     color: "white",
   });
 
   if (state === "won") {
-    screen.draw.text("You win! Click or press space to play again", undefined, {
+    screen.draw.text("You win! Click or press space to play again", {
       center: [WIDTH / 2, HEIGHT / 2],
-      fontsize: 28,
+      size: 28,
       color: "#facc15",
       shadow: 1,
     });
   } else if (state === "lost") {
-    screen.draw.text(
-      "Game over - click or press space to try again",
-      undefined,
-      {
-        center: [WIDTH / 2, HEIGHT / 2],
-        fontsize: 28,
-        color: "#f87171",
-        shadow: 1,
-      },
-    );
+    screen.draw.text("Game over - click or press space to try again", {
+      center: [WIDTH / 2, HEIGHT / 2],
+      size: 28,
+      color: "#f87171",
+      shadow: 1,
+    });
   }
 }

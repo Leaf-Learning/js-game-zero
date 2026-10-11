@@ -252,7 +252,7 @@ function harnessPage(token: string): string {
     <style>
       html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
       body { display: grid; place-items: center; background: #150f1c; }
-      canvas { display: block; max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
+      canvas { display: block; max-width: 100vw; max-height: 100vh; }
     </style>
   </head>
   <body data-jgz-token="${token}">

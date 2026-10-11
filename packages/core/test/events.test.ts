@@ -10,6 +10,7 @@ import {
   mapBrowserMouseEvent,
   mapBrowserWheelEvent,
 } from "@js-game-zero/core/host";
+import { createLiveMouse, MouseState } from "../src/input";
 
 // The `BoundsTarget` type that `attach()`'s first parameter is intersected
 // with is not exported from events.ts, so derive the parameter type
@@ -62,6 +63,45 @@ describe("hook dispatch", () => {
     dispatchHook(on_mouse_down, { pos: [1, 2], button: mouse.LEFT });
     dispatchHook((event) => calls.push([event]), { key: keys.A });
     expect(calls).toEqual([[mouse.LEFT, [1, 2]], [{ key: keys.A }]]);
+  });
+
+  test("unfamiliar parameter names receive values by their place in the list", () => {
+    const calls: unknown[][] = [];
+    const order = ["pos", "button", "buttons", "rel"];
+    const args = { pos: [1, 2], button: mouse.LEFT, buttons: new Set() };
+    dispatchHook((position: unknown) => calls.push([position]), args, order);
+    dispatchHook((p: unknown, b: unknown) => calls.push([p, b]), args, order);
+    // Known names keep their value wherever they sit; others take the rest.
+    dispatchHook(
+      (button: unknown, where: unknown) => calls.push([button, where]),
+      args,
+      order,
+    );
+    expect(calls).toEqual([
+      [[1, 2]],
+      [[1, 2], mouse.LEFT],
+      [mouse.LEFT, [1, 2]],
+    ]);
+  });
+
+  test("InputDispatcher hands a positional parameter the documented value", () => {
+    const received: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      on_key_down(k: unknown) {
+        received.push(k);
+      },
+      on_mouse_move(where: unknown, moved: unknown) {
+        received.push(where, moved);
+      },
+    });
+    dispatcher.handleKeyDown({ code: "Space", key: " " });
+    dispatcher.handleMouseMove({
+      clientX: 5,
+      clientY: 6,
+      movementX: 1,
+      movementY: 2,
+    });
+    expect(received).toEqual([keys.SPACE, [5, 6], [1, 2]]);
   });
 
   test("extracts parameter names from function and arrow forms", () => {
@@ -240,6 +280,55 @@ describe("browser event mapping", () => {
         buttons: 1,
       })?.buttons,
     ).toEqual(new Set([mouse.LEFT]));
+  });
+});
+
+describe("live mouse state", () => {
+  test("follows the pointer and the held buttons", () => {
+    const state = new MouseState();
+    const live = createLiveMouse(state, () => [160, 90]);
+    const dispatcher = new InputDispatcher({}, undefined, state);
+    expect(live.pos).toEqual([160, 90]);
+    expect(live.LEFT).toBe(mouse.LEFT);
+
+    dispatcher.handleMouseMove({ clientX: 30, clientY: 40, buttons: 0 });
+    expect(live.pos).toEqual([30, 40]);
+    expect([live.x, live.y]).toEqual([30, 40]);
+    expect(live.buttons.size).toBe(0);
+
+    dispatcher.handleMouseDown({
+      clientX: 31,
+      clientY: 41,
+      button: 0,
+      buttons: 1,
+    });
+    expect(live.buttons.has(mouse.LEFT)).toBe(true);
+    dispatcher.handleMouseUp({
+      clientX: 31,
+      clientY: 41,
+      button: 0,
+      buttons: 0,
+    });
+    expect(live.buttons.has(mouse.LEFT)).toBe(false);
+
+    dispatcher.handleMouseDown({
+      clientX: 31,
+      clientY: 41,
+      button: 2,
+      buttons: 2,
+    });
+    dispatcher.handleFocusLoss();
+    expect(live.buttons.size).toBe(0);
+    expect(live.pos).toEqual([31, 41]);
+  });
+
+  test("hands out copies, so changing them can't move the mouse", () => {
+    const state = new MouseState();
+    const live = createLiveMouse(state, () => [0, 0]);
+    live.pos[0] = 99;
+    live.buttons.add(mouse.LEFT);
+    expect(live.pos).toEqual([0, 0]);
+    expect(live.buttons.size).toBe(0);
   });
 });
 

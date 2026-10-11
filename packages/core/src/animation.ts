@@ -2,7 +2,7 @@
 // module (LGPL-3.0), which in turn credits: "Easing Functions ported from
 // the Clutter Project via kivy.org".
 import { Clock, clock } from "./clock";
-import { levenshtein } from "./util";
+import { didYouMean, levenshtein } from "./util";
 
 export type TweenName = keyof typeof tweens;
 
@@ -93,6 +93,22 @@ export const tweens = Object.freeze({
   both_elastic(n: number): number {
     return tweens.in_out_elastic(n);
   },
+  // Plain-language names: CSS's easing words, and what the motion looks like.
+  ease_in(n: number): number {
+    return tweens.accelerate(n);
+  },
+  ease_out(n: number): number {
+    return tweens.decelerate(n);
+  },
+  ease_in_out(n: number): number {
+    return tweens.accel_decel(n);
+  },
+  bounce(n: number): number {
+    return tweens.bounce_end(n);
+  },
+  spring(n: number): number {
+    return tweens.out_elastic(n);
+  },
 });
 
 export const tweenNames = Object.freeze(Object.keys(tweens) as TweenName[]);
@@ -133,7 +149,12 @@ export class Animation<T extends object = object> {
 
     for (const [property, targetValue] of targetEntries) {
       if (!(property in object)) {
-        throw new ValueError(`object has no attribute ${property} to animate`);
+        throw new ValueError(
+          `object has no attribute ${property} to animate.${didYouMean(
+            property,
+            ["duration", "tween", "on_finished", ...propertyNames(object)],
+          )}`,
+        );
       }
       const initialValue = normalizeTargetValue(
         (object as Record<string, unknown>)[property],
@@ -256,6 +277,19 @@ function replaceExistingAnimation(
     previous.removeTarget(property);
   }
   registry.set(property, animation);
+}
+
+/** Own and inherited property names, including an Actor's x/y/angle getters. */
+function propertyNames(object: object): string[] {
+  const names: string[] = [];
+  for (
+    let current: object | null = object;
+    current && current !== Object.prototype;
+    current = Object.getPrototypeOf(current) as object | null
+  ) {
+    names.push(...Object.getOwnPropertyNames(current));
+  }
+  return names;
 }
 
 function validateDuration(value: number): number {

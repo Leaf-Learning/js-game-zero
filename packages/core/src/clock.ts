@@ -1,4 +1,5 @@
 import { createActiveServiceProxy } from "./active-service";
+import { addCamelCaseAliases } from "./friendly-names";
 
 type ClockCallback = () => void;
 type TickCallback = (dt: number) => void;
@@ -152,6 +153,8 @@ export class Clock {
     else reportClockCallbackError(error);
   }
 }
+
+addCamelCaseAliases(Clock.prototype);
 
 const defaultClock = new Clock();
 let activeClock: Clock | null = null;

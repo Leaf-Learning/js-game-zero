@@ -347,3 +347,14 @@ describe("Rect iteration and indexing", () => {
     expect([x, y, w, h]).toEqual([1, 2, 3, 4]);
   });
 });
+
+describe("touches", () => {
+  test("tests a point or another rect with one method", () => {
+    const rect = new Rect(10, 10, 20, 20);
+    expect(rect.touches([15, 15])).toBe(true);
+    expect(rect.touches([30, 30])).toBe(false);
+    expect(rect.touches([25, 25, 10, 10])).toBe(true);
+    expect(rect.touches(new Rect(40, 40, 5, 5))).toBe(false);
+    expect(rect.touches({ rect: () => new Rect(0, 0, 11, 11) })).toBe(true);
+  });
+});

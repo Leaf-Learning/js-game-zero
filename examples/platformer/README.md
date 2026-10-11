@@ -22,7 +22,7 @@ water below.
 - Short physics substeps keep a dropped frame from skipping a platform
   or collectible while still consuming the full elapsed time.
 - Turning grid coordinates into pixels and back (`TILE_SIZE`-sized cells).
-- Collecting items by checking `colliderect()` against a list of `Actor`s
+- Collecting items by checking `touches()` against a list of `Actor`s
   each physics step, and removing them when touched.
 - A simple "fall off the world" rule: once the player drops below the
   bottom of the screen, they respawn at the start instead of the game

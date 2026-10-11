@@ -117,7 +117,8 @@ test("drives a game through JSONL, inspects it, and reloads edits", async () => 
       state: "running",
       elapsed: 0,
       frames: 1,
-      canvas: { width: 200, height: 100 },
+      // The CLI's browser runs at device pixel ratio 1, so density is 1.
+      canvas: { width: 200, height: 100, density: 1 },
       heldKeys: [],
       console: [],
       pageErrors: [],
@@ -229,6 +230,75 @@ test("drives a game through JSONL, inspects it, and reloads edits", async () => 
     expect(quit.result).toEqual({ closing: true });
     expect(await client.exited()).toBe(0);
     expect(client.stderr).toBe("");
+  } finally {
+    client.stop();
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test("a game's PIXEL_DENSITY sizes screenshots while input stays logical", async () => {
+  test.setTimeout(30_000);
+  const root = await mkdtemp(join(tmpdir(), "jgz-cli-density-"));
+  const project = join(root, "game");
+  await mkdir(project);
+  await writeFile(
+    join(project, "main.js"),
+    `WIDTH = 40;
+HEIGHT = 30;
+PIXEL_DENSITY = 2;
+let lastClick = null;
+function draw() {
+  screen.fill("black");
+  screen.rect(0, 0, 20, 30, "red");
+}
+function on_mouse_down(pos) { lastClick = pos; }
+`,
+    "utf8",
+  );
+  const cliEnvironment = { ...process.env };
+  delete cliEnvironment.FORCE_COLOR;
+  const client = new JsonlClient(
+    spawn(cliBinary, ["test", project, "--json"], {
+      cwd: repoRoot,
+      env: cliEnvironment,
+    }),
+  );
+  try {
+    await client.waitFor(
+      (record) => record.type === "event" && record.event === "ready",
+    );
+    expect(
+      (await client.request({ command: "status", pixels: true })).result,
+    ).toMatchObject({
+      state: "running",
+      canvas: { width: 40, height: 30, density: 2 },
+      pixels: { distinctColors: 2 },
+    });
+    await client.request({
+      command: "mouse",
+      action: "click",
+      button: "left",
+      x: 30,
+      y: 12,
+    });
+    expect(
+      (await client.request({ command: "inspect", path: "lastClick" })).result,
+    ).toEqual([30, 12]);
+
+    const screenshotPath = join(root, "dense.png");
+    expect(
+      (
+        await client.request({
+          command: "screenshot",
+          path: screenshotPath,
+        })
+      ).result,
+    ).toMatchObject({ width: 40, height: 30, density: 2 });
+    // The PNG holds the canvas's pixels: WIDTH × HEIGHT times the density.
+    const png = await readFile(screenshotPath);
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([80, 60]);
+    await client.request({ command: "quit" });
+    expect(await client.exited()).toBe(0);
   } finally {
     client.stop();
     await rm(root, { force: true, recursive: true });

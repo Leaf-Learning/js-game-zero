@@ -25,7 +25,7 @@ export const game = defineGame(({ screen, keyboard, keys }) => {
       screen.draw.filled_rect([28, 128, 264, 16], "#f59e0b");
       screen.draw.filled_circle([x, 92], RADIUS, "#e0f2fe");
       screen.draw.text("import mode", [112, 28], {
-        fontsize: 20,
+        size: 20,
         color: "#ffffff",
       });
     },

@@ -6,13 +6,24 @@ import mode as properties on the object you pass to `run()`. This page
 documents every hook, then the `keys`, `keymods`, and `mouse` constant tables
 used by the input hooks.
 
-A hook's arguments are matched **by parameter name**, not by position. The
-runtime reads your function's declared parameter names and passes only the
-values it has for those names, in whatever order you wrote them. That means
+Every input hook also has a camelCase name (`onKeyDown`, `onMouseDown`, ...),
+which works the same way in both modes. Pick one style per game. (A game made
+with `defineGame()` is the exception: its camelCase hooks receive one event
+object — see [`runtime.md`](runtime.md).)
+
+A hook's arguments are matched **by parameter name** first. The runtime reads
+your function's declared parameter names and passes the value with that name,
+in whatever order you wrote them. That means
 `function on_key_down(mod, key) {}` receives `mod` and `key` correctly even
-though the "natural" order is `key, mod`. It also means a typo in a parameter
-name silently gets `undefined` instead of the value you wanted — name your
-parameters exactly as shown below.
+though the "natural" order is `key, mod`.
+
+A parameter with any other name receives the next value in the hook's
+documented order that isn't already taken by name, just like an ordinary
+JavaScript function: `function on_key_down(k) {}` gets the key, and
+`function on_mouse_down(position) {}` gets `pos`. The runtime adds a
+`hook-parameter` warning saying which value such a parameter receives, since
+`on_mouse_down(btn)` gets the position, not the button. Name your parameters
+as shown below to avoid the warning.
 
 ## draw()
 
@@ -63,8 +74,7 @@ function on_key_down(
 function on_key_up(key: number, mod: number): void;
 ```
 
-Fired on `keydown`/`keyup`. Import-mode hook objects may instead use the
-camelCase aliases `onKeyDown` / `onKeyUp`.
+Fired on `keydown`/`keyup`. camelCase names: `onKeyDown` / `onKeyUp`.
 
 - `key` — **a numeric key constant from `keys`**, not a string. This is the
   single most common mistake when porting from other frameworks: compare it
@@ -181,8 +191,8 @@ Fired on `mousedown`/`mouseup`, and also for **wheel scroll**: a wheel event
 is reported as `on_mouse_down` with `button` set to `mouse.WHEEL_UP` or
 `mouse.WHEEL_DOWN` (matching pygame's convention of treating the scroll wheel
 as buttons 4 and 5, rather than a separate event). There is no
-`on_mouse_wheel` hook — check `button` inside `on_mouse_down` instead. Import
-mode aliases: `onMouseDown` / `onMouseUp`.
+`on_mouse_wheel` hook — check `button` inside `on_mouse_down` instead.
+camelCase names: `onMouseDown` / `onMouseUp`.
 
 ```js
 function on_mouse_down(pos, button) {
@@ -205,7 +215,7 @@ function on_mouse_move(
 Fired on `mousemove`. `rel` is the movement since the previous event (from
 the browser's `movementX`/`movementY` when available). `buttons` is a `Set`
 of currently held mouse buttons (`mouse.LEFT`, `mouse.MIDDLE`, `mouse.RIGHT`)
-— check membership with `buttons.has(mouse.LEFT)`. Import mode alias:
+— check membership with `buttons.has(mouse.LEFT)`. camelCase name:
 `onMouseMove`.
 
 ## on_music_end()
@@ -215,7 +225,7 @@ function on_music_end(): void;
 ```
 
 Fired once the active `music` track (and any queued tracks) finish playing
-with nothing left to play. Import mode alias: `onMusicEnd`.
+with nothing left to play. camelCase name: `onMusicEnd`.
 
 ## Duplicate hooks
 
@@ -261,7 +271,10 @@ Numeric key constants, one property per key. The full set includes:
 | Locks                      | `keys.CAPSLOCK`, `keys.NUMLOCK`, `keys.SCROLLOCK`                                                                                                                                   |
 
 The values are arbitrary integers (matching SDL/pygame's numbering) — never
-hardcode them, always compare against the named constant.
+hardcode them, always compare against the named constant. In a game file the
+names ignore capitalization (`keys.space` is `keys.SPACE`), and a misspelled
+name such as `keys.SPCE` throws with a suggestion instead of quietly
+comparing against `undefined`. The same goes for `keymods` and `mouse`.
 
 ## `keymods`
 
@@ -289,6 +302,24 @@ function on_key_down(key, mod) {
 ```
 
 ## `mouse`
+
+In a game file, `mouse` also says where the mouse is right now, for code in
+`update()` that follows or aims at it — the way `keyboard` does for keys:
+
+| Property        | Meaning                                                                       |
+| --------------- | ----------------------------------------------------------------------------- |
+| `mouse.pos`     | `[x, y]` of the mouse (or a finger) over the game. The center until it moves. |
+| `mouse.x`       | The same `x`.                                                                 |
+| `mouse.y`       | The same `y`.                                                                 |
+| `mouse.buttons` | A `Set` of buttons held now: `mouse.buttons.has(mouse.LEFT)`.                 |
+
+```js
+function update(dt) {
+  ship.angle = ship.angle_to(mouse.pos); // aim at the mouse
+}
+```
+
+Button constants:
 
 | Constant           | Value | Meaning                                                |
 | ------------------ | ----- | ------------------------------------------------------ |

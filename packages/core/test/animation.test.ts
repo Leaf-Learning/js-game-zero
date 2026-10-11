@@ -24,6 +24,11 @@ describe("tweens", () => {
       "end_elastic",
       "start_elastic",
       "both_elastic",
+      "ease_in",
+      "ease_out",
+      "ease_in_out",
+      "bounce",
+      "spring",
     ]);
     for (const name of tweenNames) {
       expect(Number.isFinite(tweens[name](0.5))).toBe(true);
@@ -67,6 +72,11 @@ describe("tweens", () => {
       end_elastic: inElastic,
       start_elastic: outElastic,
       both_elastic: inOutElastic,
+      ease_in: accelerate,
+      ease_out: decelerate,
+      ease_in_out: accelDecel,
+      bounce: bounceEnd,
+      spring: outElastic,
     };
 
     for (const name of tweenNames) {
@@ -127,6 +137,21 @@ describe("Animation error paths and edge cases", () => {
       /has no attribute y/,
     );
     expect(() => new Animation({ x: 0 }, options)).toThrow(ValueError);
+  });
+
+  test("suggests the option or property a misspelled key was meant to be", () => {
+    const options = { x: 1, duraton: 2 } as unknown as { x?: number };
+    expect(() => new Animation({ x: 0 }, options)).toThrow(
+      "Did you mean duration?",
+    );
+    const actorLike = new (class {
+      get angle() {
+        return 0;
+      }
+      set angle(_value: number) {}
+    })();
+    const typo = { angel: 90 } as unknown as { angle?: number };
+    expect(() => new Animation(actorLike, typo)).toThrow("Did you mean angle?");
   });
 
   test("throws RangeError for a negative duration", () => {

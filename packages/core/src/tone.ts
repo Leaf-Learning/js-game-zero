@@ -1,4 +1,7 @@
 import { audioUnlock, clampVolume, type AudioUnlockState } from "./audio";
+import { rejectUnknownOptions } from "./util";
+
+const tonePlayOptionKeys = new Set(["waveform", "volume"]);
 
 export type Waveform = OscillatorType;
 
@@ -80,6 +83,7 @@ export class CreatedTone implements ToneSpec {
   }
 
   play(options: TonePlayOptions = {}): Promise<TonePlayback> {
+    rejectUnknownOptions(options, tonePlayOptionKeys, "tone");
     return this.generator.play(this.frequency, this.duration, {
       waveform: options.waveform ?? this.waveform,
       volume: options.volume ?? this.volume,
@@ -168,6 +172,7 @@ export class ToneGenerator {
     duration: number,
     options: TonePlayOptions,
   ): ToneSpec {
+    rejectUnknownOptions(options, tonePlayOptionKeys, "tone");
     return {
       frequency: parseToneFrequency(noteOrFrequency),
       duration: requireToneDuration(duration),

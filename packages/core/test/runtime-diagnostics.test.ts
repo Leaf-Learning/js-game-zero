@@ -163,3 +163,38 @@ describe("module typo diagnostics", () => {
     expect(moduleTypos({ WIDTH: 800, WIDHT: 1 })).toEqual([]);
   });
 });
+
+describe("hook parameter diagnostics", () => {
+  function parameterWarnings(module: Record<string, unknown>): string[] {
+    return collectRuntimeDiagnostics(module)
+      .filter((diagnostic) => diagnostic.code === "hook-parameter")
+      .map((diagnostic) => diagnostic.message);
+  }
+
+  test("says which value an unfamiliar parameter name receives", () => {
+    expect(parameterWarnings({ on_mouse_down(position: unknown) {} })).toEqual([
+      "on_mouse_down's position parameter receives pos, because it is in that place in the list. Rename it to pos to make that clear (on_mouse_down receives pos, button, buttons, rel).",
+    ]);
+    expect(
+      parameterWarnings({ onKeyDown(key: unknown, shift: unknown) {} }),
+    ).toEqual([
+      "onKeyDown's shift parameter receives mod, because it is in that place in the list. Rename it to mod to make that clear (onKeyDown receives key, mod, unicode, repeat).",
+    ]);
+  });
+
+  test("flags parameters a hook can never fill", () => {
+    expect(parameterWarnings({ on_music_end(track: unknown) {} })).toEqual([
+      "on_music_end receives nothing, so its track parameter will always be undefined.",
+    ]);
+  });
+
+  test("stays quiet for documented names and a lone event parameter", () => {
+    expect(
+      parameterWarnings({
+        on_key_down(mod: unknown, key: unknown) {},
+        on_mouse_move(pos: unknown, rel: unknown, buttons: unknown) {},
+        onMouseDown(event: unknown) {},
+      }),
+    ).toEqual([]);
+  });
+});

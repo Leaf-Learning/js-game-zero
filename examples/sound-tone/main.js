@@ -11,7 +11,7 @@ function draw() {
   screen.fill("#1f2937");
   screen.draw.filled_circle([160, 82], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click for sound + tone", [82, 134], {
-    fontsize: 18,
+    size: 18,
     color: "#f8fafc",
   });
 }

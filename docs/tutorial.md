@@ -123,7 +123,7 @@ let player = new Actor("player.svg", { midbottom: [240, 350] });
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 }
 
 function draw() {
@@ -138,8 +138,9 @@ of seconds since the last frame — multiplying a speed (pixels per second)
 by `dt` gives you frame-rate-independent movement, so the player moves at
 the same speed whether the game is running at 30fps or 144fps.
 `keyboard.left` and `keyboard.right` are `true` while those arrow keys are
-held down. The `Math.max`/`Math.min` line keeps the player from sliding off
-either edge of the window.
+held down. `player.clamp_ip(screen.bounds())` keeps the player from sliding
+off either edge of the window: `screen.bounds()` is a rectangle covering the
+whole game, and `clamp_ip` moves the player back inside it.
 
 Press Play, then **click the game canvas once** before pressing the arrow
 keys — the sandbox (like any web page with an embedded frame) only sends
@@ -172,7 +173,7 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   for (const comet of comets) {
     comet.y += 140 * dt;
@@ -220,12 +221,12 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
     } else if (comet.y < HEIGHT + 20) {
@@ -243,13 +244,13 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
 ```
 
-`player.collidepoint([comet.x, comet.y])` checks whether the falling
+`player.touches([comet.x, comet.y])` checks whether the falling
 comet's position is inside the player's hitbox; if so, we count it as
 caught, bump the score, and play a `"C5"` tone (a musical note name — you
 can also pass a frequency in Hz). Comets that fall past the bottom without
@@ -284,7 +285,7 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);
@@ -296,12 +297,12 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
     } else if (comet.y < HEIGHT + 20) {
@@ -319,7 +320,7 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
 }
@@ -328,7 +329,9 @@ function draw() {
 `clock.schedule_interval(spawnRandomComet, 1.1)` is called once, at the top
 of the file — it doesn't need to be inside `update()`. From then on, a new
 comet appears at a random x position roughly every 1.1 seconds, on top of
-whatever you spawn by clicking.
+whatever you spawn by clicking. `random_int(24, WIDTH - 24)` picks a random
+whole number from 24 to `WIDTH - 24`, including both ends, so comets never
+start half off the screen.
 
 ## 9. Score and a saved high score
 
@@ -351,7 +354,7 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);
@@ -363,12 +366,12 @@ function on_mouse_down(pos) {
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       if (score > highScore) {
         highScore = score;
@@ -390,11 +393,11 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
   screen.draw.text(`Best: ${highScore}`, [16, 40], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
 }
@@ -434,7 +437,7 @@ function spawnComet(x) {
 
 function spawnRandomComet() {
   if (over) return;
-  spawnComet(24 + Math.random() * (WIDTH - 48));
+  spawnComet(random_int(24, WIDTH - 24));
 }
 
 clock.schedule_interval(spawnRandomComet, 1.1);
@@ -469,12 +472,12 @@ function update(dt) {
 
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.x = Math.max(24, Math.min(WIDTH - 24, player.x));
+  player.clamp_ip(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
     comet.y += 140 * dt;
-    if (player.collidepoint([comet.x, comet.y])) {
+    if (player.touches([comet.x, comet.y])) {
       score += 1;
       tone.play("C5", 0.12);
       if (score >= WIN_SCORE) endGame(true);
@@ -497,15 +500,15 @@ function draw() {
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
-    fontsize: 20,
+    size: 20,
     color: "white",
   });
   screen.draw.text(`Lives: ${lives}`, [16, 40], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
   screen.draw.text(`Best: ${highScore}`, [16, 62], {
-    fontsize: 16,
+    size: 16,
     color: "#94a3b8",
   });
 
@@ -513,9 +516,9 @@ function draw() {
     const message = won
       ? "You win! Click to play again"
       : "Game over — click to play again";
-    screen.draw.text(message, [], {
+    screen.draw.text(message, {
       center: [WIDTH / 2, HEIGHT / 2],
-      fontsize: 26,
+      size: 26,
       color: "white",
       background: "#0b1220cc",
     });

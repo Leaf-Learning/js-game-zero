@@ -168,6 +168,16 @@ describe("browser sound effects", () => {
     expect(sound.debug_state().loop).toBe(true);
   });
 
+  test("loop() plays until stop, and a bad loop count explains itself", () => {
+    const { sound, elements } = soundFixture();
+    sound.loop();
+    expect(elements[0]?.loop).toBe(true);
+    expect(sound.debug_state().loop).toBe(true);
+    sound.stop();
+    expect(sound.debug_state().active).toBe(false);
+    expect(() => sound.play(1.5)).toThrow("2 plays it three times");
+  });
+
   test("play errors are captured without throwing and missing assets stay explicit", async () => {
     const { sound } = soundFixture({ rejectPlay: true });
     expect(() => sound.play()).not.toThrow();
@@ -560,6 +570,22 @@ describe("music player", () => {
     expect(element.currentTime).toBe(0);
 
     expect(() => player.set_pos(-1)).toThrow(RangeError);
+  });
+
+  test("position reads and seeks in seconds", async () => {
+    const { player, elements } = musicFixture();
+    expect(player.position).toBe(0);
+    await player.play_once("theme.ogg");
+    const element = elements[0];
+    if (!element) throw new Error("Missing mock audio element.");
+    element.currentTime = 12.5;
+    expect(player.position).toBe(12.5);
+    player.position = 3;
+    expect(element.currentTime).toBe(3);
+    expect(player.get_pos()).toBeCloseTo(3000, 5);
+    expect(() => {
+      player.position = -1;
+    }).toThrow(RangeError);
   });
 
   test("get_pos returns -1 and rewind/set_pos are no-ops when nothing is loaded", () => {

@@ -109,20 +109,32 @@ never the picture.
   a new `Rect`, `move_ip` moves the actor itself.
 - `inflate(x, y)` / `inflate_ip(x, y)` — grow/shrink the hitbox around its
   center.
+- `touches(target)` — `true` when the actor overlaps `target`, which can be
+  another `Actor`, a `Rect`, a `[left, top, width, height]` tuple, or an
+  `[x, y]` point such as a click position.
 - `collidepoint(point)`, `colliderect(other)`, `collidelist(others)`,
-  `collidelistall(others)`, `contains(other)` — delegate to the actor's
-  `rect()`. `other` can be a `Rect`, a plain `[left, top, width, height]`
-  tuple, or another `Actor`.
+  `collidelistall(others)`, `contains(other)` — Pygame Zero's collision
+  tests, delegating to the actor's `rect()`. `other` can be a `Rect`, a
+  plain `[left, top, width, height]` tuple, or another `Actor`.
+- `clamp_ip(area)` — moves the actor (without resizing it) so its bounding
+  box fits inside `area`. `player.clamp_ip(screen.bounds())` keeps the
+  player on screen.
 - `clamp(other)`, `clip(other)`, `union(other)`, `unionall(others)`,
   `fit(other)` — geometry helpers, same semantics as the matching `Rect`
-  methods, again accepting `Actor`s directly.
+  methods, again accepting `Actor`s directly. They return a new `Rect` and
+  leave the actor where it is.
 
 ```js
-function on_mouse_down(pos) {
-  if (player.collidepoint(pos)) console.log("clicked the player");
+function update(dt) {
+  if (keyboard.right) player.x += 120 * dt;
+  player.clamp_ip(screen.bounds()); // stop at the edges of the screen
 }
 
-if (player.colliderect(enemy)) loseLife();
+function on_mouse_down(pos) {
+  if (player.touches(pos)) console.log("clicked the player");
+}
+
+if (player.touches(enemy)) loseLife();
 ```
 
 ## Animating an Actor
@@ -135,3 +147,45 @@ animate(player, { x: 300, duration: 0.6, tween: "bounce_end" });
 ```
 
 See [`docs/reference/clock.md`](clock.md#animation) for the full tween list.
+
+## Flip-book animation: `images` and `fps`
+
+Give an actor a list of pictures and it flips through them by itself, like a
+flip book — for walking legs, spinning coins, or explosions:
+
+```js
+let coin = new Actor("coin_0", {
+  center: [200, 120],
+  images: ["coin_0", "coin_1", "coin_2", "coin_3"],
+  fps: 8, // pictures per second
+});
+
+function draw() {
+  coin.draw();
+}
+```
+
+| Property   | Meaning                                                                               |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `images`   | The pictures to show, in order. Setting it starts again from the first; `null` stops. |
+| `fps`      | Pictures per second (default `10`). Changing it keeps the current picture.            |
+| `loop`     | Start over after the last picture (default `true`). `false` stops on the last.        |
+| `frame`    | Which picture is showing: `0` for the first.                                          |
+| `finished` | `true` once a `loop: false` animation has shown its last picture.                     |
+
+The pictures change on the game's own clock, so they pause when the game
+does and keep the same speed at any frame rate. All of them start loading
+as soon as you set `images`. For a one-shot effect, remove the actor once
+it's `finished`:
+
+```js
+explosions.push(
+  new Actor("boom_0", {
+    center: pos,
+    images: ["boom_0", "boom_1", "boom_2"],
+    fps: 16,
+    loop: false,
+  }),
+);
+explosions = explosions.filter((explosion) => !explosion.finished);
+```

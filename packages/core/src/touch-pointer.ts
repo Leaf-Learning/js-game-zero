@@ -1,10 +1,16 @@
 import type { BrowserMouseLike, InputDispatcher } from "./events";
 
-/** Touch and pen use the existing mouse hooks, with one canvas pointer at a time. */
+type PointerTarget = Parameters<InputDispatcher["handleMouseDown"]>[1];
+
+/**
+ * Touch and pen use the existing mouse hooks, with one canvas pointer at a
+ * time. Positions map onto `target`, which reports the logical screen size.
+ */
 export function attachTouchPointer(
   canvas: HTMLCanvasElement,
   dispatcher: InputDispatcher,
   invoke: (callback: () => void) => void,
+  target: PointerTarget = canvas,
 ): { reset(): void; detach(): void } {
   if (!canvas.style || typeof canvas.setPointerCapture !== "function") {
     return { reset() {}, detach() {} };
@@ -37,7 +43,7 @@ export function attachTouchPointer(
     const mouseEvent = mapped(event, true);
     previous = { clientX: event.clientX, clientY: event.clientY };
     invoke(() => {
-      dispatcher.handleMouseDown(mouseEvent, canvas);
+      dispatcher.handleMouseDown(mouseEvent, target);
     });
   };
   const move = (raw: Event): void => {
@@ -46,7 +52,7 @@ export function attachTouchPointer(
     const mouseEvent = mapped(event, true);
     previous = { clientX: event.clientX, clientY: event.clientY };
     invoke(() => {
-      dispatcher.handleMouseMove(mouseEvent, canvas);
+      dispatcher.handleMouseMove(mouseEvent, target);
     });
   };
   const reset = (): void => {
@@ -65,7 +71,7 @@ export function attachTouchPointer(
         : mapped(event, false);
     reset();
     invoke(() => {
-      dispatcher.handleMouseUp(mouseEvent, canvas);
+      dispatcher.handleMouseUp(mouseEvent, target);
     });
   };
   canvas.addEventListener("pointerdown", down);
@@ -81,7 +87,7 @@ export function attachTouchPointer(
         invoke(() => {
           dispatcher.handleMouseUp(
             { ...position, button: 0, buttons: 0, movementX: 0, movementY: 0 },
-            canvas,
+            target,
           );
         });
       }

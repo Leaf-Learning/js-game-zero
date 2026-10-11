@@ -11,8 +11,10 @@ import { normalizeColor, verticalGradient, type Color } from "./color";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
 import {
   clamp,
+  describeValue,
   horizontalAnchorOffset,
   rectPositionKeys,
+  rejectUnknownOptions,
   requireFiniteNumber,
   requirePoint,
   verticalAnchorOffset,
@@ -50,6 +52,8 @@ export type TextOptions = {
   readonly fontname?: string;
   readonly sysfontname?: string;
   readonly fontsize?: number;
+  /** Same as `fontsize`. */
+  readonly size?: number;
   readonly bold?: boolean;
   readonly italic?: boolean;
   readonly underline?: boolean;
@@ -77,10 +81,18 @@ export type TextOptions = {
   readonly align?: TextAlignOption;
   readonly strip?: boolean;
   readonly owidth?: number;
+  /** Same as `owidth`. */
+  readonly outline?: number;
   readonly ocolor?: Color;
+  /** Same as `ocolor`. */
+  readonly outline_color?: Color;
   readonly shadow?: number | Point;
   readonly scolor?: Color;
+  /** Same as `scolor`. */
+  readonly shadow_color?: Color;
   readonly gcolor?: Color;
+  /** Same as `gcolor`. */
+  readonly gradient_color?: Color;
   readonly alpha?: number;
   readonly anchor?: TextAnchor;
   readonly angle?: number;
@@ -99,6 +111,18 @@ export type TextboxOptions = Omit<
   | "centery"
 > & {
   readonly min_fontsize?: number;
+  /** Same as `min_fontsize`. */
+  readonly min_size?: number;
+};
+
+/**
+ * `screen.draw.text` takes its options either third, after a position, or
+ * second, in place of one: `text("Hi", [10, 10], { size: 20 })` and
+ * `text("Hi", { center: [160, 90], size: 20 })` both work.
+ */
+export type DrawText = {
+  (text: string, options?: TextOptions): void;
+  (text: string, pos: Point | undefined, options?: TextOptions): void;
 };
 
 export type TextLayout = {
@@ -129,7 +153,269 @@ type TextPositionKey =
 
 const textPositionKeys = ["pos", ...rectPositionKeys] as const;
 
+/**
+ * Readable names for Pygame Zero's terse text options. Either name works;
+ * giving both for the same option is an error.
+ */
+const textOptionAliases = {
+  size: "fontsize",
+  min_size: "min_fontsize",
+  outline: "owidth",
+  outline_color: "ocolor",
+  shadow_color: "scolor",
+  gradient_color: "gcolor",
+} as const;
+
+const textboxOptionKeys = new Set<string>([
+  ...Object.keys(textOptionAliases),
+  ...rectPositionKeys,
+  "fontname",
+  "sysfontname",
+  "fontsize",
+  "min_fontsize",
+  "bold",
+  "italic",
+  "underline",
+  "color",
+  "background",
+  "lineheight",
+  "align",
+  "strip",
+  "owidth",
+  "ocolor",
+  "shadow",
+  "scolor",
+  "gcolor",
+  "alpha",
+  "anchor",
+  "angle",
+]);
+
+const textOptionKeys = new Set<string>([
+  ...[...textboxOptionKeys].filter(
+    (key) => key !== "min_fontsize" && key !== "min_size",
+  ),
+  "pos",
+  "top",
+  "left",
+  "bottom",
+  "right",
+  "centerx",
+  "centery",
+  "width",
+  "widthem",
+]);
+
+/**
+ * How each short form (`screen.circle(x, y, radius)`) is called, so a wrong
+ * call can say what it takes. Beginners meet coordinates before lists, so a
+ * list where a number belongs points to the `screen.draw` method that takes
+ * lists, and an extra argument (usually an outline width) points to the
+ * outline method, since the short forms only fill.
+ */
+type ShortForm = {
+  readonly call: string;
+  /** The arguments that must be numbers, in order. */
+  readonly numbers: readonly string[];
+  /** The most arguments it takes. */
+  readonly arity: number;
+  readonly lists: string;
+  readonly extra: string;
+};
+
+const shortForms = {
+  circle: {
+    call: "screen.circle(x, y, radius, color)",
+    numbers: ["x", "y", "radius"],
+    arity: 4,
+    lists:
+      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filled_circle([x, y], radius, color).',
+    extra:
+      "screen.circle always fills, so it has no outline width. For an outline, use screen.draw.circle([x, y], radius, color, width).",
+  },
+  rect: {
+    call: "screen.rect(x, y, width, height, color)",
+    numbers: ["x", "y", "width", "height"],
+    arity: 5,
+    lists:
+      'screen.rect takes x, y, width, height as four numbers, like screen.rect(40, 40, 120, 60, "orange"). For a list or a Rect, use screen.draw.filled_rect([x, y, width, height], color).',
+    extra:
+      "screen.rect always fills, so it has no outline width. For an outline, use screen.draw.rect([x, y, width, height], color, width).",
+  },
+  triangle: {
+    call: "screen.triangle(x1, y1, x2, y2, x3, y3, color)",
+    numbers: ["x1", "y1", "x2", "y2", "x3", "y3"],
+    arity: 7,
+    lists:
+      'screen.triangle takes each corner as two numbers, like screen.triangle(160, 40, 120, 120, 200, 120, "lime"). For [x, y] lists, use screen.draw.filled_polygon([[x1, y1], [x2, y2], [x3, y3]], color).',
+    extra:
+      "screen.triangle always fills, so it has no outline width. For an outline, use screen.draw.polygon([[x1, y1], [x2, y2], [x3, y3]], color, width).",
+  },
+  line: {
+    call: "screen.line(x1, y1, x2, y2, color, width)",
+    numbers: ["x1", "y1", "x2", "y2"],
+    arity: 6,
+    lists:
+      'screen.line takes each end as two numbers, like screen.line(20, 20, 200, 120, "white", 3). For [x, y] lists, use screen.draw.line([x1, y1], [x2, y2], color, width).',
+    extra:
+      "screen.line takes at most six values: screen.line(x1, y1, x2, y2, color, width).",
+  },
+} as const satisfies Record<string, ShortForm>;
+
 let currentScreen: Screen | null = null;
+
+/**
+ * A sized screen's logical size, its density, and the canvas size that
+ * density gave it. A Screen nobody sized follows its canvas at density 1.
+ */
+type ScreenSize = {
+  readonly width: number;
+  readonly height: number;
+  readonly density: number;
+  readonly canvasWidth: number;
+  readonly canvasHeight: number;
+};
+
+const screenSizes = new WeakMap<Screen, ScreenSize>();
+
+/** Marks a canvas whose CSS size the density rule sets. */
+const densityAttribute = "data-jgz-density";
+
+/**
+ * A denser canvas would show at its pixel size, so this rule gives it its
+ * logical width instead; its height follows the canvas's aspect ratio.
+ * `:where()` has no specificity, so any size the page gives the canvas wins.
+ */
+const densityRule = `:where(canvas[${densityAttribute}]) { width: var(--jgz-width); }`;
+
+type SizableCanvas = CanvasLike & {
+  width: number;
+  height: number;
+  readonly ownerDocument?: Document;
+  readonly style?: CSSStyleDeclaration;
+  getRootNode?: () => Node;
+  setAttribute?: (name: string, value: string) => void;
+  removeAttribute?: (name: string) => void;
+};
+
+/**
+ * Sizes the screen to `width` × `height` logical pixels with `density`
+ * canvas pixels each, and scales the context so every drawing call keeps
+ * working in logical pixels. A density change keeps what's on the canvas,
+ * rescaled; a new size starts blank, as setting a canvas's size does.
+ */
+export function resizeScreen(
+  screen: Screen,
+  width: number,
+  height: number,
+  density = 1,
+): void {
+  const canvas = screen.canvas as SizableCanvas;
+  const previous = screenSizes.get(screen);
+  const canvasWidth = Math.max(1, Math.round(width * density));
+  const canvasHeight = Math.max(1, Math.round(height * density));
+  const kept =
+    previous?.width === width &&
+    previous.height === height &&
+    (canvas.width !== canvasWidth || canvas.height !== canvasHeight)
+      ? copyCanvas(canvas)
+      : null;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+  const size = { width, height, density, canvasWidth, canvasHeight };
+  screenSizes.set(screen, size);
+  applyDensityTransform(screen.context, size);
+  applyDensityCss(canvas, size);
+  if (kept) screen.context.drawImage(kept, 0, 0, width, height);
+}
+
+/**
+ * Restores the density scale if something reset the canvas since the last
+ * frame. Code outside the runtime that sets `canvas.width`/`height` means
+ * a logical size, so the screen adopts it at the same density.
+ */
+export function syncScreen(screen: Screen): void {
+  const size = screenSizes.get(screen);
+  if (!size) return;
+  const { canvas, context } = screen;
+  if (
+    canvas.width !== size.canvasWidth ||
+    canvas.height !== size.canvasHeight
+  ) {
+    resizeScreen(
+      screen,
+      canvas.width === size.canvasWidth ? size.width : canvas.width,
+      canvas.height === size.canvasHeight ? size.height : canvas.height,
+      size.density,
+    );
+    return;
+  }
+  if (!isScaled(size) || typeof context.getTransform !== "function") return;
+  const matrix = context.getTransform();
+  if (matrix.isIdentity) applyDensityTransform(context, size);
+}
+
+function isScaled(size: ScreenSize): boolean {
+  return size.canvasWidth !== size.width || size.canvasHeight !== size.height;
+}
+
+/** Scales by each axis's exact ratio, so the logical screen fills the canvas. */
+function applyDensityTransform(
+  context: CanvasRenderingContext2D,
+  size: ScreenSize,
+): void {
+  if (!isScaled(size) || typeof context.setTransform !== "function") return;
+  context.setTransform(
+    size.canvasWidth / size.width,
+    0,
+    0,
+    size.canvasHeight / size.height,
+    0,
+    0,
+  );
+}
+
+function applyDensityCss(canvas: SizableCanvas, size: ScreenSize): void {
+  const { style, ownerDocument: doc } = canvas;
+  if (!style || !doc || typeof canvas.setAttribute !== "function") return;
+  if (!isScaled(size)) {
+    canvas.removeAttribute?.(densityAttribute);
+    style.removeProperty("--jgz-width");
+    return;
+  }
+  const root = canvas.getRootNode?.();
+  const parent =
+    root && root.nodeType === 11 ? (root as ParentNode) : (doc.head ?? null);
+  if (parent && !parent.querySelector(`style[${densityAttribute}]`)) {
+    const rule = doc.createElement("style");
+    rule.setAttribute(densityAttribute, "");
+    rule.textContent = densityRule;
+    // First, so the page's own rules come later and win ties.
+    parent.prepend(rule);
+  }
+  canvas.setAttribute(densityAttribute, "");
+  style.setProperty("--jgz-width", `${size.width}px`);
+}
+
+function copyCanvas(canvas: SizableCanvas): CanvasImageSource | null {
+  if (canvas.width === 0 || canvas.height === 0) return null;
+  try {
+    const copy =
+      typeof OffscreenCanvas === "function"
+        ? new OffscreenCanvas(canvas.width, canvas.height)
+        : canvas.ownerDocument?.createElement("canvas");
+    if (!copy) return null;
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext("2d") as
+      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+    if (!context) return null;
+    context.drawImage(canvas as unknown as CanvasImageSource, 0, 0);
+    return copy;
+  } catch {
+    return null;
+  }
+}
 
 export class Screen {
   readonly canvas: CanvasLike;
@@ -151,13 +437,21 @@ export class Screen {
       this.drawRect(rect, color, width),
     filled_rect: (rect: RectLike, color: Color): void =>
       this.drawRect(rect, color, 0, true),
-    text: (text: string, pos?: Point, options: TextOptions = {}): void =>
-      this.drawText(text, pos, options),
+    text: ((
+      text: string,
+      posOrOptions?: Point | TextOptions,
+      options?: TextOptions,
+    ): void => this.drawText(text, posOrOptions, options)) as DrawText,
     textbox: (
       text: string,
       rect: RectLike,
       options: TextboxOptions = {},
     ): void => this.drawTextbox(text, rect, options),
+    /** Same as `screen.blit`: draws an image with its top-left at `pos`. */
+    image: (
+      image: string | SurfaceLike,
+      pos: Point | RectLike,
+    ): Promise<void> | void => this.blit(image, pos),
   };
 
   constructor(
@@ -174,12 +468,19 @@ export class Screen {
     this.imageLoader = options.imageLoader ?? images;
   }
 
+  /** The screen's width in logical pixels: the game's `WIDTH`. */
   get width(): number {
-    return this.canvas.width;
+    return screenSizes.get(this)?.width ?? this.canvas.width;
   }
 
+  /** The screen's height in logical pixels: the game's `HEIGHT`. */
   get height(): number {
-    return this.canvas.height;
+    return screenSizes.get(this)?.height ?? this.canvas.height;
+  }
+
+  /** Canvas pixels per logical pixel along each side. */
+  get density(): number {
+    return screenSizes.get(this)?.density ?? 1;
   }
 
   bounds(): ZRect {
@@ -218,6 +519,64 @@ export class Screen {
       });
     }
     this.drawSurface(image, pos);
+  }
+
+  /**
+   * The short forms take positions as separate numbers rather than `[x, y]`
+   * lists, fill their shapes, and default to white, so
+   * `screen.circle(200, 150, 25, "gold")` fits a phone-width line where
+   * `screen.draw.filled_circle([200, 150], 25, "gold")` doesn't. The
+   * outline versions stay under `screen.draw`.
+   */
+  circle(x: number, y: number, radius: number, color: Color = "white"): void {
+    requireShortForm(shortForms.circle, arguments);
+    this.drawCircle([x, y], radius, color, 0, true);
+  }
+
+  /** A filled rectangle whose top-left corner is at `x, y`. */
+  rect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: Color = "white",
+  ): void {
+    requireShortForm(shortForms.rect, arguments);
+    this.drawRect([x, y, width, height], color, 0, true);
+  }
+
+  triangle(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    x3: number,
+    y3: number,
+    color: Color = "white",
+  ): void {
+    requireShortForm(shortForms.triangle, arguments);
+    this.drawPolygon(
+      [
+        [x1, y1],
+        [x2, y2],
+        [x3, y3],
+      ],
+      color,
+      0,
+      true,
+    );
+  }
+
+  line(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: Color = "white",
+    width = 1,
+  ): void {
+    requireShortForm(shortForms.line, arguments);
+    this.drawLine([x1, y1], [x2, y2], color, width);
   }
 
   private drawSurface(surface: SurfaceLike, pos: Point | RectLike): void {
@@ -322,9 +681,24 @@ export class Screen {
 
   private drawText(
     text: string,
-    pos: Point | undefined,
-    options: TextOptions,
+    posOrOptions: Point | TextOptions | undefined,
+    maybeOptions: TextOptions | undefined,
   ): void {
+    let pos: Point | undefined;
+    let given: TextOptions;
+    if (isPlainOptions(posOrOptions)) {
+      if (maybeOptions !== undefined) {
+        throw new TypeError(
+          'screen.draw.text takes its options once: either second, as in text("Hi", { center: [x, y] }), or third, after a position.',
+        );
+      }
+      given = posOrOptions;
+    } else {
+      pos = posOrOptions;
+      given = maybeOptions ?? {};
+    }
+    rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
+    const options = canonicalTextOptions(given, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
     renderTextLayout(this.context, layout, options);
   }
@@ -332,8 +706,14 @@ export class Screen {
   private drawTextbox(
     text: string,
     rectLike: RectLike,
-    options: TextboxOptions,
+    givenOptions: TextboxOptions,
   ): void {
+    rejectUnknownOptions(
+      givenOptions,
+      textboxOptionKeys,
+      "screen.draw.textbox",
+    );
+    const options = canonicalTextOptions(givenOptions, "screen.draw.textbox");
     const rect = new Rect(rectLike);
     const fit = fitTextboxFontSize(this.context, text, rect, options);
     // pgzero's drawbox anchors the text on the rect at the anchor fraction
@@ -356,6 +736,33 @@ export class Screen {
     });
     renderTextLayout(this.context, layout, options);
   }
+}
+
+/** A `{ ... }` literal, as opposed to a position (an array, or a Rect). */
+function isPlainOptions(value: unknown): value is TextOptions {
+  if (typeof value !== "object" || value === null) return false;
+  const prototype = Object.getPrototypeOf(value) as unknown;
+  return prototype === Object.prototype || prototype === null;
+}
+
+/** Rewrites readable option names (`size`) to the names layout reads (`fontsize`). */
+function canonicalTextOptions<T extends TextOptions & TextboxOptions>(
+  options: T,
+  label: string,
+): T {
+  let result: Record<string, unknown> | null = null;
+  for (const [alias, canonical] of Object.entries(textOptionAliases)) {
+    if (!(alias in options)) continue;
+    if (canonical in options) {
+      throw new TypeError(
+        `${label} got both ${alias} and ${canonical}; they mean the same thing, so give just one.`,
+      );
+    }
+    result ??= { ...options };
+    result[canonical] = result[alias];
+    delete result[alias];
+  }
+  return (result ?? options) as T;
 }
 
 export function setScreen(screen: Screen | null): Screen | null {
@@ -955,6 +1362,32 @@ function withSavedCanvasState<T>(
   } finally {
     context.restore();
   }
+}
+
+/**
+ * Checks a short form's numbers before it draws. The color, and a radius or
+ * width that must be positive, are checked afterwards by the same code the
+ * `screen.draw` methods use, so they fail the same way.
+ */
+function requireShortForm(form: ShortForm, args: ArrayLike<unknown>): void {
+  const values = Array.from(args);
+  const name = form.call.slice(0, form.call.indexOf("("));
+  const numbers = values.slice(0, form.numbers.length);
+  if (numbers.some((value) => typeof value === "object" && value !== null)) {
+    throw new TypeError(form.lists);
+  }
+  form.numbers.forEach((label, index) => {
+    const value = values[index];
+    if (value === undefined) {
+      throw new TypeError(`${name} is missing ${label}: ${form.call}.`);
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(
+        `${name}'s ${label} must be a number, but got ${describeValue(value)}.`,
+      );
+    }
+  });
+  if (values.length > form.arity) throw new TypeError(form.extra);
 }
 
 function requirePositiveNumber(value: unknown, label: string): number {

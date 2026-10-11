@@ -17,6 +17,11 @@ import type { TouchControlsConfig } from "./touch-controls";
 export type GameModule = InputHooks & {
   readonly WIDTH?: number;
   readonly HEIGHT?: number;
+  /**
+   * Canvas pixels per logical pixel. Defaults to the device's pixel ratio,
+   * at most 3, so the game is sharp on high-density screens.
+   */
+  readonly PIXEL_DENSITY?: number;
   readonly TITLE?: string;
   readonly ICON?: string | null;
   readonly TOUCH_CONTROLS?: TouchControlsConfig;
@@ -33,6 +38,7 @@ export type RuntimeDiagnostic = {
     | "duplicate-config"
     | "duplicate-hook-alias"
     | "hook-arity"
+    | "hook-parameter"
     | "hook-typo"
     | "invalid-config"
     | "runtime-error";
@@ -111,6 +117,7 @@ export type GameMouseEvent = Readonly<MappedMouseEvent>;
 export type DefinedGameModule = {
   readonly WIDTH?: number;
   readonly HEIGHT?: number;
+  readonly PIXEL_DENSITY?: number;
   readonly TITLE?: string;
   readonly ICON?: string | null;
   readonly TOUCH_CONTROLS?: TouchControlsConfig;

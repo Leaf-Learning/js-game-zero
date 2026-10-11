@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   Actor,
+  Clock,
   ImageSurface,
   Screen,
   type SurfaceLike,
@@ -485,6 +486,135 @@ describe("Actor behavior", () => {
   });
 });
 
+describe("Actor flip-book animation", () => {
+  function animated(options: Record<string, unknown> = {}) {
+    const loader = loaderWithSprites();
+    for (const name of ["coin_0.png", "coin_1.png", "coin_2.png"]) {
+      loader.define(name, surface(20, 10));
+    }
+    const clock = new Clock();
+    const coin = new Actor("coin_0.png", {
+      center: [50, 50],
+      images: ["coin_0.png", "coin_1.png", "coin_2.png"],
+      fps: 10,
+      clock,
+      loader,
+      ...options,
+    });
+    const screen = new Screen(
+      { width: 100, height: 100 },
+      new MockContext() as unknown as CanvasRenderingContext2D,
+    );
+    return { coin, clock, screen };
+  }
+
+  test("shows each picture in turn on the game clock, then loops", () => {
+    const { coin, clock, screen } = animated();
+    expect(coin.frame).toBe(0);
+    clock.tick(0.1);
+    expect(coin.frame).toBe(1);
+    coin.draw(screen);
+    expect(coin.image).toBe("coin_1.png");
+    clock.tick(0.2);
+    expect(coin.frame).toBe(0);
+    expect(coin.finished).toBe(false);
+    coin.draw(screen);
+    expect(coin.image).toBe("coin_0.png");
+    expect(coin.center).toEqual([50, 50]);
+  });
+
+  test("a non-looping animation holds its last picture and reports finished", () => {
+    const { coin, clock } = animated({ loop: false });
+    clock.tick(0.25);
+    expect(coin.frame).toBe(2);
+    expect(coin.finished).toBe(false);
+    clock.tick(0.05);
+    expect(coin.frame).toBe(2);
+    expect(coin.finished).toBe(true);
+  });
+
+  test("changing fps keeps the current picture; images restarts or stops", () => {
+    const { coin, clock } = animated();
+    clock.tick(0.1);
+    coin.fps = 20;
+    expect(coin.frame).toBe(1);
+    clock.tick(0.05);
+    expect(coin.frame).toBe(2);
+    coin.images = ["coin_2.png", "coin_0.png"];
+    expect(coin.frame).toBe(0);
+    expect(coin.image).toBe("coin_2.png");
+    coin.images = null;
+    expect(coin.images).toBeNull();
+    expect(coin.frame).toBe(0);
+  });
+
+  test("rejects images, fps and loop values it can't use", () => {
+    const { coin } = animated();
+    expect(() => {
+      coin.images = ["coin_0.png", ""];
+    }).toThrow("list of image names");
+    expect(() => {
+      coin.fps = 0;
+    }).toThrow("greater than 0");
+    expect(() => {
+      coin.loop = "yes" as never;
+    }).toThrow("true or false");
+  });
+});
+
+describe("Actor touches", () => {
+  test("tests another actor, a rect, or a click point", () => {
+    const loader = loaderWithSprites();
+    const player = new Actor("hero.svg", { topleft: [0, 0], loader });
+    const enemy = new Actor("ship.svg", { topleft: [15, 5], loader });
+    const far = new Actor("ship.svg", { topleft: [200, 200], loader });
+    expect(player.touches(enemy)).toBe(true);
+    expect(player.touches(far)).toBe(false);
+    expect(player.touches([5, 5])).toBe(true);
+    expect(player.touches([25, 5])).toBe(false);
+    expect(player.touches([18, 8, 10, 10])).toBe(true);
+  });
+});
+
+describe("Actor clamp_ip", () => {
+  test("moves the actor itself so it fits inside an area", () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { center: [500, -40], loader });
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.rect()).toMatchObject({
+      left: 300,
+      top: 0,
+      width: 20,
+      height: 10,
+    });
+    expect(actor.pos).toEqual([310, 5]);
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.pos).toEqual([310, 5]);
+  });
+
+  test("keeps a rotated or scaled actor's whole bounding box inside", () => {
+    const actor = new Actor("hero.svg", {
+      pos: [0, 0],
+      scale: 2,
+      loader: loaderWithSprites(),
+    });
+    actor.angle = 90;
+    actor.clamp_ip([0, 0, 320, 180]);
+    expect(actor.left).toBeCloseTo(0);
+    expect(actor.top).toBeCloseTo(0);
+    expect(actor.width).toBeCloseTo(20);
+    expect(actor.height).toBeCloseTo(40);
+  });
+
+  test("accepts another actor or a Rect as the area", () => {
+    const loader = loaderWithSprites();
+    const arena = new Actor("ship.svg", { topleft: [100, 100], loader });
+    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
+    actor.clamp_ip(arena);
+    expect(actor.topleft).toEqual([100, 100]);
+  });
+});
+
 describe("Actor sizing", () => {
   function drawWith(
     actor: Actor,
@@ -581,6 +711,9 @@ describe("Actor sizing", () => {
     expect(
       () => new Actor("hero.svg", { scale: 2, width: 40, loader }),
     ).toThrow("at most one of scale, width and height");
+    expect(
+      () => new Actor("hero.svg", { centre: [1, 2], loader } as never),
+    ).toThrow("Actor has no option called centre. Did you mean center?");
     const actor = new Actor("hero.svg", { loader });
     expect(() => {
       actor.scale = Number.NaN;

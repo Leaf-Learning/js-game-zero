@@ -61,7 +61,8 @@ offending path, e.g. `highScores[2].player`.
 ## Gotchas
 
 - **Don't shadow method names.** `storage.save`, `storage.load`, `storage.path`,
-  and the other method names above are real properties on `storage` itself,
+  the other method names above, and their camelCase spellings (such as
+  `storage.setDefault`) are real properties on `storage` itself,
   not just proxy-forwarded keys — writing `storage.save = 5` overwrites the
   actual `save` method instead of storing a value. Pick key names that don't
   collide with the method list.

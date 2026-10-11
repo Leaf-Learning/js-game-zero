@@ -1,4 +1,6 @@
 import { images, type AssetLoader, type SurfaceLike } from "./assets";
+import { getActiveClock, type Clock } from "./clock";
+import { addCamelCaseAliases } from "./friendly-names";
 import {
   angleTo,
   distanceTo,
@@ -11,6 +13,7 @@ import {
   horizontalAnchorOffset,
   isPair,
   rectPositionKeys,
+  rejectUnknownOptions,
   requireFiniteNumber,
   requirePoint,
   verticalAnchorOffset,
@@ -51,6 +54,14 @@ export type ActorOptions = Partial<Record<ActorPositionKey, Point>> & {
   readonly width?: number;
   /** Draw the image this many pixels tall, keeping its proportions. */
   readonly height?: number;
+  /** Pictures to cycle through, in order, as a flip-book animation. */
+  readonly images?: readonly string[];
+  /** How many pictures of `images` to show per second (default 10). */
+  readonly fps?: number;
+  /** Whether `images` starts over after the last picture (default true). */
+  readonly loop?: boolean;
+  /** The clock whose time drives `images` (the running game's by default). */
+  readonly clock?: Pick<Clock, "now">;
   readonly screen?: Screen;
   readonly loader?: Pick<AssetLoader<SurfaceLike>, "load" | "get" | "unload">;
   readonly imageLoader?: Pick<
@@ -78,6 +89,10 @@ const allowedOptionKeys = new Set<string>([
   "anchor",
   "angle",
   "opacity",
+  "images",
+  "fps",
+  "loop",
+  "clock",
   "screen",
   "loader",
   "imageLoader",
@@ -129,6 +144,12 @@ export class Actor {
   private sizeSource: ActorSizeSource = { key: "scale", value: 1 };
   private positionSource: ActorPositionSource;
   private imageLoadPromise: Promise<SurfaceLike> | null = null;
+  private _images: readonly string[] | null = null;
+  private _fps = 10;
+  private _loop = true;
+  /** Clock time when `images` was last set; frame 0 starts here. */
+  private animationStart = 0;
+  private readonly clockSource: Pick<Clock, "now"> | null = null;
 
   constructor(
     image: string,
@@ -142,6 +163,7 @@ export class Actor {
     validateActorOptions(resolvedOptions);
     this.loader =
       resolvedOptions.imageLoader ?? resolvedOptions.loader ?? images;
+    this.clockSource = resolvedOptions.clock ?? null;
     if (resolvedOptions.screen) this.screen = resolvedOptions.screen;
     if (resolvedOptions.anchor !== undefined)
       this.anchor = resolvedOptions.anchor;
@@ -154,6 +176,11 @@ export class Actor {
       resolvedOptions,
     );
     this.image = image;
+    if (resolvedOptions.fps !== undefined) this.fps = resolvedOptions.fps;
+    if (resolvedOptions.loop !== undefined) this.loop = resolvedOptions.loop;
+    if (resolvedOptions.images !== undefined) {
+      this.images = resolvedOptions.images;
+    }
     this.applyPositionSource();
   }
 
@@ -177,23 +204,93 @@ export class Actor {
       return surface;
     });
     this.imageLoadPromise = loadPromise;
-    // The runtime preload gate observes loader failures even when learner code
-    // never calls ready(). Mark this per-Actor promise as handled as well so a
-    // missing sprite produces one runtime diagnostic instead of an additional
-    // browser-level unhandledrejection. Awaiting ready() still rejects.
-    // Capture the active run's diagnostic sink now (synchronously, at load
-    // time) rather than inside the .catch below: by the time the promise
-    // settles the ambient run may have changed or already stopped.
-    const reportDiagnostic = getActiveDiagnosticEmit();
-    void loadPromise.catch((error: unknown) => {
-      reportDiagnostic?.({
-        code: "runtime-error",
-        severity: "warning",
-        phase: "asset",
-        recoverable: true,
-        message: `Failed to load image "${value}": ${describeRuntimeError(error)}`,
-      });
-    });
+    reportLoadFailure(loadPromise, value);
+  }
+
+  /**
+   * Pictures to cycle through like a flip book, `fps` per second, using the
+   * game's clock (so the animation pauses with the game). Setting it starts
+   * from the first picture and loads the rest; `null` stops animating.
+   */
+  get images(): string[] | null {
+    return this._images ? [...this._images] : null;
+  }
+
+  set images(value: readonly string[] | null) {
+    if (value === null || (Array.isArray(value) && value.length === 0)) {
+      this._images = null;
+      return;
+    }
+    if (
+      !Array.isArray(value) ||
+      !value.every((name) => typeof name === "string" && name.length > 0)
+    ) {
+      throw new TypeError(
+        'Actor images must be a list of image names, like ["coin_0", "coin_1"].',
+      );
+    }
+    this._images = [...(value as readonly string[])];
+    this.animationStart = this.now();
+    for (const name of this._images.slice(1)) {
+      if (!this.loader.get(name)) {
+        reportLoadFailure(this.loader.load(name), name);
+      }
+    }
+    this.image = this._images[0] as string;
+  }
+
+  /** Pictures per second for `images`. */
+  get fps(): number {
+    return this._fps;
+  }
+
+  set fps(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new TypeError("Actor fps must be a number greater than 0.");
+    }
+    // Keep the current picture when the speed changes mid-animation.
+    const elapsed = this.now() - this.animationStart;
+    this.animationStart = this.now() - (elapsed * this._fps) / value;
+    this._fps = value;
+  }
+
+  /** Whether `images` starts over after the last picture. */
+  get loop(): boolean {
+    return this._loop;
+  }
+
+  set loop(value: boolean) {
+    if (typeof value !== "boolean") {
+      throw new TypeError("Actor loop must be true or false.");
+    }
+    this._loop = value;
+  }
+
+  /** Which picture of `images` is showing (0 for the first). */
+  get frame(): number {
+    const frames = this._images;
+    if (!frames) return 0;
+    const step = this.elapsedFrames();
+    return this._loop
+      ? step % frames.length
+      : Math.min(step, frames.length - 1);
+  }
+
+  /** True once a non-looping `images` animation has shown its last picture. */
+  get finished(): boolean {
+    const frames = this._images;
+    if (!frames || this._loop) return false;
+    return this.elapsedFrames() >= frames.length;
+  }
+
+  private elapsedFrames(): number {
+    const elapsed = Math.max(0, this.now() - this.animationStart);
+    // A small epsilon keeps 0.3s at 10fps on frame 3 despite rounding.
+    return Math.floor(elapsed * this._fps + 1e-9);
+  }
+
+  private now(): number {
+    return (this.clockSource ?? getActiveClock()).now();
   }
 
   get pos(): Point {
@@ -427,6 +524,10 @@ export class Actor {
   }
 
   draw(screen?: Screen): void {
+    if (this._images) {
+      const name = this._images[this.frame];
+      if (name !== undefined && name !== this._image) this.image = name;
+    }
     if (!this._surface) return;
     const target = screen ?? this.screen ?? getScreen();
     const [anchorX, anchorY] = this.anchorOffset();
@@ -511,6 +612,17 @@ export class Actor {
     return this.rect().clamp(other);
   }
 
+  /**
+   * Moves the actor (without resizing it) so its bounding box fits inside
+   * `other` — `player.clamp_ip(screen.bounds())` keeps it on screen.
+   */
+  clamp_ip(other: RectLike): void {
+    const current = this.rect();
+    const clamped = current.clamp(other);
+    const [x, y] = this.pos;
+    this.pos = [x + clamped.left - current.left, y + clamped.top - current.top];
+  }
+
   clip(other: RectLike): Rect {
     return this.rect().clip(other);
   }
@@ -532,6 +644,14 @@ export class Actor {
   collidepoint(pointOrX: Point | number, y?: number): boolean {
     if (Array.isArray(pointOrX)) return this.rect().collidepoint(pointOrX);
     return this.rect().collidepoint(pointOrX, y as number);
+  }
+
+  /**
+   * True when the actor overlaps `target`: another actor, a rect, or an
+   * `[x, y]` point such as a click position.
+   */
+  touches(target: Actor | RectLike | Point): boolean {
+    return this.rect().touches(target);
   }
 
   colliderect(other: RectLike): boolean {
@@ -680,12 +800,30 @@ function requireScale(value: number, name: string): number {
   return n;
 }
 
+/**
+ * The runtime preload gate observes loader failures even when learner code
+ * never calls ready(). Marking each per-Actor load as handled means a missing
+ * sprite produces one runtime diagnostic instead of an additional
+ * browser-level unhandledrejection; awaiting ready() still rejects. The
+ * active run's diagnostic sink is captured now (synchronously, at load time)
+ * rather than when the promise settles, by which time the ambient run may
+ * have changed or already stopped.
+ */
+function reportLoadFailure(promise: Promise<unknown>, name: string): void {
+  const reportDiagnostic = getActiveDiagnosticEmit();
+  void promise.catch((error: unknown) => {
+    reportDiagnostic?.({
+      code: "runtime-error",
+      severity: "warning",
+      phase: "asset",
+      recoverable: true,
+      message: `Failed to load image "${name}": ${describeRuntimeError(error)}`,
+    });
+  });
+}
+
 function validateActorOptions(options: ActorOptions): void {
-  for (const key of Object.keys(options)) {
-    if (!allowedOptionKeys.has(key)) {
-      throw new TypeError(`Unknown Actor option: ${key}`);
-    }
-  }
+  rejectUnknownOptions(options, allowedOptionKeys, "Actor");
 }
 
 function normalizeAnchor(value: ActorAnchor): ActorAnchor {
@@ -700,3 +838,5 @@ function normalizeAnchor(value: ActorAnchor): ActorAnchor {
 function actorTargetPoint(target: Actor | Point): Point {
   return target instanceof Actor ? target.pos : requirePoint(target, "target");
 }
+
+addCamelCaseAliases(Actor.prototype);

@@ -80,21 +80,21 @@ function loadScore() {
 
 function on_mouse_down(pos) {
   if (busy) return;
-  const button = buttons.find((candidate) => candidate.rect.collidepoint(pos));
+  const button = buttons.find((candidate) => candidate.rect.touches(pos));
   if (button) button.action();
 }
 
 function draw() {
   screen.fill("#12312b");
   screen.draw.text("Try saving a score", [32, 24], {
-    fontsize: 30,
+    size: 30,
     color: "white",
   });
   screen.draw.text(
     "Edit it, save it, change it again, then load it back.",
     [32, 64],
     {
-      fontsize: 19,
+      size: 19,
       color: "#a7f3d0",
     },
   );
@@ -103,14 +103,14 @@ function draw() {
   drawScoreCard(332, "Saved score", savedScore ?? "None yet");
   for (const button of buttons) {
     screen.draw.filled_rect(button.rect, busy ? "#475569" : "#0f766e");
-    screen.draw.text(button.label, undefined, {
+    screen.draw.text(button.label, {
       center: button.rect.center,
-      fontsize: 19,
+      size: 19,
       color: "white",
     });
   }
   screen.draw.text(message, [32, 290], {
-    fontsize: 17,
+    size: 17,
     width: WIDTH - 64,
     color: "#d1fae5",
   });
@@ -118,7 +118,7 @@ function draw() {
     "Reload the page: your saved score will still be here.",
     [32, 332],
     {
-      fontsize: 17,
+      size: 17,
       color: "#a7f3d0",
     },
   );
@@ -126,6 +126,6 @@ function draw() {
 
 function drawScoreCard(x, label, value) {
   screen.draw.filled_rect([x, 104, 276, 86], "#164e43");
-  screen.draw.text(label, [x + 16, 114], { fontsize: 18, color: "#a7f3d0" });
-  screen.draw.text(`${value}`, [x + 16, 142], { fontsize: 32, color: "white" });
+  screen.draw.text(label, [x + 16, 114], { size: 18, color: "#a7f3d0" });
+  screen.draw.text(`${value}`, [x + 16, 142], { size: 32, color: "white" });
 }

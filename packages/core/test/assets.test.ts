@@ -286,6 +286,7 @@ describe("sound, music, and font loaders", () => {
         name,
         url,
         play() {},
+        loop() {},
         stop() {},
         get_length: () => 0,
         set_volume() {},
@@ -340,6 +341,9 @@ describe("sound, music, and font loaders", () => {
       play(loopCount = 0) {
         loops.push(loopCount);
       },
+      loop() {
+        loops.push(-1);
+      },
       stop() {},
       get_length: () => 0.25,
       set_volume() {},
@@ -370,6 +374,9 @@ describe("sound, music, and font loaders", () => {
           play(loopCount = 0) {
             loops.push(loopCount);
           },
+          loop() {
+            loops.push(-1);
+          },
           stop() {},
           get_length: () => 0.5,
           set_volume() {},
@@ -389,6 +396,32 @@ describe("sound, music, and font loaders", () => {
     expect(loops).toEqual([1]);
     expect(soundLoader.has("tap.wav")).toBe(true);
     expect(assets.tap).toBe(soundLoader.get("tap"));
+  });
+
+  test("a lazy sound loops forever, even if its host asset predates loop()", async () => {
+    const loops: number[] = [];
+    const soundLoader = createSoundLoader({
+      projectId: "test_project",
+      async loadAsset(url, name): Promise<SoundAsset> {
+        const asset = {
+          kind: "sound" as const,
+          name,
+          url,
+          play(loopCount = 0) {
+            loops.push(loopCount);
+          },
+          stop() {},
+          get_length: () => 0.5,
+          set_volume() {},
+          get_volume: () => 1,
+        };
+        return asset as unknown as SoundAsset;
+      },
+    });
+    const assets = soundLoader as unknown as Record<string, SoundAsset>;
+    assets.engine?.loop();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(loops).toEqual([-1]);
   });
 
   test("default font loader fetches bytes and loads a FontFace when available", async () => {

@@ -2,6 +2,142 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Pixel density
+
+- Games are sharp on high-density screens. The canvas holds
+  `WIDTH × HEIGHT × density` pixels, where density is the device's
+  `devicePixelRatio` from 1 to 3, and the screen scales its drawing to
+  match. Text, outlines and SVG Actors no longer look soft on phones.
+- Game code stays in logical pixels: drawing calls, text, images, Actors,
+  `screen.width`/`height`, `screen.bounds()`, mouse and touch positions and
+  hit tests are unchanged. `screen.density` reports the density.
+- `PIXEL_DENSITY` in a game file, or as a `RunOptions` option, sets the
+  density. A value that isn't a positive number warns and uses the
+  device's; a canvas too big for iOS Safari (over 4096² pixels) gets a
+  lower density, with a warning when the game asked for more.
+- A denser canvas gets its logical CSS width through a zero-specificity
+  `:where(canvas[data-jgz-density])` rule, so page CSS still wins. The
+  touch-control dock and the sandbox preview fit the canvas by its logical
+  size.
+- Before each frame the runtime follows changes to `devicePixelRatio`
+  (keeping what's drawn), adopts a size a host sets on the canvas as the
+  logical size, and restores the density scale after a canvas reset.
+- The `jgz` CLI's browser runs at device pixel ratio 1, so games run at
+  density 1 there unless they set `PIXEL_DENSITY`. `status` reports the
+  logical canvas size with its `density`, and the pixel summary samples a
+  grid over the logical screen.
+
+### Short drawing calls
+
+- Short forms take positions as separate numbers instead of `[x, y]`
+  lists, so a call fits on a phone-width line:
+  `screen.circle(x, y, radius, color)`,
+  `screen.rect(x, y, width, height, color)`,
+  `screen.triangle(x1, y1, x2, y2, x3, y3, color)` and
+  `screen.line(x1, y1, x2, y2, color, width)`. The shapes are filled and
+  the color defaults to `"white"`; the outline versions stay under
+  `screen.draw`, whose list signatures are unchanged.
+- A wrong short call explains itself: a list points to the `screen.draw`
+  method that takes lists, a missing or non-number argument is named, and an
+  extra argument (usually an outline width) points to the outline method.
+  `screen.circel` suggests `screen.circle`, and `screen.draw.triangle`
+  suggests `screen.triangle`.
+- `rgb(red, green, blue, alpha?)` returns the matching color list, so
+  `rgb(255, 140, 105)` works anywhere a color does. It's a game-file global
+  and package export, checked like a color list, with each missing or
+  non-number argument named.
+
+### Helpers
+
+- `random_int(min, max)` (both ends included), `random_choice(list)` and
+  `clamp(value, min, max)` are game-file globals and package exports, with
+  errors that explain a backwards range or an empty list. camelCase
+  spellings of snake_case globals (`randomInt`) resolve too.
+- In game files and `defineGame()`, `mouse` also reports the live pointer:
+  `mouse.pos`, `mouse.x`, `mouse.y` (the screen center until the mouse
+  moves) and `mouse.buttons`, updated by mouse and canvas touch input.
+- `Actor` flip-book animation: `images`, `fps` and `loop` (as options or
+  properties) cycle pictures on the game clock, with `frame` and `finished`
+  to follow along. The space shooter's explosions use it in place of 20
+  lines of hand-written frame timing.
+- New `docs/reference/helpers.md` page; the tutorial, cookbook and examples
+  use the helpers instead of hand-written `Math.random`/`Math.max` code.
+
+### Naming
+
+- Every snake_case library method and property also answers to its
+  camelCase spelling, through non-enumerable aliases on `Actor`, `Rect`,
+  `Clock`, `MusicPlayer`, sound assets, `ImageSurface` and `Storage`:
+  `actor.angleTo`, `actor.topLeft`, `rect.collidePoint`, `clock.eachTick`,
+  `music.setVolume`, `storage.setDefault`, and so on. The aliases are not
+  part of the typed API, so TypeScript users and the docs keep one style.
+- In zero-boilerplate games, `screen` (including `screen.draw`), `clock`,
+  `music`, `tone`, `keys`, `keymods` and `mouse` match members regardless of
+  capitalization and underscores (`screen.draw.filledCircle`, `keys.space`),
+  and reading a member they don't have throws
+  `screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`
+  instead of `undefined is not a function`. Guesses such as
+  `screen.drawRect` or `screen.draw.fillRect` point at the real method.
+
+### Friendlier call shapes
+
+- `screen.draw.text(text, options)` takes its options second when they
+  position the text, so `text("Game Over", { center: [x, y] })` replaces the
+  `undefined`/`[]` placeholder the examples used to need.
+- Readable text option names alongside Pygame Zero's: `size` (`fontsize`),
+  `outline` (`owidth`), `outline_color` (`ocolor`), `shadow_color`
+  (`scolor`), `gradient_color` (`gcolor`) and, for textboxes, `min_size`
+  (`min_fontsize`). Giving both names for one option is an error.
+- `actor.touches(target)` and `rect.touches(target)` test overlap with an
+  actor, a rect, or an `[x, y]` point in one method.
+- `screen.draw.image(image, pos)` is a readable name for `screen.blit`.
+- `sound.loop()` plays a sound until `stop()`; a bad `loops` count now
+  explains that it counts extra plays. `SoundAsset` implementations gain a
+  `loop()` member (lazy sounds fall back to `play(-1)` for host assets
+  without one).
+- `music.position` reads and seeks the current track in seconds, avoiding
+  the milliseconds/seconds mismatch between `get_pos()` and `set_pos()`.
+- Tween aliases `ease_in`, `ease_out`, `ease_in_out`, `bounce` and `spring`.
+  The tween table describes each curve by what the motion looks like, and
+  explains that Pygame Zero's `end_elastic`/`start_elastic` name when the
+  wobble happens, not where.
+- The tutorial, cookbook and examples use these forms.
+
+### Actor
+
+- `Actor.clamp_ip(area)` moves the actor so its bounding box fits inside
+  `area`; `player.clamp_ip(screen.bounds())` keeps a player on screen in one
+  line. The Rect reference's "keep the player on screen" example, which only
+  clamped a copy of the player's rectangle, now shows the working form, and
+  the tutorial, cookbook and examples use it in place of hand-written
+  `Math.max`/`Math.min` clamps.
+
+### Beginner-facing errors
+
+- Reading an undefined name in a game file now throws a `ReferenceError`
+  with a suggestion (`scren is not defined. Did you mean screen?`) instead of
+  failing later as "undefined is not an object". `typeof` checks and the
+  runtime's own reads of optional hooks and settings are unaffected.
+- Browser APIs games can't reach (`setTimeout`, `setInterval`, `alert`,
+  `document`, `window`, `localStorage`, `Image`, `Audio`, ...) fail with a
+  hint naming the js-game-zero equivalent. `isNaN`, `isFinite`, `Symbol`,
+  `BigInt`, `Intl`, `WeakMap`, `WeakSet` and the URI helpers are now
+  available to game code.
+- camelCase input hooks (`onKeyDown`, `onMouseDown`, ...) now run in
+  zero-boilerplate game files, not just import mode.
+- A hook parameter that isn't one of the documented names now receives the
+  next unclaimed value by position (`on_key_down(k)` gets the key) instead of
+  `undefined`, and a new `hook-parameter` warning says which value it gets.
+- Colors are validated: a misspelled name throws with a suggestion
+  (`"lightblu"` → `"lightblue"`), malformed hex codes are rejected, and a
+  fractional tuple alpha (`[255, 0, 0, 0.5]`) explains the 0–255 range
+  instead of drawing an almost invisible color.
+- `screen.draw.text`, `screen.draw.textbox`, `tone`, and `Actor` reject
+  options they don't have, naming the closest real one; `animate()` suggests
+  the option or property a misspelled key was meant to be.
+
 ## 0.1.3 — 2026-09-07
 
 ### Diagnostics

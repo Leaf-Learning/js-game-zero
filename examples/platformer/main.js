@@ -152,7 +152,7 @@ function moveHorizontal(dt) {
       player.vx = 0;
     }
   }
-  player.left = Math.max(0, Math.min(WIDTH - player.width, player.left));
+  player.left = clamp(player.left, 0, WIDTH - player.width);
 }
 
 function moveVertical(dt) {
@@ -194,14 +194,14 @@ function updatePlayer(dt) {
 
   if (player.top > HEIGHT) respawn(); // fell off the world
 
-  const gemIndex = gems.findIndex((gem) => player.colliderect(gem));
+  const gemIndex = gems.findIndex((gem) => player.touches(gem));
   if (gemIndex !== -1) {
     gems.splice(gemIndex, 1);
     score += 1;
     sounds.coin.play();
   }
 
-  if (flag && player.colliderect(flag)) state = "won";
+  if (flag && player.touches(flag)) state = "won";
 }
 
 function update(dt) {
@@ -222,21 +222,21 @@ function draw() {
   player.draw();
 
   screen.draw.text(`Gems: ${score}`, [10, 8], {
-    fontsize: 22,
+    size: 22,
     color: "white",
     shadow: 1,
   });
 
   if (state === "won") {
-    screen.draw.text("You made it!", undefined, {
+    screen.draw.text("You made it!", {
       center: [WIDTH / 2, HEIGHT / 2 - 16],
-      fontsize: 42,
+      size: 42,
       color: "#facc15",
       shadow: 2,
     });
-    screen.draw.text("Click or press space to play again", undefined, {
+    screen.draw.text("Click or press space to play again", {
       center: [WIDTH / 2, HEIGHT / 2 + 26],
-      fontsize: 20,
+      size: 20,
       color: "white",
       shadow: 1,
     });
@@ -252,9 +252,9 @@ function drawLevel() {
         const image = isSolidCell(columnIndex, rowIndex - 1)
           ? "ground_fill"
           : "ground_top";
-        screen.blit(image, pos);
+        screen.draw.image(image, pos);
       } else if (tile === "~") {
-        screen.blit("water", pos);
+        screen.draw.image("water", pos);
       }
     }
   }
