@@ -25,6 +25,11 @@ camelCase alias of `schedule_interval`.
 clock.schedule_interval(spawnEnemy, 3); // a new enemy every 3 seconds
 ```
 
+Every schedule takes the function itself, without brackets.
+`clock.schedule_interval(spawnEnemy(), 3)` would call it once right away and
+hand over what it returned, so it throws a `TypeError` that says to drop the
+brackets.
+
 ### `clock.schedule_unique(callback, delay)`
 
 Like `schedule`, but first cancels any existing scheduled call for the same

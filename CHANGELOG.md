@@ -122,6 +122,10 @@ All notable changes to `js-game-zero` are recorded here.
 
 ### Beginner-facing errors
 
+- A clock schedule given something other than a function, as in
+  `clock.scheduleInterval(spawn(), 1)`, throws where it's written, saying to
+  drop the brackets and naming the call used, instead of failing a second
+  later as "event.callback is not a function".
 - Reading an undefined name in a game file now throws a `ReferenceError`
   with a suggestion (`scren is not defined. Did you mean screen?`) instead of
   failing later as "undefined is not an object". `typeof` checks and the

@@ -199,6 +199,24 @@ describe("Clock scheduling", () => {
     expect(clock.now()).toBe(0.75);
   });
 
+  test("a schedule given something other than a function says to drop the brackets, naming the call used", () => {
+    const clock = new Clock();
+    const loose = clock as unknown as Record<string, (...a: unknown[]) => void>;
+    expect(() => loose.scheduleInterval!(undefined, 1)).toThrow(
+      "clock.scheduleInterval needs a function to call later, but got undefined. Give the function's name without brackets: clock.scheduleInterval(spawn, 1), not clock.scheduleInterval(spawn(), 1).",
+    );
+    expect(() => loose.schedule_interval!(3, 1)).toThrow(
+      "clock.schedule_interval needs a function to call later, but got 3.",
+    );
+    expect(() => loose.schedule!("spawn", 1)).toThrow(
+      'clock.schedule needs a function to call later, but got "spawn".',
+    );
+    expect(() => loose.scheduleUnique!(null, 1)).toThrow(
+      "clock.scheduleUnique needs a function to call later",
+    );
+    expect(() => loose.schedule_unique!(null, 1)).toThrow(TypeError);
+  });
+
   test("schedule rejects a negative delay with RangeError and a non-finite delay with TypeError", () => {
     const clock = new Clock();
     expect(() => clock.schedule(() => {}, -1)).toThrow(RangeError);

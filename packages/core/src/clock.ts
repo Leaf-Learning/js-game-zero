@@ -1,5 +1,6 @@
 import { createActiveServiceProxy } from "./active-service";
 import { addCamelCaseAliases } from "./friendly-names";
+import { describeValue } from "./util";
 
 type ClockCallback = () => void;
 type TickCallback = (dt: number) => void;
@@ -17,6 +18,19 @@ type TickEvent = {
   canceled: boolean;
 };
 
+/**
+ * A schedule takes the function to call later. The usual slip is calling it
+ * now, `clock.schedule_interval(spawn(), 1)`, which hands over what it
+ * returned (usually `undefined`), so say so where it happens rather than when
+ * the clock first fires.
+ */
+function requireCallback(callback: unknown, method: string): void {
+  if (typeof callback === "function") return;
+  throw new TypeError(
+    `clock.${method} needs a function to call later, but got ${describeValue(callback)}. Give the function's name without brackets: clock.${method}(spawn, 1), not clock.${method}(spawn(), 1).`,
+  );
+}
+
 export type ClockOptions = {
   /** Receives callback failures after the failing callback is unscheduled. */
   readonly onError?: (error: unknown) => void;
@@ -32,6 +46,7 @@ export class Clock {
   constructor(private readonly options: ClockOptions = {}) {}
 
   schedule(callback: ClockCallback, delay: number): void {
+    requireCallback(callback, "schedule");
     this.scheduled.push({
       callback,
       due: this.time + validateDuration(delay, "delay"),
@@ -43,15 +58,18 @@ export class Clock {
   }
 
   schedule_unique(callback: ClockCallback, delay: number): void {
+    requireCallback(callback, "schedule_unique");
     this.unschedule(callback);
     this.schedule(callback, delay);
   }
 
   scheduleUnique(callback: ClockCallback, delay: number): void {
+    requireCallback(callback, "scheduleUnique");
     this.schedule_unique(callback, delay);
   }
 
   schedule_interval(callback: ClockCallback, interval: number): void {
+    requireCallback(callback, "schedule_interval");
     const seconds = validateDuration(interval, "interval");
     if (seconds === 0) throw new RangeError("interval must be greater than 0.");
     this.scheduled.push({
@@ -65,6 +83,7 @@ export class Clock {
   }
 
   scheduleInterval(callback: ClockCallback, interval: number): void {
+    requireCallback(callback, "scheduleInterval");
     this.schedule_interval(callback, interval);
   }
 
