@@ -1,5 +1,6 @@
 import type {
   AssetLoaders,
+  AssetUrls,
   FontAsset,
   MusicAsset,
   SoundAsset,
@@ -89,6 +90,12 @@ export type RuntimeCanvas = HTMLCanvasElement & {
 
 export type RunOptions = Partial<GameModule> & {
   readonly assetBaseUrl?: string;
+  /**
+   * The game's assets by path (`images/cat.svg`), each with its URL, such as
+   * a data URL. When set, assets load only from here, never from
+   * `assetBaseUrl`, so a page can run a game with no server.
+   */
+  readonly assetUrls?: AssetUrls;
   readonly autostart?: boolean;
   readonly canvas?: RuntimeCanvas;
   readonly container?: HTMLElement;

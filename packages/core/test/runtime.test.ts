@@ -2192,3 +2192,55 @@ function draw() {}
     await handle.dispose();
   });
 });
+
+describe("assets from a map (assetUrls)", () => {
+  test("an Actor's image loads from its URL in assetUrls, with no asset server", async () => {
+    const requested: string[] = [];
+    // Just enough of HTMLImageElement for the browser image loader.
+    class FakeImage {
+      decoding = "";
+      readonly naturalWidth = 24;
+      readonly naturalHeight = 12;
+      private readonly listeners = new Map<string, () => void>();
+      addEventListener(type: string, listener: () => void): void {
+        this.listeners.set(type, listener);
+      }
+      set src(url: string) {
+        requested.push(url);
+        queueMicrotask(() => this.listeners.get("load")?.());
+      }
+    }
+    const original = Object.getOwnPropertyDescriptor(globalThis, "Image");
+    Object.defineProperty(globalThis, "Image", {
+      configurable: true,
+      value: FakeImage,
+    });
+    try {
+      const assetUrls = { "images/cat.svg": "data:image/svg+xml,cat" };
+      const handle = run(
+        `
+let cat = new Actor("cat", [50, 40]);
+function draw() {
+  storage.set("size", [cat.width, cat.height]);
+}
+`,
+        {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          assetUrls,
+        },
+      );
+      await handle.ready;
+      handle.step(0.1);
+      expect(handle.storage.get("size")).toEqual([24, 12]);
+      // Only the listed candidate is requested, from the map.
+      expect(requested).toEqual(["data:image/svg+xml,cat"]);
+      expect(handle.loaders.images.assetUrls).toEqual(assetUrls);
+      await handle.dispose();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "Image", original);
+      else Reflect.deleteProperty(globalThis, "Image");
+    }
+  });
+});

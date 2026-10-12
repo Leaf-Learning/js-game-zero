@@ -77,6 +77,33 @@ with the browser under that family name once loaded. If you need to `await`
 a font being ready (e.g. to measure text before your first draw), import
 `fonts` and call `await fonts.load("pixel")` directly.
 
+## Assets without a server
+
+By default a run loads each asset from a URL under `assetBaseUrl`
+(`/assets/<projectId>/images/cat.svg`), so something has to serve them. A
+host page that already has the files can hand them over instead, with
+`assetUrls`: a map from each asset's path, as it sits in the project, to a
+URL the browser can load, such as a data URL or a blob URL.
+
+```js
+run(source, {
+  assetUrls: {
+    "images/cat.svg": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0i…",
+    "sounds/pop.wav": "data:audio/wav;base64,UklGRi…",
+  },
+});
+```
+
+Games name assets as usual: `new Actor("cat")`, `images.cat` and
+`sounds.pop` find `images/cat.svg` and `sounds/pop.wav` in the map, trying
+each supported extension as they would on a server. With a map, assets come
+only from it: one it doesn't list is a `MissingAssetError`, and nothing is
+requested from `assetBaseUrl`. Sounds, music and fonts given as data URLs
+are decoded in the page rather than fetched, so a page whose content
+security policy allows no connections (no `connect-src`) still plays them;
+images need `img-src data:` (or `blob:`), and sounds `media-src` to match.
+An `ICON` the map doesn't list leaves the page's favicon as it is.
+
 ## Loader methods (advanced)
 
 Every asset kind is backed by a loader with the same shape. Games normally use
@@ -86,6 +113,8 @@ loaders import `createAssetLoaders()` or the individual factories from
 `@js-game-zero/core/host`:
 
 - `load(name): Promise<Asset>` — fetches and caches the asset.
+- `assetUrls` — the asset map the loader reads instead of `assetBaseUrl`,
+  or `undefined` when it has none.
 - `get(name): Asset | undefined` — synchronous; only returns something if
   already cached.
 - `has(name): boolean`

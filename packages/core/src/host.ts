@@ -47,6 +47,7 @@ export type {
   AssetLoader,
   AssetLoaderOptions,
   AssetLoaders,
+  AssetUrls,
   DrawableImage,
   FontAsset,
   MusicAsset,

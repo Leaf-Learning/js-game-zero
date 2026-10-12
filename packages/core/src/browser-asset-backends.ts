@@ -74,12 +74,33 @@ export async function loadFontAsset(
 }
 
 async function fetchBytes(url: string): Promise<ArrayBuffer> {
+  // Decoded here rather than fetched, so a page whose content security
+  // policy allows no connections can still hand its sounds and fonts over
+  // as data URLs.
+  if (/^data:/i.test(url)) return decodeDataUrl(url);
   if (typeof globalThis.fetch !== "function") {
     throw new Error("fetch is not available");
   }
   const response = await globalThis.fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.arrayBuffer();
+}
+
+/** The bytes of a `data:` URL, base64 or percent-encoded. */
+export function decodeDataUrl(url: string): ArrayBuffer {
+  const comma = url.indexOf(",");
+  if (comma < 0) throw new Error("malformed data URL");
+  const header = url.slice("data:".length, comma);
+  const body = url.slice(comma + 1);
+  if (/;base64$/i.test(header)) {
+    const binary = atob(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes.buffer;
+  }
+  return new TextEncoder().encode(decodeURIComponent(body)).buffer;
 }
 
 function stripExtension(name: string, extensions: readonly string[]): string {

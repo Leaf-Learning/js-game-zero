@@ -2,7 +2,7 @@ import { Actor, type ActorOptions } from "./actor";
 import { isActiveServiceProxy } from "./active-service";
 import { Animation, animate, withAnimationClock } from "./animation";
 import {
-  assetUrl,
+  locateAsset,
   createAssetLoaders,
   defaultAssetLoaders,
   setActiveAssetLoaders,
@@ -484,6 +484,7 @@ function createRuntimeContext(
     const defaultLoaders = createAssetLoaders({
       projectId: options.projectId ?? "default",
       assetBaseUrl: options.assetBaseUrl ?? "/assets",
+      ...(options.assetUrls ? { assetUrls: options.assetUrls } : {}),
     });
     const loaders: AssetLoaders = {
       images: options.loaders?.images ?? defaultLoaders.images,
@@ -869,12 +870,9 @@ function applyFavicon(
     });
     return;
   }
-  const href = assetUrl(
-    context.loaders.images.assetBaseUrl,
-    context.loaders.images.projectId,
-    context.loaders.images.directory,
-    icon,
-  );
+  // An asset map that doesn't list the icon leaves the page's own.
+  const href = locateAsset(context.loaders.images, icon);
+  if (href === undefined) return;
   let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
   if (!link) {
     link = document.createElement("link");

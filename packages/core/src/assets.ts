@@ -18,12 +18,21 @@ import {
 
 export type AssetKind = "image" | "sound" | "music" | "font";
 
+/**
+ * A game's assets by path (`images/cat.svg`, `sounds/pop.wav`), each with
+ * the URL to load it from, such as a data URL. When a run is given one, its
+ * assets come only from here, so a page needs no asset server.
+ */
+export type AssetUrls = Readonly<Record<string, string>>;
+
 export type AssetLoadOptions<T> = {
   readonly kind: AssetKind;
   readonly directory: string;
   readonly extensions: readonly string[];
   readonly projectId?: string;
   readonly assetBaseUrl?: string;
+  /** Where each asset is, by path; when set, `assetBaseUrl` isn't used. */
+  readonly assetUrls?: AssetUrls;
   readonly loadAsset?: (url: string, name: string) => Promise<T>;
 };
 
@@ -76,6 +85,8 @@ export type AssetLoader<T> = {
   readonly kind: AssetKind;
   readonly projectId: string;
   readonly assetBaseUrl: string;
+  /** The asset map this loader reads instead of `assetBaseUrl`, if it was given one. */
+  readonly assetUrls?: AssetUrls | undefined;
   readonly extensions: readonly string[];
   readonly directory: string;
   load(name: string): Promise<T>;
@@ -243,6 +254,7 @@ export function createAssetLoaders(
   options: {
     readonly projectId?: string;
     readonly assetBaseUrl?: string;
+    readonly assetUrls?: AssetUrls;
   } = {},
 ): AssetLoaders {
   return {
@@ -340,6 +352,29 @@ export function assetUrl(
   return `${base}/${encodedProjectId}/${directory}/${encodedName}`;
 }
 
+/** Where a loader finds the asset with this exact name, or undefined when its asset map doesn't list it. */
+export function locateAsset(
+  loader: {
+    readonly assetBaseUrl: string;
+    readonly assetUrls?: AssetUrls | undefined;
+    readonly projectId: string;
+    readonly directory: string;
+  },
+  name: string,
+): string | undefined {
+  const { assetUrls } = loader;
+  if (!assetUrls) {
+    return assetUrl(
+      loader.assetBaseUrl,
+      loader.projectId,
+      loader.directory,
+      name,
+    );
+  }
+  const path = `${loader.directory}/${name}`;
+  return Object.hasOwn(assetUrls, path) ? assetUrls[path] : undefined;
+}
+
 // Package-level singleton loaders backing the ambient `images`/`sounds`/
 // `musicAssets`/`fonts` exports whenever no run is currently active (e.g.
 // module-top-level `images.load("bg")` or `new Actor("player")` before
@@ -375,6 +410,9 @@ const MAX_SETTLED_FAILURES = 32;
 function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
   const projectId = validateProjectId(options.projectId ?? "default");
   const assetBaseUrl = options.assetBaseUrl ?? "/assets";
+  const assetUrls = options.assetUrls
+    ? Object.freeze({ ...requireAssetUrls(options.assetUrls) })
+    : undefined;
   const cache = new Map<string, T>();
   const aliases = new Map<string, string>();
   const pending = new Map<string, Promise<T>>();
@@ -389,6 +427,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
     kind: options.kind,
     projectId,
     assetBaseUrl,
+    assetUrls,
     directory: options.directory,
     extensions: [...options.extensions],
     async load(name: string): Promise<T> {
@@ -404,6 +443,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
 
       const loadPromise = loadFirstMatchingAsset(options, {
         assetBaseUrl,
+        assetUrls,
         projectId,
         requested,
       })
@@ -540,6 +580,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
       if (existing) return existing;
       const lazy = createLazyAsset<T>({
         assetBaseUrl,
+        assetUrls,
         directory: options.directory,
         extensions: options.extensions,
         get: () => getCached(cache, aliases, requested),
@@ -556,6 +597,7 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
 
 type LazyAssetContext<T> = {
   readonly assetBaseUrl: string;
+  readonly assetUrls: AssetUrls | undefined;
   readonly directory: string;
   readonly extensions: readonly string[];
   readonly get: () => T | undefined;
@@ -702,27 +744,29 @@ function createLazyLoadedAsset<T>(context: LazyAssetContext<T>): T {
 
 function fallbackAssetUrl(context: {
   readonly assetBaseUrl: string;
+  readonly assetUrls: AssetUrls | undefined;
   readonly directory: string;
   readonly extensions: readonly string[];
   readonly projectId: string;
   readonly requested: string;
 }): string {
-  const [candidate = context.requested] = candidateNames(
-    context.requested,
-    context.extensions,
-  );
-  return assetUrl(
-    context.assetBaseUrl,
-    context.projectId,
-    context.directory,
-    candidate,
-  );
+  const candidates = candidateNames(context.requested, context.extensions);
+  if (!context.assetUrls) {
+    return locateAsset(context, candidates[0] ?? context.requested) ?? "";
+  }
+  // An asset map gives the first candidate it lists, if it lists one.
+  for (const candidate of candidates) {
+    const url = locateAsset(context, candidate);
+    if (url !== undefined) return url;
+  }
+  return "";
 }
 
 async function loadFirstMatchingAsset<T>(
   options: AssetLoadOptions<T>,
   context: {
     readonly assetBaseUrl: string;
+    readonly assetUrls: AssetUrls | undefined;
     readonly projectId: string;
     readonly requested: string;
   },
@@ -732,12 +776,17 @@ async function loadFirstMatchingAsset<T>(
   const attemptedUrls: string[] = [];
   const causes: unknown[] = [];
   for (const candidate of candidates) {
-    const url = assetUrl(
-      context.assetBaseUrl,
-      context.projectId,
-      options.directory,
+    const url = locateAsset(
+      { ...context, directory: options.directory },
       candidate,
     );
+    if (url === undefined) {
+      // An asset map that doesn't list it: nothing to load, so nothing is fetched.
+      causes.push(
+        new Error(`${options.directory}/${candidate} isn't in assetUrls.`),
+      );
+      continue;
+    }
     attemptedUrls.push(url);
     if (!loadAsset) {
       causes.push(new Error("No asset loader is configured."));
@@ -795,6 +844,20 @@ function getCached<T>(
   requested: string,
 ): T | undefined {
   return cache.get(aliases.get(requested) ?? requested);
+}
+
+function requireAssetUrls(assetUrls: AssetUrls): AssetUrls {
+  if (typeof assetUrls !== "object" || assetUrls === null) {
+    throw new TypeError(
+      'assetUrls must map asset paths to URLs, like { "images/cat.svg": url }.',
+    );
+  }
+  for (const [path, url] of Object.entries(assetUrls)) {
+    if (typeof url !== "string" || url.length === 0) {
+      throw new TypeError(`assetUrls["${path}"] must be a URL string.`);
+    }
+  }
+  return assetUrls;
 }
 
 function validateProjectId(projectId: string): string {

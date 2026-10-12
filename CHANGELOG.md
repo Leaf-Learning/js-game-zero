@@ -4,6 +4,18 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Assets without a server
+
+- `run()` takes `assetUrls`, a map from each asset's path
+  (`images/cat.svg`) to a URL such as a data URL, so a page can run a game
+  with no asset server and no network. With a map, assets load only from
+  it; one it doesn't list is a `MissingAssetError`, with nothing requested.
+  Loaders built with `createAssetLoaders({ assetUrls })` or the single
+  factories take it too, and expose it as `loader.assetUrls`.
+- Sounds, music and fonts given as `data:` URLs are decoded in the page
+  instead of fetched, so they work under a content security policy that
+  allows no connections.
+
 ### Names are camelCase
 
 - **Breaking:** snake_case names are gone, a breaking change made before

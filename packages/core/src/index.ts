@@ -52,6 +52,7 @@ export type {
   AssetKind,
   AssetLoader,
   AssetLoaders,
+  AssetUrls,
   DrawableImage,
   FontAsset,
   LoadedAsset,

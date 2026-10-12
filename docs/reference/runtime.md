@@ -113,22 +113,23 @@ instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 
 ## `RunOptions`
 
-| Option            | Purpose                                                                                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `canvas`          | Draw into an existing `<canvas>` instead of creating one.                                                                                                                      |
-| `container`       | Where to mount a created canvas.                                                                                                                                               |
-| `autostart`       | Default `true`. Set `false` to skip the automatic frame loop and drive frames yourself via `handle.step(dt)` — useful for deterministic tests.                                 |
-| `projectId`       | Scopes storage keys and asset URLs, so multiple games on one page don't collide.                                                                                               |
-| `assetBaseUrl`    | Where asset URLs are rooted (default `/assets`).                                                                                                                               |
-| `preload`         | An array of asset paths (e.g. `["images/player.svg"]`) to start loading immediately, before any is referenced by code.                                                         |
-| `preloadedAssets` | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes (e.g. the sandbox preview).                |
-| `storage`         | A `Storage` instance or a raw `StorageAdapter` (`{ path, load(), save(text) }`) to use instead of the default `localStorage`-backed one.                                       |
-| `loaders`         | Override one or more of the `images`/`sounds`/`music`/`fonts` loader instances.                                                                                                |
-| `keyboardTarget`  | The `EventTarget` that receives keyboard events (default `window`).                                                                                                            |
-| `TOUCH_CONTROLS`  | `true` for the full touch-control preset, `false` to disable it, or a button mapping with optional `show: "auto"` / `"always"`. See [touch controls](hooks.md#touch-controls). |
-| `PIXEL_DENSITY`   | Canvas pixels per logical pixel. Defaults to the device's pixel ratio, from 1 to 3. See [pixel density](#pixel-density).                                                       |
-| `scheduler`       | Override `requestAnimationFrame`/`cancelAnimationFrame` (for tests).                                                                                                           |
-| `diagnostics`     | `(diagnostic) => void` — called for every diagnostic warning (see below).                                                                                                      |
+| Option            | Purpose                                                                                                                                                                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canvas`          | Draw into an existing `<canvas>` instead of creating one.                                                                                                                                                                                |
+| `container`       | Where to mount a created canvas.                                                                                                                                                                                                         |
+| `autostart`       | Default `true`. Set `false` to skip the automatic frame loop and drive frames yourself via `handle.step(dt)` — useful for deterministic tests.                                                                                           |
+| `projectId`       | Scopes storage keys and asset URLs, so multiple games on one page don't collide.                                                                                                                                                         |
+| `assetBaseUrl`    | Where asset URLs are rooted (default `/assets`).                                                                                                                                                                                         |
+| `assetUrls`       | The game's assets by path, each with its URL: `{ "images/cat.svg": "data:image/svg+xml;base64,…" }`. When set, assets load only from here, never from `assetBaseUrl`. See [assets without a server](loaders.md#assets-without-a-server). |
+| `preload`         | An array of asset paths (e.g. `["images/player.svg"]`) to start loading immediately, before any is referenced by code.                                                                                                                   |
+| `preloadedAssets` | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes (e.g. the sandbox preview).                                                                          |
+| `storage`         | A `Storage` instance or a raw `StorageAdapter` (`{ path, load(), save(text) }`) to use instead of the default `localStorage`-backed one.                                                                                                 |
+| `loaders`         | Override one or more of the `images`/`sounds`/`music`/`fonts` loader instances.                                                                                                                                                          |
+| `keyboardTarget`  | The `EventTarget` that receives keyboard events (default `window`).                                                                                                                                                                      |
+| `TOUCH_CONTROLS`  | `true` for the full touch-control preset, `false` to disable it, or a button mapping with optional `show: "auto"` / `"always"`. See [touch controls](hooks.md#touch-controls).                                                           |
+| `PIXEL_DENSITY`   | Canvas pixels per logical pixel. Defaults to the device's pixel ratio, from 1 to 3. See [pixel density](#pixel-density).                                                                                                                 |
+| `scheduler`       | Override `requestAnimationFrame`/`cancelAnimationFrame` (for tests).                                                                                                                                                                     |
+| `diagnostics`     | `(diagnostic) => void` — called for every diagnostic warning (see below).                                                                                                                                                                |
 
 Any hook or `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`TITLE`/`ICON`/`TOUCH_CONTROLS`
 config can also be passed directly on `RunOptions`; if the same one is also present on the module

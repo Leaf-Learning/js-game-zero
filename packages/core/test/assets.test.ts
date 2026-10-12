@@ -474,3 +474,95 @@ describe("sound, music, and font loaders", () => {
     }
   });
 });
+
+describe("assets from a map (assetUrls)", () => {
+  test("loads each asset from its URL in the map, by path, and never from assetBaseUrl", async () => {
+    const calls: string[] = [];
+    const loader = createImageLoader({
+      projectId: "test_project",
+      assetBaseUrl: "/game-assets",
+      assetUrls: {
+        "images/sprites/player.svg": "data:image/svg+xml,player",
+        "images/bg.png": "blob:bg",
+      },
+      async loadAsset(url, name) {
+        calls.push(`${name}@${url}`);
+        return surface(20, 10);
+      },
+    });
+
+    const player = await loader.load("sprites/player");
+    expect(await loader.load("sprites/player.svg")).toBe(player);
+    await loader.load("bg.png");
+    expect(calls).toEqual([
+      "sprites/player.svg@data:image/svg+xml,player",
+      "bg.png@blob:bg",
+    ]);
+    expect(loader.assetUrls).toEqual({
+      "images/sprites/player.svg": "data:image/svg+xml,player",
+      "images/bg.png": "blob:bg",
+    });
+  });
+
+  test("an asset the map doesn't list is missing, with nothing fetched", async () => {
+    const calls: string[] = [];
+    const loader = createSoundLoader({
+      assetUrls: { "sounds/tap.wav": "data:audio/wav;base64,AQID" },
+      async loadAsset(url) {
+        calls.push(url);
+        throw new Error("unreachable");
+      },
+    });
+    const failure = await loader
+      .load("ghost")
+      .catch((error: unknown) =>
+        error instanceof MissingAssetError ? error : Promise.reject(error),
+      );
+    expect(failure).toBeInstanceOf(MissingAssetError);
+    if (!(failure instanceof MissingAssetError)) return;
+    expect(failure.message).toBe("Missing sound asset: ghost");
+    expect(failure.attemptedUrls).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(String((failure.cause as AggregateError).errors[0])).toContain(
+      "sounds/ghost.wav isn't in assetUrls.",
+    );
+  });
+
+  test("a map that doesn't give a URL for each path is refused", () => {
+    expect(() =>
+      createImageLoader({
+        assetUrls: { "images/cat.svg": 3 as unknown as string },
+      }),
+    ).toThrow('assetUrls["images/cat.svg"] must be a URL string.');
+  });
+
+  test("sounds, music and fonts decode data URLs themselves, so no fetch is needed", async () => {
+    const originalFetch = globalThis.fetch;
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: () => {
+        throw new Error("a data URL must not be fetched");
+      },
+    });
+    try {
+      const sound = await createSoundLoader({
+        assetUrls: { "sounds/tap.wav": "data:audio/wav;base64,AQID" },
+      }).load("tap");
+      expect(sound.url).toBe("data:audio/wav;base64,AQID");
+      expect([...new Uint8Array(sound.bytes ?? new ArrayBuffer(0))]).toEqual([
+        1, 2, 3,
+      ]);
+      const theme = await createMusicLoader({
+        assetUrls: { "music/theme.ogg": "data:audio/ogg,ab%63" },
+      }).load("theme.ogg");
+      expect([...new Uint8Array(theme.bytes ?? new ArrayBuffer(0))]).toEqual([
+        97, 98, 99,
+      ]);
+    } finally {
+      Object.defineProperty(globalThis, "fetch", {
+        configurable: true,
+        value: originalFetch,
+      });
+    }
+  });
+});
