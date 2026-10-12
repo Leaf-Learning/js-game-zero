@@ -2021,6 +2021,30 @@ function draw() {
     await handle.dispose();
   });
 
+  test("a capitalised class name pointing at a service's member says which name was meant", async () => {
+    const { handle } = start(`const made = new Clock();
+const kind = typeof Screen;
+function draw() {
+  Screen.fill("navy");
+}
+`);
+    const inspector = getGameInspector(handle);
+    // The classes themselves still work.
+    expect(inspector?.read("kind")).toBe("function");
+    expect(inspector?.read("made")).toBeDefined();
+    handle.step(0.1);
+    expect(handle.failure?.message).toBe(
+      "Screen.fill doesn't exist. Did you mean screen.fill?",
+    );
+    expect(startupError("Clock.scheduleInterval(() => {}, 1);")).toContain(
+      "Clock.scheduleInterval doesn't exist. Did you mean clock.scheduleInterval?",
+    );
+    expect(startupError('Storage.get("best");')).toContain(
+      "Storage.get doesn't exist. Did you mean storage.get?",
+    );
+    await handle.dispose();
+  });
+
   test("game files get random_int, random_choice, clamp and a live mouse, down while held", async () => {
     const { handle, target } = start(`WIDTH = 320;
 HEIGHT = 180;

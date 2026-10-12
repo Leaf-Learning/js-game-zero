@@ -113,6 +113,35 @@ const screenHints: Record<string, string> = Object.fromEntries([
   ["filledtriangle", "screen.triangle"],
 ]);
 
+/**
+ * A class a game sees beside the service it makes (`Screen` beside `screen`):
+ * reading one of the service's members on the class, as in
+ * `Screen.fill("navy")` with a capital S, says which name was meant instead
+ * of failing as "Screen.fill is not a function". Everything the class itself
+ * has, and constructing it, is unchanged.
+ */
+function pointToService<T extends object>(
+  cls: T,
+  className: string,
+  serviceName: string,
+  service: object,
+): T {
+  return new Proxy(cls, {
+    get(target, property, receiver) {
+      if (
+        typeof property === "string" &&
+        !(property in target) &&
+        property in service
+      ) {
+        throw new TypeError(
+          `${className}.${property} doesn't exist. Did you mean ${serviceName}.${property}?`,
+        );
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    },
+  });
+}
+
 /** Screen's internal drawing helpers, which take different arguments. */
 const screenInternals = [
   "drawSurface",
@@ -216,12 +245,12 @@ export function executeZeroBoilerplateSource(
   const globals = {
     Animation,
     animate,
-    Clock,
+    Clock: pointToService(Clock, "Clock", "clock", context.clock),
     KeyboardState,
     Rect,
     ZRect,
-    Screen,
-    Storage,
+    Screen: pointToService(Screen, "Screen", "screen", context.screen),
+    Storage: pointToService(Storage, "Storage", "storage", context.storage),
     Actor: RuntimeActor,
     // Services answer to camelCase and other spellings of their members, and
     // a misspelled member fails with a suggestion. Storage, keyboard and the

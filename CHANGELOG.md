@@ -122,6 +122,11 @@ All notable changes to `js-game-zero` are recorded here.
 
 ### Beginner-facing errors
 
+- A capital letter by mistake on a service, as in `Screen.fill("navy")`,
+  reaches the class `Screen` and used to fail as "Screen.fill is not a
+  function". Reading one of a service's members on its class (`Screen`,
+  `Clock`, `Storage`) now says which name was meant: "Screen.fill doesn't
+  exist. Did you mean screen.fill?".
 - A clock schedule given something other than a function, as in
   `clock.scheduleInterval(spawn(), 1)`, throws where it's written, saying to
   drop the brackets and naming the call used, instead of failing a second

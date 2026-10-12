@@ -103,6 +103,9 @@ global-mode game, `screen`, `clock`, `music`, `tone`, `keys`, `keymods` and
 `mouse` also ignore capitalization (`keys.space`), and reading a member they
 don't have throws with a suggestion
 (`screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`).
+The classes behind them (`Screen`, `Clock`, `Storage`) are globals too, so a
+capital letter by mistake, as in `Screen.fill("navy")`, points at the service
+instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 
 ## `RunOptions`
 
