@@ -89,8 +89,9 @@ const drawMethods = [
 /**
  * Where guesses at drawing methods belong: `screen.drawRect`,
  * `screen.polygon` and `screen.draw.fillRect` all point at the real
- * `screen.draw` method. (Bare `screen.circle`, `screen.rect` and
- * `screen.line` are real short forms, so their entries never fire.) There
+ * `screen.draw` method. (Bare `screen.circle`, `screen.rect`,
+ * `screen.line` and `screen.text` are real short forms, so their entries
+ * never fire.) There
  * is no `screen.draw.triangle`, so it points at the short form.
  */
 const screenHints: Record<string, string> = Object.fromEntries([

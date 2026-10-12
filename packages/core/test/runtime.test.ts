@@ -2021,7 +2021,7 @@ function draw() {
     await handle.dispose();
   });
 
-  test("game files get random_int, random_choice, clamp and a live mouse", async () => {
+  test("game files get random_int, random_choice, clamp and a live mouse, down while held", async () => {
     const { handle, target } = start(`WIDTH = 320;
 HEIGHT = 180;
 const roll = random_int(1, 6);
@@ -2031,9 +2031,11 @@ const kept = clamp(500, 0, WIDTH);
 let start = mouse.pos;
 let seen = null;
 let held = false;
+let down = false;
 function update() {
   seen = [mouse.x, mouse.y];
   held = mouse.buttons.has(mouse.LEFT);
+  down = mouse.down;
 }
 function draw() {}
 `);
@@ -2052,10 +2054,16 @@ function draw() {}
       buttons: { value: 0 },
     });
     target.dispatchEvent(move);
+    handle.step(0.1);
+    expect(inspector?.read("down")).toBe(false);
     target.dispatchEvent(mouseEvent("mousedown"));
     handle.step(0.1);
     expect(inspector?.read("seen")).toEqual([4, 6]);
     expect(inspector?.read("held")).toBe(true);
+    expect(inspector?.read("down")).toBe(true);
+    target.dispatchEvent(mouseEvent("mouseup"));
+    handle.step(0.1);
+    expect(inspector?.read("down")).toBe(false);
     await handle.dispose();
   });
 

@@ -579,6 +579,23 @@ export class Screen {
     this.drawLine([x1, y1], [x2, y2], color, width);
   }
 
+  /**
+   * Text whose top-left corner is at `x, y`, `size` pixels tall, so a score
+   * fits one short line: `screen.text("Score: " + score, 20, 30)`. A number
+   * is drawn as it reads. Placing by its center or any other option stays
+   * under `screen.draw.text`.
+   */
+  text(
+    text: string | number,
+    x: number,
+    y: number,
+    color: Color = "white",
+    size = 24,
+  ): void {
+    requireTextShortForm(arguments);
+    this.drawText(String(text), [x, y], { color, fontsize: size });
+  }
+
   private drawSurface(surface: SurfaceLike, pos: Point | RectLike): void {
     const target = rectFromBlitTarget(pos);
     const source = surface.source as CanvasImageSource;
@@ -1388,6 +1405,51 @@ function requireShortForm(form: ShortForm, args: ArrayLike<unknown>): void {
     }
   });
   if (values.length > form.arity) throw new TypeError(form.extra);
+}
+
+const textCall = "screen.text(text, x, y, color, size)";
+
+/** `screen.text` checks its text first, then its position like the other short forms. */
+function requireTextShortForm(args: ArrayLike<unknown>): void {
+  const values = Array.from(args);
+  const [text, x, y] = values;
+  if (text === undefined) {
+    throw new TypeError(`screen.text is missing text: ${textCall}.`);
+  }
+  if (
+    typeof text !== "string" &&
+    !(typeof text === "number" && Number.isFinite(text))
+  ) {
+    throw new TypeError(
+      `screen.text's text must be words in quotes or a number, but got ${describeValue(text)}.`,
+    );
+  }
+  if (
+    (typeof x === "object" && x !== null) ||
+    (typeof y === "object" && y !== null)
+  ) {
+    throw new TypeError(
+      'screen.text takes x, y as two numbers, like screen.text("Score: 3", 20, 30). For an [x, y] list or options such as center, use screen.draw.text(text, [x, y], options).',
+    );
+  }
+  for (const [label, value] of [
+    ["x", x],
+    ["y", y],
+  ] as const) {
+    if (value === undefined) {
+      throw new TypeError(`screen.text is missing ${label}: ${textCall}.`);
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(
+        `screen.text's ${label} must be a number, but got ${describeValue(value)}.`,
+      );
+    }
+  }
+  if (values.length > 5) {
+    throw new TypeError(
+      `screen.text takes at most five values: ${textCall}. For more options, use screen.draw.text.`,
+    );
+  }
 }
 
 function requirePositiveNumber(value: unknown, label: string): number {

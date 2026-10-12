@@ -574,7 +574,46 @@ describe("Screen short forms", () => {
   test("leave the canvas untouched when a call is wrong", () => {
     const { screen, context } = mockScreen();
     expect(() => (screen as unknown as Loose).circle!([1, 2], 3)).toThrow();
+    expect(() => (screen as unknown as Loose).text!("Hi", [1, 2])).toThrow();
     expect(context.operations).toEqual([]);
+  });
+
+  test("screen.text draws what screen.draw.text draws from its top-left", () => {
+    expect(
+      drawn((screen) => screen.text("Score: 3", 20, 30, "gold", 32)),
+    ).toEqual(
+      drawn((screen) =>
+        screen.draw.text("Score: 3", [20, 30], { color: "gold", size: 32 }),
+      ),
+    );
+    // White and 24 tall unless told otherwise, and a number reads as itself.
+    expect(drawn((screen) => screen.text(12, 5, 5))).toEqual(
+      drawn((screen) =>
+        screen.draw.text("12", [5, 5], { color: "white", size: 24 }),
+      ),
+    );
+  });
+
+  test("screen.text says what to change when a call is wrong", () => {
+    const screen = mockScreen().screen as unknown as Loose;
+    expect(() => screen.text!()).toThrow(
+      "screen.text is missing text: screen.text(text, x, y, color, size).",
+    );
+    expect(() => screen.text!({ a: 1 }, 1, 2)).toThrow(
+      "screen.text's text must be words in quotes or a number, but got",
+    );
+    expect(() => screen.text!("Hi", [20, 30])).toThrow(
+      "For an [x, y] list or options such as center, use screen.draw.text(text, [x, y], options).",
+    );
+    expect(() => screen.text!("Hi", 20)).toThrow(
+      "screen.text is missing y: screen.text(text, x, y, color, size).",
+    );
+    expect(() => screen.text!("Hi", "20", 30)).toThrow(
+      'screen.text\'s x must be a number, but got "20".',
+    );
+    expect(() => screen.text!("Hi", 1, 2, "red", 20, 3)).toThrow(
+      "screen.text takes at most five values",
+    );
   });
 });
 

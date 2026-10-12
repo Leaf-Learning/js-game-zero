@@ -183,13 +183,15 @@ export class MouseState {
  * The `mouse` a game sees: the button constants, plus where the mouse is now
  * and which buttons are held, for code in `update()` that follows or aims at
  * the mouse. Before the mouse first moves over the game, `pos` is the center
- * of the screen.
+ * of the screen. `down` is true while any button or a finger is down, for
+ * code that acts as long as the learner holds on.
  */
 export type LiveMouse = typeof mouse & {
   readonly pos: [number, number];
   readonly x: number;
   readonly y: number;
   readonly buttons: Set<number>;
+  readonly down: boolean;
 };
 
 export function createLiveMouse(
@@ -208,6 +210,11 @@ export function createLiveMouse(
     y: { get: () => current()[1], enumerable: true, configurable: true },
     buttons: {
       get: () => new Set(state.buttons),
+      enumerable: true,
+      configurable: true,
+    },
+    down: {
+      get: () => state.buttons.size > 0,
       enumerable: true,
       configurable: true,
     },

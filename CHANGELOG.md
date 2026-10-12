@@ -39,6 +39,11 @@ All notable changes to `js-game-zero` are recorded here.
   `screen.line(x1, y1, x2, y2, color, width)`. The shapes are filled and
   the color defaults to `"white"`; the outline versions stay under
   `screen.draw`, whose list signatures are unchanged.
+- `screen.text(text, x, y, color, size)` draws text from its top-left
+  corner, white and 24 tall unless told otherwise, so
+  `screen.text("Score: " + score, 20, 30)` fits a phone-width line. It takes
+  words in quotes or a number; centering, wrapping and outlines stay under
+  `screen.draw.text`.
 - A wrong short call explains itself: a list points to the `screen.draw`
   method that takes lists, a missing or non-number argument is named, and an
   extra argument (usually an outline width) points to the outline method.
@@ -57,7 +62,8 @@ All notable changes to `js-game-zero` are recorded here.
   spellings of snake_case globals (`randomInt`) resolve too.
 - In game files and `defineGame()`, `mouse` also reports the live pointer:
   `mouse.pos`, `mouse.x`, `mouse.y` (the screen center until the mouse
-  moves) and `mouse.buttons`, updated by mouse and canvas touch input.
+  moves), `mouse.buttons`, and `mouse.down` (true while any button or a
+  finger is down), updated by mouse and canvas touch input.
 - `Actor` flip-book animation: `images`, `fps` and `loop` (as options or
   properties) cycle pictures on the game clock, with `frame` and `finished`
   to follow along. The space shooter's explosions use it in place of 20

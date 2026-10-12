@@ -6,8 +6,8 @@ y grows down, and `[WIDTH, HEIGHT]` is the bottom-right corner.
 
 ## Short forms
 
-Four short calls draw the most common shapes, with each position given as
-separate numbers rather than an `[x, y]` list:
+Five short calls draw the most common shapes and text, with each position
+given as separate numbers rather than an `[x, y]` list:
 
 | Call                                             | Draws                                              |
 | ------------------------------------------------ | -------------------------------------------------- |
@@ -15,6 +15,7 @@ separate numbers rather than an `[x, y]` list:
 | `screen.rect(x, y, width, height, color)`        | a filled rectangle whose top-left corner is `x, y` |
 | `screen.triangle(x1, y1, x2, y2, x3, y3, color)` | a filled triangle with those three corners         |
 | `screen.line(x1, y1, x2, y2, color, width = 1)`  | a line from `x1, y1` to `x2, y2`, `width` px thick |
+| `screen.text(text, x, y, color, size = 24)`      | text whose top-left corner is `x, y`, `size` tall  |
 
 `color` is optional and defaults to `"white"`; it takes any of the
 [colors](#colors) below.
@@ -26,8 +27,13 @@ function draw() {
   screen.circle(200, 150, 25, "gold");
   screen.triangle(160, 40, 120, 120, 200, 120);
   screen.line(20, 20, 200, 120, "white", 3);
+  screen.text("Score: " + score, 20, 30);
 }
 ```
+
+`screen.text` takes words in quotes or a number. To place text by its
+center, wrap it or give it an outline, use
+[`screen.draw.text`](#screendrawtexttext-pos-options--screendrawtexttext-options).
 
 The short forms fill their shapes. The outline versions, and the versions
 that take `[x, y]` lists, stay under `screen.draw` below. Mind the names:

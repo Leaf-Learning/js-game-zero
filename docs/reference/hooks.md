@@ -312,6 +312,7 @@ In a game file, `mouse` also says where the mouse is right now, for code in
 | `mouse.x`       | The same `x`.                                                                 |
 | `mouse.y`       | The same `y`.                                                                 |
 | `mouse.buttons` | A `Set` of buttons held now: `mouse.buttons.has(mouse.LEFT)`.                 |
+| `mouse.down`    | `true` while any button, or a finger, is down.                                |
 
 ```js
 function update(dt) {
