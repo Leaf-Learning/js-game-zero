@@ -2021,7 +2021,7 @@ function draw() {
     await handle.dispose();
   });
 
-  test("a capitalised class name pointing at a service's member says which name was meant", async () => {
+  test("a capitalised class name, or a camelCase helper, names what was written in its errors", async () => {
     const { handle } = start(`const made = new Clock();
 const kind = typeof Screen;
 function draw() {
@@ -2041,6 +2041,16 @@ function draw() {
     );
     expect(startupError('Storage.get("best");')).toContain(
       "Storage.get doesn't exist. Did you mean storage.get?",
+    );
+    // camelCase helpers name the spelling written in their errors.
+    expect(startupError("randomInt(400, 0);")).toContain(
+      "randomInt(400, 0) has no whole numbers to pick from",
+    );
+    expect(startupError("random_int(400, 0);")).toContain(
+      "random_int(400, 0) has no whole numbers to pick from",
+    );
+    expect(startupError("randomChoice([]);")).toContain(
+      "randomChoice needs a list with at least one item.",
     );
     await handle.dispose();
   });

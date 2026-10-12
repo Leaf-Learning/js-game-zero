@@ -122,6 +122,9 @@ All notable changes to `js-game-zero` are recorded here.
 
 ### Beginner-facing errors
 
+- `randomInt` and `randomChoice` in a game file name themselves in their
+  errors (`randomInt(400, 0) has no whole numbers to pick from…`) instead of
+  their snake_case spellings.
 - A capital letter by mistake on a service, as in `Screen.fill("navy")`,
   reaches the class `Screen` and used to fail as "Screen.fill is not a
   function". Reading one of a service's members on its class (`Screen`,

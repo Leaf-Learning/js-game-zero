@@ -6,7 +6,7 @@ import { Clock } from "./clock";
 import { rgb } from "./color";
 import { friendlyService } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
-import { clamp, random_choice, random_int } from "./helpers";
+import { camelCaseHelpers, clamp, random_choice, random_int } from "./helpers";
 import {
   createLiveMouse,
   KeyboardState,
@@ -281,6 +281,7 @@ export function executeZeroBoilerplateSource(
     tone: friendlyService(context.tone, "tone"),
     random_int,
     random_choice,
+    ...camelCaseHelpers,
     clamp,
     rgb,
     run: runFunction,
