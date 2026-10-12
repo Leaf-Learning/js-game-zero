@@ -25,12 +25,12 @@ async function startGame(page: Page, config = "true"): Promise<void> {
       TOUCH_CONTROLS = ${config};
       storage.x = 100; storage.actions = 0; storage.downs = []; storage.ups = []; storage.mouse = [];
       function update(dt) { if (keyboard.right) storage.x += 120 * dt; }
-      function draw() { screen.fill("#152638"); screen.draw.filled_circle([storage.x, 240], 20, keyboard.space ? "gold" : "white"); }
-      function on_key_down(key, mod, unicode, repeat) { storage.downs.push({key, mod, unicode, repeat}); if (key === keys.SPACE) storage.actions += 1; }
-      function on_key_up(key) { storage.ups.push(key); }
-      function on_mouse_down(pos, button) { storage.mouse.push({type:"down", pos, button}); }
-      function on_mouse_move(pos, rel, buttons) { storage.mouse.push({type:"move", pos, rel, buttons:[...buttons]}); }
-      function on_mouse_up(pos, button) { storage.mouse.push({type:"up", pos, button}); }
+      function draw() { screen.fill("#152638"); screen.draw.filledCircle([storage.x, 240], 20, keyboard.space ? "gold" : "white"); }
+      function onKeyDown(key, mod, unicode, repeat) { storage.downs.push({key, mod, unicode, repeat}); if (key === keys.SPACE) storage.actions += 1; }
+      function onKeyUp(key) { storage.ups.push(key); }
+      function onMouseDown(pos, button) { storage.mouse.push({type:"down", pos, button}); }
+      function onMouseMove(pos, rel, buttons) { storage.mouse.push({type:"move", pos, rel, buttons:[...buttons]}); }
+      function onMouseUp(pos, button) { storage.mouse.push({type:"up", pos, button}); }
     `;
     const handle = core.run(source, {
       canvas,
@@ -440,7 +440,7 @@ test.describe("mobile touch input", () => {
       WIDTH = 640; HEIGHT = 480;
       TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, a: keys.SPACE };
       let activated = false;
-      function on_key_down(key) { if (key === keys.SPACE) activated = true; }
+      function onKeyDown(key) { if (key === keys.SPACE) activated = true; }
       function draw() { screen.fill(activated ? "gold" : "navy"); }
     `);
     await page.locator("[data-jgz-play]").click();
@@ -531,7 +531,7 @@ test("a throwing touch hook fails and disposes its runtime", async ({
     const game = window.__jgzTouchGame!;
     game.handle = game.handle.reload(`
       TOUCH_CONTROLS = { a: keys.SPACE, show: "always" };
-      function on_key_down() { throw new Error("touch hook failed"); }
+      function onKeyDown() { throw new Error("touch hook failed"); }
       function draw() { screen.fill("navy"); }
     `);
   });

@@ -8,10 +8,12 @@ import {
 } from "./assets";
 import { createActiveServiceProxy } from "./active-service";
 import { normalizeColor, verticalGradient, type Color } from "./color";
+import { guardSpellings } from "./friendly-names";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
 import {
   clamp,
   describeValue,
+  didYouMean,
   horizontalAnchorOffset,
   rectPositionKeys,
   rejectUnknownOptions,
@@ -35,14 +37,14 @@ export type ScreenOptions = {
 
 export type TextAlignOption = "left" | "center" | "right";
 export type TextAnchor =
-  | "topleft"
-  | "topright"
-  | "bottomleft"
-  | "bottomright"
-  | "midtop"
-  | "midleft"
-  | "midright"
-  | "midbottom"
+  | "topLeft"
+  | "topRight"
+  | "bottomLeft"
+  | "bottomRight"
+  | "midTop"
+  | "midLeft"
+  | "midRight"
+  | "midBottom"
   | "center"
   | readonly [number | HorizontalAnchor, number | VerticalAnchor];
 export type HorizontalAnchor = "left" | "center" | "middle" | "right";
@@ -60,21 +62,21 @@ export type TextOptions = {
   readonly color?: Color;
   readonly background?: Color;
   readonly pos?: Point;
-  readonly topleft?: Point;
-  readonly topright?: Point;
-  readonly bottomleft?: Point;
-  readonly bottomright?: Point;
-  readonly midtop?: Point;
-  readonly midleft?: Point;
-  readonly midright?: Point;
-  readonly midbottom?: Point;
+  readonly topLeft?: Point;
+  readonly topRight?: Point;
+  readonly bottomLeft?: Point;
+  readonly bottomRight?: Point;
+  readonly midTop?: Point;
+  readonly midLeft?: Point;
+  readonly midRight?: Point;
+  readonly midBottom?: Point;
   readonly center?: Point;
   readonly top?: number;
   readonly left?: number;
   readonly bottom?: number;
   readonly right?: number;
-  readonly centerx?: number;
-  readonly centery?: number;
+  readonly centerX?: number;
+  readonly centerY?: number;
   readonly width?: number;
   readonly widthem?: number;
   readonly lineheight?: number;
@@ -85,14 +87,14 @@ export type TextOptions = {
   readonly outline?: number;
   readonly ocolor?: Color;
   /** Same as `ocolor`. */
-  readonly outline_color?: Color;
+  readonly outlineColor?: Color;
   readonly shadow?: number | Point;
   readonly scolor?: Color;
   /** Same as `scolor`. */
-  readonly shadow_color?: Color;
+  readonly shadowColor?: Color;
   readonly gcolor?: Color;
   /** Same as `gcolor`. */
-  readonly gradient_color?: Color;
+  readonly gradientColor?: Color;
   readonly alpha?: number;
   readonly anchor?: TextAnchor;
   readonly angle?: number;
@@ -107,12 +109,12 @@ export type TextboxOptions = Omit<
   | "left"
   | "bottom"
   | "right"
-  | "centerx"
-  | "centery"
+  | "centerX"
+  | "centerY"
 > & {
-  readonly min_fontsize?: number;
-  /** Same as `min_fontsize`. */
-  readonly min_size?: number;
+  readonly minFontsize?: number;
+  /** Same as `minFontsize`. */
+  readonly minSize?: number;
 };
 
 /**
@@ -141,14 +143,14 @@ export type TextLayout = {
 
 type TextPositionKey =
   | "pos"
-  | "topleft"
-  | "topright"
-  | "bottomleft"
-  | "bottomright"
-  | "midtop"
-  | "midleft"
-  | "midright"
-  | "midbottom"
+  | "topLeft"
+  | "topRight"
+  | "bottomLeft"
+  | "bottomRight"
+  | "midTop"
+  | "midLeft"
+  | "midRight"
+  | "midBottom"
   | "center";
 
 const textPositionKeys = ["pos", ...rectPositionKeys] as const;
@@ -159,11 +161,11 @@ const textPositionKeys = ["pos", ...rectPositionKeys] as const;
  */
 const textOptionAliases = {
   size: "fontsize",
-  min_size: "min_fontsize",
+  minSize: "minFontsize",
   outline: "owidth",
-  outline_color: "ocolor",
-  shadow_color: "scolor",
-  gradient_color: "gcolor",
+  outlineColor: "ocolor",
+  shadowColor: "scolor",
+  gradientColor: "gcolor",
 } as const;
 
 const textboxOptionKeys = new Set<string>([
@@ -172,7 +174,7 @@ const textboxOptionKeys = new Set<string>([
   "fontname",
   "sysfontname",
   "fontsize",
-  "min_fontsize",
+  "minFontsize",
   "bold",
   "italic",
   "underline",
@@ -193,15 +195,15 @@ const textboxOptionKeys = new Set<string>([
 
 const textOptionKeys = new Set<string>([
   ...[...textboxOptionKeys].filter(
-    (key) => key !== "min_fontsize" && key !== "min_size",
+    (key) => key !== "minFontsize" && key !== "minSize",
   ),
   "pos",
   "top",
   "left",
   "bottom",
   "right",
-  "centerx",
-  "centery",
+  "centerX",
+  "centerY",
   "width",
   "widthem",
 ]);
@@ -229,7 +231,7 @@ const shortForms = {
     numbers: ["x", "y", "radius"],
     arity: 4,
     lists:
-      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filled_circle([x, y], radius, color).',
+      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filledCircle([x, y], radius, color).',
     extra:
       "screen.circle always fills, so it has no outline width. For an outline, use screen.draw.circle([x, y], radius, color, width).",
   },
@@ -238,7 +240,7 @@ const shortForms = {
     numbers: ["x", "y", "width", "height"],
     arity: 5,
     lists:
-      'screen.rect takes x, y, width, height as four numbers, like screen.rect(40, 40, 120, 60, "orange"). For a list or a Rect, use screen.draw.filled_rect([x, y, width, height], color).',
+      'screen.rect takes x, y, width, height as four numbers, like screen.rect(40, 40, 120, 60, "orange"). For a list or a Rect, use screen.draw.filledRect([x, y, width, height], color).',
     extra:
       "screen.rect always fills, so it has no outline width. For an outline, use screen.draw.rect([x, y, width, height], color, width).",
   },
@@ -247,7 +249,7 @@ const shortForms = {
     numbers: ["x1", "y1", "x2", "y2", "x3", "y3"],
     arity: 7,
     lists:
-      'screen.triangle takes each corner as two numbers, like screen.triangle(160, 40, 120, 120, 200, 120, "lime"). For [x, y] lists, use screen.draw.filled_polygon([[x1, y1], [x2, y2], [x3, y3]], color).',
+      'screen.triangle takes each corner as two numbers, like screen.triangle(160, 40, 120, 120, 200, 120, "lime"). For [x, y] lists, use screen.draw.filledPolygon([[x1, y1], [x2, y2], [x3, y3]], color).',
     extra:
       "screen.triangle always fills, so it has no outline width. For an outline, use screen.draw.polygon([[x1, y1], [x2, y2], [x3, y3]], color, width).",
   },
@@ -427,15 +429,15 @@ export class Screen {
       this.drawLine(start, end, color, width),
     circle: (pos: Point, radius: number, color: Color, width = 1): void =>
       this.drawCircle(pos, radius, color, width),
-    filled_circle: (pos: Point, radius: number, color: Color): void =>
+    filledCircle: (pos: Point, radius: number, color: Color): void =>
       this.drawCircle(pos, radius, color, 0, true),
     polygon: (points: Point[], color: Color, width = 1): void =>
       this.drawPolygon(points, color, width),
-    filled_polygon: (points: Point[], color: Color): void =>
+    filledPolygon: (points: Point[], color: Color): void =>
       this.drawPolygon(points, color, 0, true),
     rect: (rect: RectLike, color: Color, width = 1): void =>
       this.drawRect(rect, color, width),
-    filled_rect: (rect: RectLike, color: Color): void =>
+    filledRect: (rect: RectLike, color: Color): void =>
       this.drawRect(rect, color, 0, true),
     text: ((
       text: string,
@@ -466,6 +468,7 @@ export class Screen {
     this.canvas = canvas;
     this.context = resolvedContext;
     this.imageLoader = options.imageLoader ?? images;
+    guardSpellings(this.draw, "screen.draw");
   }
 
   /** The screen's width in logical pixels: the game's `WIDTH`. */
@@ -525,7 +528,7 @@ export class Screen {
    * The short forms take positions as separate numbers rather than `[x, y]`
    * lists, fill their shapes, and default to white, so
    * `screen.circle(200, 150, 25, "gold")` fits a phone-width line where
-   * `screen.draw.filled_circle([200, 150], 25, "gold")` doesn't. The
+   * `screen.draw.filledCircle([200, 150], 25, "gold")` doesn't. The
    * outline versions stay under `screen.draw`.
    */
   circle(x: number, y: number, radius: number, color: Color = "white"): void {
@@ -735,9 +738,9 @@ export class Screen {
     const fit = fitTextboxFontSize(this.context, text, rect, options);
     // pgzero's drawbox anchors the text on the rect at the anchor fraction
     // (default 0.5, 0.5 -> centered both ways): the position point is
-    // rect.topleft + anchor * rect.size, and the same anchor places the
+    // rect.topLeft + anchor * rect.size, and the same anchor places the
     // text block relative to that point. So the default centers the text
-    // in the rect, while e.g. anchor "topleft" lays out from rect.topleft.
+    // in the rect, while e.g. anchor "topLeft" lays out from rect.topLeft.
     const anchor = options.anchor ?? "center";
     const rectAnchorOffset = anchorOffsetFor(anchor, rect.width, rect.height);
     const point: Point = [
@@ -869,10 +872,10 @@ export function fitTextboxFontSize(
 ): { fontSize: number; lineHeight: number; lines: readonly string[] } {
   const rect = new Rect(rectLike);
   const maxSize = Math.floor(options.fontsize ?? Math.min(rect.height, 48));
-  const minSize = Math.floor(options.min_fontsize ?? 4);
+  const minSize = Math.floor(options.minFontsize ?? 4);
   for (let size = maxSize; size >= minSize; size -= 1) {
     const lineHeight = options.lineheight ?? size * 1.2;
-    const layout = layoutText(context, text, rect.topleft, {
+    const layout = layoutText(context, text, rect.topLeft, {
       ...options,
       fontsize: size,
       width: rect.width,
@@ -1074,8 +1077,8 @@ function rstripSpaces(text: string): string {
   return text.slice(0, end);
 }
 
-const horizontalScalarKeys = ["left", "centerx", "right"] as const;
-const verticalScalarKeys = ["top", "centery", "bottom"] as const;
+const horizontalScalarKeys = ["left", "centerX", "right"] as const;
+const verticalScalarKeys = ["top", "centerY", "bottom"] as const;
 type HorizontalScalarKey = (typeof horizontalScalarKeys)[number];
 type VerticalScalarKey = (typeof verticalScalarKeys)[number];
 
@@ -1085,12 +1088,12 @@ type VerticalScalarKey = (typeof verticalScalarKeys)[number];
 // expressed as the string keywords to be scaled against boxWidth/boxHeight.
 const horizontalScalarAnchor: Record<HorizontalScalarKey, HorizontalAnchor> = {
   left: "left",
-  centerx: "center",
+  centerX: "center",
   right: "right",
 };
 const verticalScalarAnchor: Record<VerticalScalarKey, VerticalAnchor> = {
   top: "top",
-  centery: "center",
+  centerY: "center",
   bottom: "bottom",
 };
 
@@ -1111,7 +1114,7 @@ function resolveTextPosition(
     if (key === "pos") return options.pos !== undefined || pos !== undefined;
     return options[key] !== undefined;
   });
-  // The named compound keys (topleft, center, ...) are mutually exclusive
+  // The named compound keys (topLeft, center, ...) are mutually exclusive
   // with the scalar keys below, but plain `pos` is not: it is a legitimate
   // fallback for whichever axis a scalar doesn't cover.
   const namedCompoundEntries = compoundEntries.filter((key) => key !== "pos");
@@ -1123,10 +1126,10 @@ function resolveTextPosition(
   );
 
   // Scalar positioning kwargs (pgzero/ptext): `top`, `left`, `bottom`,
-  // `right`, `centerx`, `centery` combine per-axis, e.g.
+  // `right`, `centerX`, `centerY` combine per-axis, e.g.
   // `screen.draw.text("hi", right=780, top=10)`. Each scalar sets both the
   // coordinate and that axis's anchor fraction (left/top -> 0,
-  // centerx/centery -> 0.5, right/bottom -> 1); an axis without a scalar
+  // centerX/centerY -> 0.5, right/bottom -> 1); an axis without a scalar
   // falls back to the corresponding component of `pos`.
   if (horizontalScalars.length > 0 || verticalScalars.length > 0) {
     if (namedCompoundEntries.length > 0) {
@@ -1134,12 +1137,12 @@ function resolveTextPosition(
     }
     if (horizontalScalars.length > 1) {
       throw new TypeError(
-        "draw.text accepts only one of left, centerx, or right.",
+        "draw.text accepts only one of left, centerX, or right.",
       );
     }
     if (verticalScalars.length > 1) {
       throw new TypeError(
-        "draw.text accepts only one of top, centery, or bottom.",
+        "draw.text accepts only one of top, centerY, or bottom.",
       );
     }
     const fallback = pos ?? options.pos;
@@ -1175,19 +1178,19 @@ function resolveTextPosition(
   const value = key === "pos" ? (options.pos ?? pos ?? [0, 0]) : options[key];
   const point = requirePoint(value, key);
   switch (key) {
-    case "topright":
+    case "topRight":
       return { key, point: [point[0] - width, point[1]] };
-    case "bottomleft":
+    case "bottomLeft":
       return { key, point: [point[0], point[1] - height] };
-    case "bottomright":
+    case "bottomRight":
       return { key, point: [point[0] - width, point[1] - height] };
-    case "midtop":
+    case "midTop":
       return { key, point: [point[0] - width / 2, point[1]] };
-    case "midleft":
+    case "midLeft":
       return { key, point: [point[0], point[1] - height / 2] };
-    case "midright":
+    case "midRight":
       return { key, point: [point[0] - width, point[1] - height / 2] };
-    case "midbottom":
+    case "midBottom":
       return { key, point: [point[0] - width / 2, point[1] - height] };
     case "center":
       return { key, point: [point[0] - width / 2, point[1] - height / 2] };
@@ -1197,7 +1200,7 @@ function resolveTextPosition(
 }
 
 function defaultTextAnchorFor(positionKey: TextPositionKey): TextAnchor {
-  return positionKey === "pos" ? "topleft" : positionKey;
+  return positionKey === "pos" ? "topLeft" : positionKey;
 }
 
 function anchorOffsetFor(
@@ -1207,26 +1210,28 @@ function anchorOffsetFor(
 ): Point {
   if (typeof anchor === "string") {
     switch (anchor) {
-      case "topleft":
+      case "topLeft":
         return [0, 0];
-      case "topright":
+      case "topRight":
         return [width, 0];
-      case "bottomleft":
+      case "bottomLeft":
         return [0, height];
-      case "bottomright":
+      case "bottomRight":
         return [width, height];
-      case "midtop":
+      case "midTop":
         return [width / 2, 0];
-      case "midleft":
+      case "midLeft":
         return [0, height / 2];
-      case "midright":
+      case "midRight":
         return [width, height / 2];
-      case "midbottom":
+      case "midBottom":
         return [width / 2, height];
       case "center":
         return [width / 2, height / 2];
       default:
-        throw new TypeError(`Unknown text anchor: ${anchor}`);
+        throw new TypeError(
+          `Unknown text anchor: ${anchor}.${didYouMean(anchor, rectPositionKeys)}`,
+        );
     }
   }
   if (Array.isArray(anchor) && anchor.length === 2) {

@@ -92,9 +92,9 @@ async function game(slug: string) {
     storage,
     // Deterministic stand-ins that pick like the real helpers would if
     // Math.random() always returned 0.5.
-    random_int: (min: number, max: number) =>
+    randomInt: (min: number, max: number) =>
       Math.ceil(min) + Math.floor(0.5 * (Math.floor(max) - Math.ceil(min) + 1)),
-    random_choice: <T>(items: readonly T[]) =>
+    randomChoice: <T>(items: readonly T[]) =>
       items[Math.floor(0.5 * items.length)],
     clamp,
     keys,
@@ -132,7 +132,7 @@ async function game(slug: string) {
       loadFailure = true;
     },
     click(pos: [number, number]) {
-      dispatchHook(evaluate("on_mouse_down"), { pos });
+      dispatchHook(evaluate("onMouseDown"), { pos });
     },
     frame(dt = 1 / 60) {
       clock.tick(dt);
@@ -172,7 +172,7 @@ test("Tappy Plane permits transparent mountain corners at several rotations", as
   g.evaluate("plane.center = [174, 320];");
   g.frame(0);
   expect(g.evaluate("plane.crashed")).toBe(true);
-  g.evaluate("on_key_down(keys.SPACE);");
+  g.evaluate("onKeyDown(keys.SPACE);");
   expect(g.evaluate("plane.crashed")).toBe(false);
 });
 
@@ -220,7 +220,7 @@ test("Snake fruit fits its cell and rapid turns execute on separate clock ticks"
   expect(g.evaluate("apple.top >= HUD_HEIGHT")).toBe(true);
   g.evaluate("apple.cell = {x:0,y:0}; apple.center = cellCenter(apple.cell);");
   expect(g.evaluate("apple.top")).toBe(34);
-  g.evaluate("on_key_down(keys.DOWN); on_key_down(keys.LEFT);");
+  g.evaluate("onKeyDown(keys.DOWN); onKeyDown(keys.LEFT);");
   g.clock.tick(0.18);
   expect(g.evaluate("snake[0]")).toEqual({ x: 8, y: 8 });
   g.clock.tick(0.18);
@@ -230,7 +230,7 @@ test("Snake fruit fits its cell and rapid turns execute on separate clock ticks"
 
 test("Snake reacts to the new key even while another direction is held", async () => {
   const g = await game("snake");
-  g.evaluate("keyboard.right = true; on_key_down(keys.DOWN);");
+  g.evaluate("keyboard.right = true; onKeyDown(keys.DOWN);");
   g.clock.tick(0.18);
   expect(g.evaluate("snake[0]")).toEqual({ x: 8, y: 8 });
 });
@@ -272,7 +272,7 @@ test("Snake wins on a full board and can restart with one movement schedule", as
   );
   expect(g.evaluate("[state, apple]")).toEqual(["won", null]);
   expect(g.text).toContain("You win!");
-  g.evaluate("on_key_down(keys.SPACE);");
+  g.evaluate("onKeyDown(keys.SPACE);");
   g.clock.tick(0.18);
   expect(g.evaluate("[state, snake[0], snake.length]")).toEqual([
     "playing",
@@ -285,7 +285,7 @@ test("Platformer uses tile-sized player geometry and can jump immediately after 
   const g = await game("platformer");
   expect(g.evaluate("[player.width, player.height]")).toEqual([54, 54]);
   g.evaluate(
-    "coyoteTimer = 0; onGround = false; respawn(); on_key_down(keys.SPACE);",
+    "coyoteTimer = 0; onGround = false; respawn(); onKeyDown(keys.SPACE);",
   );
   expect(g.evaluate("player.vy")).toBe(-680);
   g.frame();
@@ -297,7 +297,7 @@ test("Breakout wins, loses three lives, and restarts a complete brick wall", asy
   g.evaluate("bricks = [bricks[0]]; ball.center = bricks[0].center;");
   g.frame(0);
   expect(g.evaluate("[state, score, bricks.length]")).toEqual(["won", 10, 0]);
-  g.evaluate("on_key_down(keys.SPACE);");
+  g.evaluate("onKeyDown(keys.SPACE);");
   expect(g.evaluate("[state, score, lives, bricks.length]")).toEqual([
     "playing",
     0,
@@ -406,9 +406,9 @@ test("Platformer resolves platforms crossed during a long frame", async () => {
 
 test("Platformer ignores repeated jump events but accepts a fresh press", async () => {
   const g = await game("platformer");
-  g.evaluate("on_key_down(keys.SPACE, true);");
+  g.evaluate("onKeyDown(keys.SPACE, true);");
   expect(g.evaluate("player.vy")).toBe(0);
-  g.evaluate("on_key_down(keys.SPACE, false);");
+  g.evaluate("onKeyDown(keys.SPACE, false);");
   expect(g.evaluate("player.vy")).toBe(-680);
 });
 
@@ -449,8 +449,8 @@ test("Sandbox Starter creates independent state for each scoped run", () => {
     screen: {
       fill() {},
       draw: {
-        filled_rect() {},
-        filled_circle(pos: [number, number]) {
+        filledRect() {},
+        filledCircle(pos: [number, number]) {
           positions.push(pos[0]);
         },
         text() {},

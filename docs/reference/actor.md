@@ -29,13 +29,13 @@ player.ready()`.
 
 Give **at most one** position source — either the second constructor
 argument as a `[x, y]` point, or exactly one of these option keys:
-`pos`, `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`,
-`midleft`, `midright`, `midbottom`, `center`. Passing more than one throws a
-`TypeError`. With no position at all, the actor starts at `topleft: [0, 0]`.
+`pos`, `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `midTop`,
+`midLeft`, `midRight`, `midBottom`, `center`. Passing more than one throws a
+`TypeError`. With no position at all, the actor starts at `topLeft: [0, 0]`.
 
 ```js
 new Actor("player.svg", [100, 50]); // shorthand for { pos: [100, 50] }
-new Actor("player.svg", { midbottom: [160, 180] }); // stands on the floor at y=180
+new Actor("player.svg", { midBottom: [160, 180] }); // stands on the floor at y=180
 ```
 
 `anchor` controls which point of the image maps to the position — it
@@ -45,7 +45,7 @@ defaults to `["center", "center"]`, so by default `player.x`/`player.y` (and
 (vertical), or a literal pixel offset number.
 
 ```js
-new Actor("player.svg", { topleft: [0, 0], anchor: ["left", "top"] });
+new Actor("player.svg", { topLeft: [0, 0], anchor: ["left", "top"] });
 ```
 
 ## Properties
@@ -59,7 +59,7 @@ new Actor("player.svg", { topleft: [0, 0], anchor: ["left", "top"] });
 | `anchor`                                                                                                   | `[h, v]`       | See above.                                                                                                              |
 | `scale`                                                                                                    | `number`       | Drawn size as a multiple of the image's native size; default `1`.                                                       |
 | `width`, `height`                                                                                          | `number`       | The current (possibly rotated) bounding box size. Setting one resizes the sprite to that size, keeping its proportions. |
-| `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `center` | point          | Read or move the actor by any edge/corner of its bounding box.                                                          |
+| `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `midTop`, `midLeft`, `midRight`, `midBottom`, `center` | point          | Read or move the actor by any edge/corner of its bounding box.                                                          |
 | `left`, `top`, `right`, `bottom`                                                                           | `number`       | Same idea, one axis at a time.                                                                                          |
 
 Setting `angle` rotates the sprite around its anchor and changes the
@@ -81,15 +81,15 @@ your game, give it a `scale`, or a `width` or `height` (at most one of the
 three; the other axis follows so the picture keeps its proportions):
 
 ```js
-let cow = new Actor("cow.png", { midbottom: [240, 620], width: 80 }); // 80px wide
+let cow = new Actor("cow.png", { midBottom: [240, 620], width: 80 }); // 80px wide
 let car = new Actor("car.png", { scale: 3 }); // three times its native size
-cow.height = 60; // resize later; the midbottom stays on the floor
+cow.height = 60; // resize later; the midBottom stays on the floor
 ```
 
 The hitbox, `rect()`, and every edge/corner property follow the drawn size,
-and the position you gave (a `midbottom` on the floor, a `center`) stays
+and the position you gave (a `midBottom` on the floor, a `center`) stays
 put when the size changes. A size set before the image has loaded is
-applied as soon as it arrives. `inflate_ip` still grows only the hitbox,
+applied as soon as it arrives. `inflateIp` still grows only the hitbox,
 never the picture.
 
 ## Methods
@@ -101,25 +101,25 @@ never the picture.
   opacity. Normally called with no arguments inside `draw()`.
 - `ready(): Promise<SurfaceLike>` — resolves once the current image has
   loaded.
-- `unload_image()` — releases the cached image (advanced; rarely needed).
-- `angle_to(target)` / `distance_to(target)` — `target` is another `Actor`
-  or a `[x, y]` point. `angle_to` returns degrees, `distance_to` returns
+- `unloadImage()` — releases the cached image (advanced; rarely needed).
+- `angleTo(target)` / `distanceTo(target)` — `target` is another `Actor`
+  or a `[x, y]` point. `angleTo` returns degrees, `distanceTo` returns
   pixels.
-- `move(x, y)` / `move_ip(x, y)` — like `Rect.move`/`move_ip`; `move` returns
-  a new `Rect`, `move_ip` moves the actor itself.
-- `inflate(x, y)` / `inflate_ip(x, y)` — grow/shrink the hitbox around its
+- `move(x, y)` / `moveIp(x, y)` — like `Rect.move`/`moveIp`; `move` returns
+  a new `Rect`, `moveIp` moves the actor itself.
+- `inflate(x, y)` / `inflateIp(x, y)` — grow/shrink the hitbox around its
   center.
 - `touches(target)` — `true` when the actor overlaps `target`, which can be
   another `Actor`, a `Rect`, a `[left, top, width, height]` tuple, or an
   `[x, y]` point such as a click position.
-- `collidepoint(point)`, `colliderect(other)`, `collidelist(others)`,
-  `collidelistall(others)`, `contains(other)` — Pygame Zero's collision
+- `collidePoint(point)`, `collideRect(other)`, `collideList(others)`,
+  `collideListAll(others)`, `contains(other)` — Pygame Zero's collision
   tests, delegating to the actor's `rect()`. `other` can be a `Rect`, a
   plain `[left, top, width, height]` tuple, or another `Actor`.
-- `clamp_ip(area)` — moves the actor (without resizing it) so its bounding
-  box fits inside `area`. `player.clamp_ip(screen.bounds())` keeps the
+- `clampIp(area)` — moves the actor (without resizing it) so its bounding
+  box fits inside `area`. `player.clampIp(screen.bounds())` keeps the
   player on screen.
-- `clamp(other)`, `clip(other)`, `union(other)`, `unionall(others)`,
+- `clamp(other)`, `clip(other)`, `union(other)`, `unionAll(others)`,
   `fit(other)` — geometry helpers, same semantics as the matching `Rect`
   methods, again accepting `Actor`s directly. They return a new `Rect` and
   leave the actor where it is.
@@ -127,10 +127,10 @@ never the picture.
 ```js
 function update(dt) {
   if (keyboard.right) player.x += 120 * dt;
-  player.clamp_ip(screen.bounds()); // stop at the edges of the screen
+  player.clampIp(screen.bounds()); // stop at the edges of the screen
 }
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   if (player.touches(pos)) console.log("clicked the player");
 }
 
@@ -143,7 +143,7 @@ if (player.touches(enemy)) loseLife();
 property (`x`, `y`, `angle`, `opacity`, ...) can be animated:
 
 ```js
-animate(player, { x: 300, duration: 0.6, tween: "bounce_end" });
+animate(player, { x: 300, duration: 0.6, tween: "bounceEnd" });
 ```
 
 See [`docs/reference/clock.md`](clock.md#animation) for the full tween list.

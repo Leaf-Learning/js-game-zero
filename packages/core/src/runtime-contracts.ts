@@ -36,7 +36,6 @@ export type RuntimeDiagnostic = {
     | "asset-name"
     | "constant-typo"
     | "duplicate-config"
-    | "duplicate-hook-alias"
     | "hook-arity"
     | "hook-parameter"
     | "hook-typo"

@@ -18,7 +18,7 @@ const START_INTERVAL = 0.18; // seconds between moves - lower is faster
 const MIN_INTERVAL = 0.07; // the snake can't get faster than this
 const SPEEDUP_STEP = 0.008; // how much faster each apple makes it
 
-storage.setdefault("highscore", 0);
+storage.setDefault("highscore", 0);
 
 let snake; // array of {x, y} grid cells, snake[0] is the head
 let direction; // current heading, e.g. {x: 1, y: 0}
@@ -49,7 +49,7 @@ function resetGame() {
 // intervals.
 function scheduleMove() {
   clock.unschedule(moveSnake);
-  clock.schedule_interval(moveSnake, moveInterval);
+  clock.scheduleInterval(moveSnake, moveInterval);
 }
 
 function placeApple() {
@@ -68,7 +68,7 @@ function placeApple() {
     clock.unschedule(moveSnake);
     return;
   }
-  const cell = random_choice(freeCells);
+  const cell = randomChoice(freeCells);
   apple = new Actor("fruit", { center: cellCenter(cell), width: CELL - 4 });
   apple.cell = cell;
 }
@@ -85,7 +85,7 @@ function turn(dx, dy) {
   turnQueue.push({ x: dx, y: dy });
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (key === keys.SPACE && state !== "playing") resetGame();
   else if (key === keys.LEFT || key === keys.A) turn(-1, 0);
   else if (key === keys.RIGHT || key === keys.D) turn(1, 0);
@@ -93,7 +93,7 @@ function on_key_down(key) {
   else if (key === keys.DOWN || key === keys.S) turn(0, 1);
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   if (state !== "playing") resetGame();
 }
 
@@ -152,7 +152,7 @@ function draw() {
     shadow: 1,
   });
   screen.draw.text(`Best: ${storage.highscore}`, {
-    topright: [WIDTH - 10, 8],
+    topRight: [WIDTH - 10, 8],
     size: 22,
     color: "#facc15",
     shadow: 1,
@@ -179,7 +179,7 @@ function drawGrid() {
   for (let y = 0; y < ROWS; y += 1) {
     for (let x = 0; x < COLS; x += 1) {
       if ((x + y) % 2 === 0) continue;
-      screen.draw.filled_rect(
+      screen.draw.filledRect(
         [x * CELL, HUD_HEIGHT + y * CELL, CELL, CELL],
         "#1a2233",
       );
@@ -196,6 +196,6 @@ function drawSnake() {
       CELL - inset * 2,
       CELL - inset * 2,
     ];
-    screen.draw.filled_rect(rect, index === 0 ? "#4ade80" : "#22c55e");
+    screen.draw.filledRect(rect, index === 0 ? "#4ade80" : "#22c55e");
   });
 }

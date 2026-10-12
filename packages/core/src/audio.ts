@@ -6,7 +6,7 @@ import {
   type SoundAsset,
 } from "./assets";
 import { createActiveServiceProxy } from "./active-service";
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import { isPromiseLike } from "./util";
 
 export type AudioElementLike = {
@@ -27,18 +27,16 @@ export type AudioElementFactory = (url: string) => AudioElementLike;
 export class AudioUnlockState {
   private unlocked = false;
 
-  is_unlocked(): boolean {
+  isUnlocked(): boolean {
     return this.unlocked;
   }
 
-  isUnlocked(): boolean {
-    return this.is_unlocked();
-  }
-
-  mark_unlocked(): void {
+  markUnlocked(): void {
     this.unlocked = true;
   }
 }
+
+guardSpellings(AudioUnlockState.prototype, "audioUnlock");
 
 export const audioUnlock = new AudioUnlockState();
 
@@ -127,14 +125,14 @@ export class BrowserSoundAsset implements SoundAsset {
     }
   }
 
-  get_length(): number {
+  getLength(): number {
     const element = this.firstActiveElement() ?? this.getMetadataElement();
     return Number.isFinite(element.duration) && element.duration > 0
       ? element.duration
       : 0;
   }
 
-  set_volume(volume: number): void {
+  setVolume(volume: number): void {
     this.volumeValue = clampVolume(volume);
     for (const instance of this.activeInstances) {
       instance.element.volume = this.volumeValue;
@@ -142,24 +140,24 @@ export class BrowserSoundAsset implements SoundAsset {
     if (this.metadataElement) this.metadataElement.volume = this.volumeValue;
   }
 
-  get_volume(): number {
+  getVolume(): number {
     return this.volumeValue;
   }
 
-  debug_state(): BrowserSoundDebugState {
+  debugState(): BrowserSoundDebugState {
     return {
       active: this.activeInstances.size > 0,
       loop: [...this.activeInstances].some((instance) =>
         Boolean(instance.element.loop),
       ),
       volume: this.volumeValue,
-      unlocked: this.unlockState.is_unlocked(),
+      unlocked: this.unlockState.isUnlocked(),
       lastError: this.lastErrorMessage,
     };
   }
 
   /** Number of currently overlapping playback instances of this sound. */
-  debug_instance_count(): number {
+  debugInstanceCount(): number {
     return this.activeInstances.size;
   }
 
@@ -198,14 +196,14 @@ export class BrowserSoundAsset implements SoundAsset {
       if (isPromiseLike(result)) {
         void result
           .then(() => {
-            this.unlockState.mark_unlocked();
+            this.unlockState.markUnlocked();
           })
           .catch((error: unknown) => {
             this.lastErrorMessage = errorMessage(error);
             onRejected?.();
           });
       } else {
-        this.unlockState.mark_unlocked();
+        this.unlockState.markUnlocked();
       }
     } catch (error) {
       this.lastErrorMessage = errorMessage(error);
@@ -223,7 +221,7 @@ export class BrowserSoundAsset implements SoundAsset {
   }
 }
 
-addCamelCaseAliases(BrowserSoundAsset.prototype);
+guardSpellings(BrowserSoundAsset.prototype, "sound");
 
 export function createBrowserSoundAsset(
   asset: LoadedAsset,
@@ -291,13 +289,9 @@ export class MusicPlayer {
     await this.beginTrackStart(name, "loop", generation);
   }
 
-  async play_once(name: string): Promise<void> {
+  async playOnce(name: string): Promise<void> {
     const generation = this.replacePlayback();
     await this.beginTrackStart(name, "once", generation);
-  }
-
-  async playOnce(name: string): Promise<void> {
-    await this.play_once(name);
   }
 
   async queue(name: string): Promise<void> {
@@ -336,19 +330,15 @@ export class MusicPlayer {
    * Milliseconds the current track has been playing for, or -1 if nothing
    * is loaded (matches pygame.mixer.music.get_pos()).
    */
-  get_pos(): number {
+  getPos(): number {
     const element = this.currentTrack?.element;
     if (!element) return -1;
     return element.currentTime * 1000;
   }
 
-  getPos(): number {
-    return this.get_pos();
-  }
-
   /**
    * Seconds into the current track (0 when nothing is loaded); set it to
-   * jump there. Unlike `get_pos()`, which reports milliseconds for Pygame
+   * jump there. Unlike `getPos()`, which reports milliseconds for Pygame
    * compatibility, this reads and writes the same unit.
    */
   get position(): number {
@@ -356,34 +346,30 @@ export class MusicPlayer {
   }
 
   set position(seconds: number) {
-    this.set_pos(seconds);
+    this.setPos(seconds);
   }
 
   /** Seeks the current track to the given position in seconds. */
-  set_pos(seconds: number): void {
+  setPos(seconds: number): void {
     if (
       typeof seconds !== "number" ||
       !Number.isFinite(seconds) ||
       seconds < 0
     ) {
-      throw new RangeError("set_pos seconds must be a non-negative number.");
+      throw new RangeError("setPos seconds must be a non-negative number.");
     }
     const element = this.currentTrack?.element;
     if (!element) return;
     element.currentTime = seconds;
   }
 
-  setPos(seconds: number): void {
-    this.set_pos(seconds);
-  }
-
-  fadeout(seconds: number): void {
+  fadeOut(seconds: number): void {
     if (
       typeof seconds !== "number" ||
       !Number.isFinite(seconds) ||
       seconds < 0
     ) {
-      throw new RangeError("fadeout duration must be a non-negative number.");
+      throw new RangeError("fadeOut duration must be a non-negative number.");
     }
     this.clearFadeout();
     if (seconds === 0) {
@@ -408,12 +394,12 @@ export class MusicPlayer {
     }
   }
 
-  set_volume(volume: number): void {
+  setVolume(volume: number): void {
     this.volumeValue = clampVolume(volume);
     if (this.currentTrack) this.currentTrack.element.volume = this.volumeValue;
   }
 
-  get_volume(): number {
+  getVolume(): number {
     return this.volumeValue;
   }
 
@@ -422,33 +408,25 @@ export class MusicPlayer {
    * ignores an optional track name argument, matching pgzero's
    * `music.is_playing(name)` signature.
    */
-  is_playing(_name?: string): boolean {
+  isPlaying(_name?: string): boolean {
     return Boolean(this.currentTrack && !this.currentTrack.element.paused);
   }
 
-  isPlaying(name?: string): boolean {
-    return this.is_playing(name);
-  }
-
-  set_on_music_end(callback: (() => void) | undefined): void {
+  setOnMusicEnd(callback: (() => void) | undefined): void {
     this.onEnd = callback;
   }
 
-  setOnMusicEnd(callback: (() => void) | undefined): void {
-    this.set_on_music_end(callback);
-  }
-
-  debug_state(): MusicDebugState {
+  debugState(): MusicDebugState {
     return {
       current: this.currentTrack?.asset.name ?? null,
       queued: [...this.queuedNames],
-      isPlaying: this.is_playing(),
+      isPlaying: this.isPlaying(),
       volume: this.volumeValue,
       lastError: this.lastErrorMessage,
     };
   }
 
-  debug_current_element(): AudioElementLike | null {
+  debugCurrentElement(): AudioElementLike | null {
     return this.currentTrack?.element ?? null;
   }
 
@@ -459,7 +437,7 @@ export class MusicPlayer {
 
   /**
    * Starts loading and playing a track, reporting (but never throwing past
-   * `play`/`play_once`) load failures. Returns whether the track actually
+   * `play`/`playOnce`) load failures. Returns whether the track actually
    * started, so callers that need to react to a failure — like queue
    * advancement — can do so without relying on a rejected promise.
    */
@@ -532,7 +510,7 @@ export class MusicPlayer {
     const started = await this.beginTrackStart(next, "once", generation);
     if (!started) {
       // A failed queued track shouldn't stall the whole queue: skip it and
-      // try the next one, so playback keeps progressing and on_music_end
+      // try the next one, so playback keeps progressing and onMusicEnd
       // still fires once the queue is exhausted.
       await this.playNextQueuedTrack(generation);
     }
@@ -613,7 +591,7 @@ export class MusicPlayer {
   }
 }
 
-addCamelCaseAliases(MusicPlayer.prototype);
+guardSpellings(MusicPlayer.prototype, "music");
 
 export function createMusicPlayer(
   options: MusicPlayerOptions = {},

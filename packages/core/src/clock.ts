@@ -1,5 +1,5 @@
 import { createActiveServiceProxy } from "./active-service";
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import { describeValue } from "./util";
 
 type ClockCallback = () => void;
@@ -20,7 +20,7 @@ type TickEvent = {
 
 /**
  * A schedule takes the function to call later. The usual slip is calling it
- * now, `clock.schedule_interval(spawn(), 1)`, which hands over what it
+ * now, `clock.scheduleInterval(spawn(), 1)`, which hands over what it
  * returned (usually `undefined`), so say so where it happens rather than when
  * the clock first fires.
  */
@@ -57,19 +57,14 @@ export class Clock {
     this.nextOrder += 1;
   }
 
-  schedule_unique(callback: ClockCallback, delay: number): void {
-    requireCallback(callback, "schedule_unique");
+  scheduleUnique(callback: ClockCallback, delay: number): void {
+    requireCallback(callback, "scheduleUnique");
     this.unschedule(callback);
     this.schedule(callback, delay);
   }
 
-  scheduleUnique(callback: ClockCallback, delay: number): void {
-    requireCallback(callback, "scheduleUnique");
-    this.schedule_unique(callback, delay);
-  }
-
-  schedule_interval(callback: ClockCallback, interval: number): void {
-    requireCallback(callback, "schedule_interval");
+  scheduleInterval(callback: ClockCallback, interval: number): void {
+    requireCallback(callback, "scheduleInterval");
     const seconds = validateDuration(interval, "interval");
     if (seconds === 0) throw new RangeError("interval must be greater than 0.");
     this.scheduled.push({
@@ -80,11 +75,6 @@ export class Clock {
       canceled: false,
     });
     this.nextOrder += 1;
-  }
-
-  scheduleInterval(callback: ClockCallback, interval: number): void {
-    requireCallback(callback, "scheduleInterval");
-    this.schedule_interval(callback, interval);
   }
 
   unschedule(callback: Function): void {
@@ -101,7 +91,7 @@ export class Clock {
     this.tickCallbacks = this.tickCallbacks.filter((event) => !event.canceled);
   }
 
-  each_tick(callback: TickCallback): void {
+  eachTick(callback: TickCallback): void {
     this.tickCallbacks.push({ callback, canceled: false });
   }
 
@@ -173,7 +163,7 @@ export class Clock {
   }
 }
 
-addCamelCaseAliases(Clock.prototype);
+guardSpellings(Clock.prototype, "clock");
 
 const defaultClock = new Clock();
 let activeClock: Clock | null = null;

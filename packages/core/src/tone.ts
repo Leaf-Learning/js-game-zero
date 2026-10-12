@@ -1,4 +1,5 @@
 import { audioUnlock, clampVolume, type AudioUnlockState } from "./audio";
+import { guardSpellings } from "./friendly-names";
 import { rejectUnknownOptions } from "./util";
 
 const tonePlayOptionKeys = new Set(["waveform", "volume"]);
@@ -146,22 +147,18 @@ export class ToneGenerator {
       await context.resume();
     }
     if (context.state === undefined || context.state === "running") {
-      this.unlockState.mark_unlocked();
+      this.unlockState.markUnlocked();
     }
-    return this.unlockState.is_unlocked();
-  }
-
-  is_unlocked(): boolean {
-    return this.unlockState.is_unlocked();
+    return this.unlockState.isUnlocked();
   }
 
   isUnlocked(): boolean {
-    return this.is_unlocked();
+    return this.unlockState.isUnlocked();
   }
 
-  debug_state(): ToneDebugState {
+  debugState(): ToneDebugState {
     return {
-      unlocked: this.unlockState.is_unlocked(),
+      unlocked: this.unlockState.isUnlocked(),
       contextState: this.contextValue?.state ?? null,
       scheduled: [...this.scheduledTones],
     };
@@ -197,6 +194,8 @@ export class ToneGenerator {
     return this.contextValue;
   }
 }
+
+guardSpellings(ToneGenerator.prototype, "tone");
 
 export function createToneGenerator(options: ToneOptions = {}): ToneGenerator {
   return new ToneGenerator(options);

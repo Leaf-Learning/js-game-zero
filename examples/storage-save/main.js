@@ -78,7 +78,7 @@ function loadScore() {
   );
 }
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   if (busy) return;
   const button = buttons.find((candidate) => candidate.rect.touches(pos));
   if (button) button.action();
@@ -102,7 +102,7 @@ function draw() {
   drawScoreCard(32, "Current score", score);
   drawScoreCard(332, "Saved score", savedScore ?? "None yet");
   for (const button of buttons) {
-    screen.draw.filled_rect(button.rect, busy ? "#475569" : "#0f766e");
+    screen.draw.filledRect(button.rect, busy ? "#475569" : "#0f766e");
     screen.draw.text(button.label, {
       center: button.rect.center,
       size: 19,
@@ -125,7 +125,7 @@ function draw() {
 }
 
 function drawScoreCard(x, label, value) {
-  screen.draw.filled_rect([x, 104, 276, 86], "#164e43");
+  screen.draw.filledRect([x, 104, 276, 86], "#164e43");
   screen.draw.text(label, [x + 16, 114], { size: 18, color: "#a7f3d0" });
   screen.draw.text(`${value}`, [x + 16, 142], { size: 32, color: "white" });
 }

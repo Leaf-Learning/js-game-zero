@@ -1,5 +1,5 @@
 import { createActiveServiceProxy } from "./active-service";
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import { normalizeStoragePath } from "./storage-path";
 
 export type JsonValue =
@@ -76,7 +76,7 @@ export class Storage {
     this.notify();
   }
 
-  setdefault(key: string, defaultValue: unknown): unknown {
+  setDefault(key: string, defaultValue: unknown): unknown {
     requireStorageKey(key);
     if (!this.values.has(key)) {
       this.values.set(key, defaultValue);
@@ -112,7 +112,7 @@ export class Storage {
   }
 
   /**
-   * Subscribes to any mutation (set/delete/clear/setdefault-insert),
+   * Subscribes to any mutation (set/delete/clear/setDefault-insert),
    * including mutations made through the PGZero-style proxy (e.g.
    * `storage.score = 5`). Returns an unsubscribe function. Used by the
    * runtime to drive debounced auto-save; loading does not notify.
@@ -180,7 +180,7 @@ export class Storage {
   }
 }
 
-addCamelCaseAliases(Storage.prototype);
+guardSpellings(Storage.prototype, "storage");
 
 export function createStorage(options: StorageOptions = {}): Storage {
   return new Storage(options);

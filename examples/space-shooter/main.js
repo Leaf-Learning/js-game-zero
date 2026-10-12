@@ -33,10 +33,10 @@ const PLAYER_TOP_LIMIT = HEIGHT * 0.55; // player can't fly above this line
 // A starfield drawn with plain rectangles instead of an image - it scrolls
 // slowly downward to sell the feeling of flying through space.
 const stars = Array.from({ length: 70 }, () => ({
-  x: random_int(0, WIDTH),
-  y: random_int(0, HEIGHT),
+  x: randomInt(0, WIDTH),
+  y: randomInt(0, HEIGHT),
   size: Math.random() < 0.15 ? 2 : 1, // a few bigger stars
-  speed: random_int(30, 90),
+  speed: randomInt(30, 90),
 }));
 
 const player = new Actor("player_ship", { center: [WIDTH / 2, HEIGHT - 70] });
@@ -105,15 +105,15 @@ function explodeAt(pos) {
 }
 
 function fireLaser() {
-  lasers.push(new Actor("laser", { midbottom: [player.x, player.top + 10] }));
+  lasers.push(new Actor("laser", { midBottom: [player.x, player.top + 10] }));
   sounds.laser.play();
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (state === "gameover" && key === keys.SPACE) resetGame();
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   if (state === "gameover") resetGame();
 }
 
@@ -129,7 +129,7 @@ function movePlayer(dt) {
   player.x += (vx / length) * PLAYER_SPEED * dt;
   player.y += (vy / length) * PLAYER_SPEED * dt;
   // Stay inside the lower part of the screen.
-  player.clamp_ip([0, PLAYER_TOP_LIMIT, WIDTH, HEIGHT - PLAYER_TOP_LIMIT]);
+  player.clampIp([0, PLAYER_TOP_LIMIT, WIDTH, HEIGHT - PLAYER_TOP_LIMIT]);
 
   fireCooldown = Math.max(0, fireCooldown - dt);
   if (keyboard.space && fireCooldown <= 0) {
@@ -224,7 +224,7 @@ function update(dt) {
 function draw() {
   screen.fill("#050414");
   for (const star of stars) {
-    screen.draw.filled_rect([star.x, star.y, star.size, star.size], "#e2e8f0");
+    screen.draw.filledRect([star.x, star.y, star.size, star.size], "#e2e8f0");
   }
 
   for (const laser of lasers) laser.draw();
@@ -237,12 +237,12 @@ function draw() {
     color: "white",
   });
   screen.draw.text(`Wave: ${wave}`, {
-    midtop: [WIDTH / 2, 10],
+    midTop: [WIDTH / 2, 10],
     size: 22,
     color: "white",
   });
   screen.draw.text(`Lives: ${lives}`, {
-    topright: [WIDTH - 12, 10],
+    topRight: [WIDTH - 12, 10],
     size: 22,
     color: "white",
   });

@@ -6,7 +6,7 @@ import {
   loadSoundAsset,
 } from "./browser-asset-backends";
 import { createActiveServiceProxy } from "./active-service";
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import { Rect, type Point, type RectLike } from "./geometry";
 import {
   imageExtensions,
@@ -42,10 +42,10 @@ export type SurfaceRectOptions = Partial<Record<PositionKey, Point>>;
 
 export interface SurfaceLike {
   readonly source: DrawableImage;
-  get_width(): number;
-  get_height(): number;
-  get_size(): Point;
-  get_rect(options?: SurfaceRectOptions): Rect;
+  getWidth(): number;
+  getHeight(): number;
+  getSize(): Point;
+  getRect(options?: SurfaceRectOptions): Rect;
 }
 
 export type LoadedAsset = {
@@ -60,9 +60,9 @@ export type SoundAsset = LoadedAsset & {
   /** Plays the sound over and over until `stop()`. */
   loop(): void;
   stop(): void;
-  get_length(): number;
-  set_volume(volume: number): void;
-  get_volume(): number;
+  getLength(): number;
+  setVolume(volume: number): void;
+  getVolume(): number;
 };
 
 export type MusicAsset = LoadedAsset;
@@ -83,9 +83,8 @@ export type AssetLoader<T> = {
   has(name: string): boolean;
   define(name: string, asset: T): T;
   unload(name: string): boolean;
-  unload_all(): void;
   unloadAll(): void;
-  cache_keys(): string[];
+  cacheKeys(): string[];
   /**
    * Number of loads currently in flight (started but not yet settled).
    * Used by the runtime's preload gate to hold frames until assets that
@@ -108,14 +107,14 @@ export type AssetLoaders = {
 };
 
 type PositionKey =
-  | "topleft"
-  | "topright"
-  | "bottomleft"
-  | "bottomright"
-  | "midtop"
-  | "midleft"
-  | "midright"
-  | "midbottom"
+  | "topLeft"
+  | "topRight"
+  | "bottomLeft"
+  | "bottomRight"
+  | "midTop"
+  | "midLeft"
+  | "midRight"
+  | "midBottom"
   | "center";
 
 export class MissingAssetError extends Error {
@@ -169,26 +168,26 @@ export class ImageSurface implements SurfaceLike {
     );
   }
 
-  get_width(): number {
+  getWidth(): number {
     return this.width;
   }
 
-  get_height(): number {
+  getHeight(): number {
     return this.height;
   }
 
-  get_size(): Point {
+  getSize(): Point {
     return [this.width, this.height];
   }
 
-  get_rect(options: SurfaceRectOptions = {}): Rect {
+  getRect(options: SurfaceRectOptions = {}): Rect {
     const rect = new Rect(0, 0, this.width, this.height);
     applyRectPosition(rect, options);
     return rect;
   }
 }
 
-addCamelCaseAliases(ImageSurface.prototype);
+guardSpellings(ImageSurface.prototype, "image");
 
 export function createImageLoader(
   options: AssetLoaderOptions<SurfaceLike> = {},
@@ -486,17 +485,14 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
       lazyProperties.delete(resolved);
       return deleted;
     },
-    unload_all(): void {
+    unloadAll(): void {
       cache.clear();
       aliases.clear();
       pending.clear();
       settledFailures.length = 0;
       lazyProperties.clear();
     },
-    unloadAll(): void {
-      this.unload_all();
-    },
-    cache_keys(): string[] {
+    cacheKeys(): string[] {
       return [...cache.keys()].sort();
     },
     pendingCount(): number {
@@ -517,6 +513,9 @@ function createAssetLoader<T>(options: AssetLoadOptions<T>): AssetLoader<T> {
     },
   };
 
+  // `images.cache_keys` names `images.cacheKeys` instead of loading an
+  // image called "cache_keys".
+  guardSpellings(target, options.directory);
   return new Proxy(target, {
     get(loader, property, receiver) {
       if (typeof property !== "string") {
@@ -595,20 +594,20 @@ function createLazySurface(
     get source(): DrawableImage {
       return loaded().source;
     },
-    get_width(): number {
-      return loaded().get_width();
+    getWidth(): number {
+      return loaded().getWidth();
     },
-    get_height(): number {
-      return loaded().get_height();
+    getHeight(): number {
+      return loaded().getHeight();
     },
-    get_size(): Point {
-      return loaded().get_size();
+    getSize(): Point {
+      return loaded().getSize();
     },
-    get_rect(options?: SurfaceRectOptions): Rect {
-      return loaded().get_rect(options);
+    getRect(options?: SurfaceRectOptions): Rect {
+      return loaded().getRect(options);
     },
   };
-  addCamelCaseAliases(surface);
+  guardSpellings(surface, "image");
   return surface;
 }
 
@@ -669,17 +668,17 @@ function createLazySoundAsset(
         void loading.then((resolved) => resolved.stop()).catch(() => undefined);
       }
     },
-    get_length(): number {
-      return current()?.get_length() ?? 0;
+    getLength(): number {
+      return current()?.getLength() ?? 0;
     },
-    set_volume(volume: number): void {
-      whenLoaded((asset) => asset.set_volume(volume));
+    setVolume(volume: number): void {
+      whenLoaded((asset) => asset.setVolume(volume));
     },
-    get_volume(): number {
-      return current()?.get_volume() ?? 1;
+    getVolume(): number {
+      return current()?.getVolume() ?? 1;
     },
   };
-  addCamelCaseAliases(sound);
+  guardSpellings(sound, "sound");
   return sound;
 }
 
@@ -810,7 +809,7 @@ function validateProjectId(projectId: string): string {
 function applyRectPosition(rect: Rect, options: SurfaceRectOptions): void {
   const keys = rectPositionKeys.filter((key) => options[key] !== undefined);
   if (keys.length > 1) {
-    throw new TypeError("get_rect accepts at most one position keyword.");
+    throw new TypeError("getRect accepts at most one position keyword.");
   }
   const key = keys[0];
   if (!key) return;

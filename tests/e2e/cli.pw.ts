@@ -251,7 +251,7 @@ function draw() {
   screen.fill("black");
   screen.rect(0, 0, 20, 30, "red");
 }
-function on_mouse_down(pos) { lastClick = pos; }
+function onMouseDown(pos) { lastClick = pos; }
 `,
     "utf8",
   );
@@ -351,6 +351,81 @@ function draw() { throw new Error("draw exploded"); }
   }
 });
 
+test("a Pygame Zero spelling is reported with its camelCase name", async () => {
+  test.setTimeout(30_000);
+  const root = await mkdtemp(join(tmpdir(), "jgz-cli-spelling-"));
+  const project = join(root, "game");
+  await mkdir(project);
+  await writeFile(
+    join(project, "main.js"),
+    `WIDTH = 40;
+HEIGHT = 30;
+let clicked = null;
+function on_mouse_down(pos) { clicked = pos; }
+function onKeyDown(key) { clock.schedule_interval(() => {}, 1); }
+function draw() { screen.fill("black"); }
+`,
+    "utf8",
+  );
+  const cliEnvironment = { ...process.env };
+  delete cliEnvironment.FORCE_COLOR;
+  const client = new JsonlClient(
+    spawn(cliBinary, ["test", project, "--json"], {
+      cwd: repoRoot,
+      env: cliEnvironment,
+    }),
+  );
+  try {
+    await client.waitFor(
+      (record) => record.type === "event" && record.event === "ready",
+    );
+    const ready = await client.request({ command: "status" });
+    expect(ready.result).toMatchObject({
+      state: "running",
+      diagnostics: [
+        {
+          code: "hook-typo",
+          severity: "warning",
+          name: "on_mouse_down",
+          suggestion: "onMouseDown",
+          message:
+            "on_mouse_down is never called. Hooks are named in camelCase, so rename it to onMouseDown.",
+        },
+      ],
+    });
+
+    // The snake_case hook never runs.
+    await client.request({
+      command: "mouse",
+      action: "click",
+      button: "left",
+      x: 10,
+      y: 10,
+    });
+    expect(
+      (await client.request({ command: "inspect", path: "clicked" })).result,
+    ).toBeNull();
+
+    // A snake_case member fails where it's written, naming the real one.
+    await client.request({ command: "key", action: "tap", key: "space" });
+    expect((await client.request({ command: "status" })).result).toMatchObject({
+      state: "failed",
+      failure: {
+        phase: "input",
+        message:
+          "clock.schedule_interval doesn't exist. Did you mean clock.scheduleInterval?",
+        line: 5,
+      },
+    });
+    await client.request({ command: "quit" });
+    expect(await client.exited()).toBe(0);
+    expect(client.stderr).toBe("");
+  } finally {
+    client.stop();
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
 function gameSource(startX: number): string {
   return `WIDTH = 200;
 HEIGHT = 100;
@@ -358,7 +433,7 @@ let player = { x: ${startX} }, lastClick = null, wheelUps = 0;
 let sprite = new Actor("hero", [80, 50]);
 let clockFired = false, taps = 0, lastMove = null;
 let randomValue = Math.random();
-storage.setdefault("visits", 0);
+storage.setDefault("visits", 0);
 storage.visits += 1;
 let visits = storage.visits;
 clock.schedule(() => { clockFired = true; }, 0.1);
@@ -367,22 +442,22 @@ function update(dt) {
   if (keyboard.right) player.x += 50 * dt;
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (key === keys.SPACE) taps += 1;
 }
 
-function on_mouse_move(pos) {
+function onMouseMove(pos) {
   lastMove = pos;
 }
 
-function on_mouse_down(pos, button) {
+function onMouseDown(pos, button) {
   if (button === mouse.WHEEL_UP) wheelUps += 1;
   else lastClick = pos;
 }
 
 function draw() {
   screen.fill("#123456");
-  screen.draw.filled_circle([player.x, 50], 5, "white");
+  screen.draw.filledCircle([player.x, 50], 5, "white");
 }
 `;
 }

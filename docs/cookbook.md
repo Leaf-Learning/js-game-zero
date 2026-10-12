@@ -16,9 +16,9 @@ TITLE = "Shapes";
 
 function draw() {
   screen.fill("#0f172a", "#164e63");
-  screen.draw.filled_rect([18, 22, 84, 52], "#f97316");
+  screen.draw.filledRect([18, 22, 84, 52], "#f97316");
   screen.draw.line([0, 176], [320, 112], "#fde68a", 4);
-  screen.draw.filled_circle([168, 72], 28, "#22c55e");
+  screen.draw.filledCircle([168, 72], 28, "#22c55e");
   screen.draw.polygon(
     [
       [238, 40],
@@ -48,12 +48,12 @@ let player = new Actor("player.svg", { center: [72, 92] });
 function update(dt) {
   if (keyboard.right) player.x += 130 * dt;
   if (keyboard.left) player.x -= 130 * dt;
-  player.clamp_ip(screen.bounds()); // stay on screen
+  player.clampIp(screen.bounds()); // stay on screen
 }
 
 function draw() {
   screen.fill("#111827");
-  screen.draw.filled_rect([0, 130, WIDTH, 50], "#334155");
+  screen.draw.filledRect([0, 130, WIDTH, 50], "#334155");
   player.draw();
 }
 ```
@@ -83,7 +83,7 @@ function update(dt) {
 
 function draw() {
   screen.fill("#152638");
-  screen.draw.filled_circle(
+  screen.draw.filledCircle(
     [x, HEIGHT / 2],
     20,
     keyboard.space ? "gold" : "white",
@@ -108,14 +108,14 @@ let clicks = 0;
 
 function draw() {
   screen.fill("#1f2937");
-  screen.draw.filled_circle([160, 82], 28 + clicks * 4, "#38bdf8");
+  screen.draw.filledCircle([160, 82], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click to play a sound", [76, 134], {
     size: 16,
     color: "#f8fafc",
   });
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   clicks = Math.min(6, clicks + 1);
   sounds.tap.play();
   tone.play("C5", 0.08, { volume: 0.15 });
@@ -178,7 +178,7 @@ function update(dt) {
 
 function draw() {
   screen.fill("#152638");
-  screen.draw.filled_circle([x, y], 16, "gold");
+  screen.draw.filledCircle([x, y], 16, "gold");
 }
 ```
 
@@ -222,7 +222,7 @@ animate(orb, { x: 260, duration: 1, tween: "decelerate" });
 function draw() {
   screen.fill("#18212f");
   screen.draw.line([48, 112], [260, 112], "#94a3b8", 3);
-  screen.draw.filled_circle([orb.x, orb.y], 18, "#facc15");
+  screen.draw.filledCircle([orb.x, orb.y], 18, "#facc15");
 }
 ```
 
@@ -246,7 +246,7 @@ function spawnEnemy() {
 }
 
 clock.schedule(spawnEnemy, 1); // once, after 1 second
-clock.schedule_interval(spawnEnemy, 2); // then again every 2 seconds
+clock.scheduleInterval(spawnEnemy, 2); // then again every 2 seconds
 
 function draw() {
   screen.fill("#1c1330");
@@ -257,7 +257,7 @@ function draw() {
 }
 ```
 
-`clock.schedule(callback, delay)` runs once; `clock.schedule_interval`
+`clock.schedule(callback, delay)` runs once; `clock.scheduleInterval`
 repeats forever until `clock.unschedule(callback)` is called with the same
 function reference. Full API: [`docs/reference/clock.md`](reference/clock.md).
 
@@ -270,14 +270,14 @@ TITLE = "Mouse Wheel";
 
 let zoom = 1;
 
-function on_mouse_down(pos, button) {
+function onMouseDown(pos, button) {
   if (button === mouse.WHEEL_UP) zoom = Math.min(4, zoom + 0.2);
   if (button === mouse.WHEEL_DOWN) zoom = Math.max(0.2, zoom - 0.2);
 }
 
 function draw() {
   screen.fill("#0b1220");
-  screen.draw.filled_circle([160, 90], 30 * zoom, "#38bdf8");
+  screen.draw.filledCircle([160, 90], 30 * zoom, "#38bdf8");
   screen.draw.text(`zoom: ${zoom.toFixed(1)}`, [16, 16], {
     size: 16,
     color: "white",
@@ -286,7 +286,7 @@ function draw() {
 ```
 
 There's no separate wheel hook — scroll events arrive through
-`on_mouse_down`, with `button` set to `mouse.WHEEL_UP` or
+`onMouseDown`, with `button` set to `mouse.WHEEL_UP` or
 `mouse.WHEEL_DOWN`, matching pygame's convention of treating the wheel as
 two extra mouse buttons. Full constant table:
 [`docs/reference/hooks.md`](reference/hooks.md#mouse).
@@ -312,10 +312,10 @@ run({
   },
   draw() {
     screen.fill("#10243d");
-    screen.draw.filled_circle([160, 90], 32, "#38bdf8");
+    screen.draw.filledCircle([160, 90], 32, "#38bdf8");
   },
   onKeyDown(key) {
-    /* camelCase hook names work here and in game files alike */
+    /* the same hook names as in game files */
   },
 });
 ```

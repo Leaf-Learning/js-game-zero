@@ -54,7 +54,7 @@ Example route: `/examples/sound-tone`
 
 Loads a sound effect from `sounds/click.ogg` and plays it — along with a
 short generated `tone` — every time the canvas is clicked, growing a circle
-with each click. Teaches: triggering audio from `on_mouse_down`, the
+with each click. Teaches: triggering audio from `onMouseDown`, the
 click-to-unlock browser audio rule, and `tone.play`.
 
 ## Animation Basics
@@ -127,7 +127,7 @@ Example route: `/examples/space-shooter`
 
 The classic grid snake: steer with the arrow keys, eat fruit to grow, and
 avoid the walls and your own tail. Movement is driven entirely by
-`clock.schedule_interval`, and the game speeds up each time you eat.
+`clock.scheduleInterval`, and the game speeds up each time you eat.
 Teaches: grid-based movement, the clock scheduling API, queued input,
 and a persisted high score via `storage`.
 

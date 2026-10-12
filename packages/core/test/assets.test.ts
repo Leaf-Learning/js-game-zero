@@ -84,10 +84,10 @@ describe("image loader cache and surfaces", () => {
       "sprites/player.webp@/game-assets/test_project/images/sprites/player.webp",
       "sprites/player.svg@/game-assets/test_project/images/sprites/player.svg",
     ]);
-    expect(first.get_width()).toBe(20);
-    expect(first.get_height()).toBe(10);
-    expect(first.get_size()).toEqual([20, 10]);
-    expect(first.get_rect({ center: [50, 60] })).toMatchObject({
+    expect(first.getWidth()).toBe(20);
+    expect(first.getHeight()).toBe(10);
+    expect(first.getSize()).toEqual([20, 10]);
+    expect(first.getRect({ center: [50, 60] })).toMatchObject({
       left: 40,
       top: 55,
       width: 20,
@@ -96,11 +96,11 @@ describe("image loader cache and surfaces", () => {
     expect(loader.has("sprites/player")).toBe(true);
     expect(loader.unload("sprites/player")).toBe(true);
     expect(loader.has("sprites/player.svg")).toBe(false);
-    expect((await loader.load("sprites/player.svg")).get_size()).toEqual([
+    expect((await loader.load("sprites/player.svg")).getSize()).toEqual([
       20, 10,
     ]);
-    loader.unload_all();
-    expect(loader.cache_keys()).toEqual([]);
+    loader.unloadAll();
+    expect(loader.cacheKeys()).toEqual([]);
   });
 
   test("throws a clear missing asset error", async () => {
@@ -137,8 +137,8 @@ describe("image loader cache and surfaces", () => {
     const playerProperty = assets.player;
     expect(playerProperty).toBe(player);
     if (!playerProperty) throw new Error("Missing player property asset.");
-    expect(playerProperty.get_width()).toBe(20);
-    expect(playerProperty.get_rect({ center: [50, 60] })).toMatchObject({
+    expect(playerProperty.getWidth()).toBe(20);
+    expect(playerProperty.getRect({ center: [50, 60] })).toMatchObject({
       left: 40,
       top: 55,
       width: 20,
@@ -159,8 +159,8 @@ describe("image loader cache and surfaces", () => {
     const player = (loader as unknown as Record<string, SurfaceLike>).player;
 
     if (!player) throw new Error("Missing loaded player property asset.");
-    expect(player.get_size()).toEqual([32, 24]);
-    expect(player.get_rect().size).toEqual([32, 24]);
+    expect(player.getSize()).toEqual([32, 24]);
+    expect(player.getRect().size).toEqual([32, 24]);
   });
 
   test("pendingCount and waitForIdle track in-flight loads for the runtime preload gate", async () => {
@@ -288,9 +288,9 @@ describe("sound, music, and font loaders", () => {
         play() {},
         loop() {},
         stop() {},
-        get_length: () => 0,
-        set_volume() {},
-        get_volume: () => 1,
+        getLength: () => 0,
+        setVolume() {},
+        getVolume: () => 1,
       }),
     });
     const musicLoader = createMusicLoader({
@@ -323,12 +323,11 @@ describe("sound, music, and font loaders", () => {
     expect(soundLoader.unload("tap.wav")).toBe(true);
     expect(musicLoader.unload("theme.ogg")).toBe(true);
 
-    // unloadAll() is a camelCase alias of unload_all(): it must clear a
-    // populated cache to empty, exactly like the snake_case canonical does.
-    expect(fontLoader.cache_keys()).toEqual(["ui.woff"]);
+    // unloadAll() clears a populated cache to empty.
+    expect(fontLoader.cacheKeys()).toEqual(["ui.woff"]);
     expect(fontLoader.has("ui.woff")).toBe(true);
     fontLoader.unloadAll();
-    expect(fontLoader.cache_keys()).toEqual([]);
+    expect(fontLoader.cacheKeys()).toEqual([]);
     expect(fontLoader.has("ui.woff")).toBe(false);
   });
 
@@ -345,9 +344,9 @@ describe("sound, music, and font loaders", () => {
         loops.push(-1);
       },
       stop() {},
-      get_length: () => 0.25,
-      set_volume() {},
-      get_volume: () => 1,
+      getLength: () => 0.25,
+      setVolume() {},
+      getVolume: () => 1,
     };
     const soundLoader = createSoundLoader({ projectId: "test_project" });
 
@@ -359,7 +358,7 @@ describe("sound, music, and font loaders", () => {
     if (!tap) throw new Error("Missing tap property asset.");
     tap.play(2);
     expect(loops).toEqual([2]);
-    expect(tap.get_length()).toBe(0.25);
+    expect(tap.getLength()).toBe(0.25);
   });
 
   test("lazy sound property access loads before playing", async () => {
@@ -378,9 +377,9 @@ describe("sound, music, and font loaders", () => {
             loops.push(-1);
           },
           stop() {},
-          get_length: () => 0.5,
-          set_volume() {},
-          get_volume: () => 1,
+          getLength: () => 0.5,
+          setVolume() {},
+          getVolume: () => 1,
         };
       },
     });
@@ -411,9 +410,9 @@ describe("sound, music, and font loaders", () => {
             loops.push(loopCount);
           },
           stop() {},
-          get_length: () => 0.5,
-          set_volume() {},
-          get_volume: () => 1,
+          getLength: () => 0.5,
+          setVolume() {},
+          getVolume: () => 1,
         };
         return asset as unknown as SoundAsset;
       },

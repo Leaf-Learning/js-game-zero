@@ -76,7 +76,7 @@ async function exists(path: string): Promise<boolean> {
 }
 
 describe("JSON storage map and proxy API", () => {
-  test("empty load, set/get, setdefault, proxy access, and clear", async () => {
+  test("empty load, set/get, setDefault, proxy access, and clear", async () => {
     const adapter = new MemoryAdapter();
     const store = proxy(createStorage({ adapter }));
 
@@ -84,8 +84,8 @@ describe("JSON storage map and proxy API", () => {
     expect(store.get("score")).toBeUndefined();
     store.set("score", 10);
     expect(store.get("score")).toBe(10);
-    expect(store.setdefault("score", 20)).toBe(10);
-    expect(store.setdefault("lives", 3)).toBe(3);
+    expect(store.setDefault("score", 20)).toBe(10);
+    expect(store.setDefault("lives", 3)).toBe(3);
     store.player = "Ada";
     expect(store.player).toBe("Ada");
     expect("player" in store).toBe(true);
@@ -357,7 +357,7 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
     }
   });
 
-  test("onChange notifies on set/delete/clear/setdefault-insert but not on no-op mutations or load/save", async () => {
+  test("onChange notifies on set/delete/clear/setDefault-insert but not on no-op mutations or load/save", async () => {
     const adapter = new MemoryAdapter();
     const store = createStorage({ adapter });
     let notifications = 0;
@@ -368,10 +368,10 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
     store.set("a", 1);
     expect(notifications).toBe(1);
 
-    store.setdefault("a", 2); // already present: no notification
+    store.setDefault("a", 2); // already present: no notification
     expect(notifications).toBe(1);
 
-    store.setdefault("b", 2); // newly inserted: notifies
+    store.setDefault("b", 2); // newly inserted: notifies
     expect(notifications).toBe(2);
 
     expect(store.delete("missing")).toBe(false);

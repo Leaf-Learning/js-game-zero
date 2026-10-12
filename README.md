@@ -14,7 +14,7 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let ship = new Actor("player.svg", { midbottom: [240, 350] });
+let ship = new Actor("player.svg", { midBottom: [240, 350] });
 
 function update(dt) {
   if (keyboard.left) ship.x -= 220 * dt;
@@ -24,7 +24,7 @@ function update(dt) {
 function draw() {
   screen.fill("#0b1220", "#132a43");
   ship.draw();
-  screen.draw.filled_circle([240, 60], 16, "gold"); // a comet to catch
+  screen.draw.filledCircle([240, 60], 16, "gold"); // a comet to catch
 }
 ```
 

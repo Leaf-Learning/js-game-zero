@@ -131,7 +131,7 @@ describe("tone Web Audio scheduling", () => {
     const playback = await created.play({ waveform: "square", volume: 0.25 });
 
     expect(context.resumeCalls).toBe(1);
-    expect(unlockState.is_unlocked()).toBe(true);
+    expect(unlockState.isUnlocked()).toBe(true);
     expect(playback).toMatchObject({
       frequency: 440,
       duration: 0.5,
@@ -149,7 +149,7 @@ describe("tone Web Audio scheduling", () => {
     expect(oscillator?.connectedTo).toBe(gain);
     expect(gain?.gain.calls).toEqual([{ value: 0.25, time: 12 }]);
     expect(gain?.connectedTo).toBe(context.destination);
-    expect(generator.debug_state()).toMatchObject({
+    expect(generator.debugState()).toMatchObject({
       unlocked: true,
       contextState: "running",
       scheduled: [playback],
@@ -173,7 +173,7 @@ describe("tone Web Audio scheduling", () => {
     expect(context.resumeCalls).toBe(0);
   });
 
-  test("tone.is_unlocked reflects the unlock state and isUnlocked is its camelCase alias", async () => {
+  test("tone.isUnlocked reflects the unlock state", async () => {
     const context = new MockAudioContext();
     const unlockState = new AudioUnlockState();
     const generator = createToneGenerator({
@@ -181,16 +181,14 @@ describe("tone Web Audio scheduling", () => {
       unlockState,
     });
 
-    expect(generator.is_unlocked()).toBe(false);
     expect(generator.isUnlocked()).toBe(false);
 
     await generator.play("A4", 0.2);
 
-    // Playing a tone resumes/unlocks the context, so the canonical and the
-    // alias must both now report the unlocked state, in agreement.
-    expect(generator.is_unlocked()).toBe(true);
+    // Playing a tone resumes/unlocks the context, so the generator and the
+    // shared unlock state both report it.
     expect(generator.isUnlocked()).toBe(true);
-    expect(generator.isUnlocked()).toBe(unlockState.is_unlocked());
+    expect(unlockState.isUnlocked()).toBe(true);
   });
 });
 

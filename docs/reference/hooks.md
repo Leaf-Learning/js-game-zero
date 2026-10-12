@@ -6,23 +6,25 @@ import mode as properties on the object you pass to `run()`. This page
 documents every hook, then the `keys`, `keymods`, and `mouse` constant tables
 used by the input hooks.
 
-Every input hook also has a camelCase name (`onKeyDown`, `onMouseDown`, ...),
-which works the same way in both modes. Pick one style per game. (A game made
-with `defineGame()` is the exception: its camelCase hooks receive one event
-object — see [`runtime.md`](runtime.md).)
+Hook names are camelCase (`onKeyDown`, `onMouseDown`, ...), and work the
+same way in both modes. (A game made with `defineGame()` is the exception:
+its input hooks receive one event object — see [`runtime.md`](runtime.md).)
+A hook spelled another way, such as Pygame Zero's `on_key_down`, is never
+called; the runtime warns about it with a `hook-typo` diagnostic that names
+the camelCase hook to rename it to.
 
 A hook's arguments are matched **by parameter name** first. The runtime reads
 your function's declared parameter names and passes the value with that name,
 in whatever order you wrote them. That means
-`function on_key_down(mod, key) {}` receives `mod` and `key` correctly even
+`function onKeyDown(mod, key) {}` receives `mod` and `key` correctly even
 though the "natural" order is `key, mod`.
 
 A parameter with any other name receives the next value in the hook's
 documented order that isn't already taken by name, just like an ordinary
-JavaScript function: `function on_key_down(k) {}` gets the key, and
-`function on_mouse_down(position) {}` gets `pos`. The runtime adds a
+JavaScript function: `function onKeyDown(k) {}` gets the key, and
+`function onMouseDown(position) {}` gets `pos`. The runtime adds a
 `hook-parameter` warning saying which value such a parameter receives, since
-`on_mouse_down(btn)` gets the position, not the button. Name your parameters
+`onMouseDown(btn)` gets the position, not the button. Name your parameters
 as shown below to avoid the warning.
 
 ## draw()
@@ -39,7 +41,7 @@ have loaded. `draw` must not declare any parameters — `run()` throws a
 ```js
 function draw() {
   screen.fill("#0f172a");
-  screen.draw.filled_circle([160, 90], 40, "gold");
+  screen.draw.filledCircle([160, 90], 40, "gold");
 }
 ```
 
@@ -62,19 +64,19 @@ function update(dt) {
 }
 ```
 
-## on_key_down(key, mod, unicode) / on_key_up(key, mod)
+## onKeyDown(key, mod, unicode) / onKeyUp(key, mod)
 
 ```ts
-function on_key_down(
+function onKeyDown(
   key: number,
   mod: number,
   unicode: string,
   repeat: boolean,
 ): void;
-function on_key_up(key: number, mod: number): void;
+function onKeyUp(key: number, mod: number): void;
 ```
 
-Fired on `keydown`/`keyup`. camelCase names: `onKeyDown` / `onKeyUp`.
+Fired on `keydown`/`keyup`.
 
 - `key` — **a numeric key constant from `keys`**, not a string. This is the
   single most common mistake when porting from other frameworks: compare it
@@ -85,10 +87,10 @@ Fired on `keydown`/`keyup`. camelCase names: `onKeyDown` / `onKeyUp`.
   non-printable keys like arrows or function keys).
 - `repeat` — `true` if this event is an OS-generated key-repeat while the key
   is held down, rather than the initial press. Only available on
-  `on_key_down` (declare it as a fourth parameter if you need it).
+  `onKeyDown` (declare it as a fourth parameter if you need it).
 
 ```js
-function on_key_down(key, mod) {
+function onKeyDown(key, mod) {
   if (key === keys.SPACE) jump();
   if (key === keys.R && mod & keymods.CTRL) restartLevel();
 }
@@ -96,7 +98,7 @@ function on_key_down(key, mod) {
 
 `keyboard.left`, `keyboard.a`, and similar boolean properties (see below) are
 usually a better fit for continuous movement inside `update`; use
-`on_key_down`/`on_key_up` for one-shot actions like jumping or firing.
+`onKeyDown`/`onKeyUp` for one-shot actions like jumping or firing.
 
 ## Touch controls
 
@@ -144,8 +146,8 @@ support or a coarse pointing device. Add `show: "always"` to a mapping to
 preview them on desktop. These are native buttons, so mouse clicks and
 Tab followed by Space or Enter work as well.
 
-Holding a button updates `keyboard` and fires `on_key_down` once; releasing
-it fires `on_key_up`. Virtual presses have `mod: keymods.NONE`,
+Holding a button updates `keyboard` and fires `onKeyDown` once; releasing
+it fires `onKeyUp`. Virtual presses have `mod: keymods.NONE`,
 `unicode: ""`, and `repeat: false`; use `update(dt)` for repeated actions.
 Multiple fingers can hold directions and action buttons together. Slide a
 finger across the D-pad to change direction. Each mapped key stays held
@@ -161,9 +163,9 @@ on a raw game module, or in the options passed to `run`. TypeScript exports
 ### Tapping and dragging the canvas
 
 Canvas touch and pen input work even without a control dock. A primary
-touch triggers `on_mouse_down`, dragging triggers `on_mouse_move` with
+touch triggers `onMouseDown`, dragging triggers `onMouseMove` with
 `mouse.LEFT` in `buttons`, and releasing or cancelling triggers
-`on_mouse_up`. Positions and movement are converted to logical game
+`onMouseUp`. Positions and movement are converted to logical game
 coordinates when the canvas is scaled. The pointer remains captured when
 it leaves the canvas; extra canvas touches are ignored until the first is
 released. Touch buttons do not trigger canvas mouse hooks.
@@ -180,32 +182,31 @@ padding, and row gaps, and restores the original canvas placement when the
 dock is hidden or the game stops.
 The sandbox preview handles this automatically.
 
-## on_mouse_down(pos, button) / on_mouse_up(pos, button)
+## onMouseDown(pos, button) / onMouseUp(pos, button)
 
 ```ts
-function on_mouse_down(pos: [number, number], button: number): void;
-function on_mouse_up(pos: [number, number], button: number): void;
+function onMouseDown(pos: [number, number], button: number): void;
+function onMouseUp(pos: [number, number], button: number): void;
 ```
 
 Fired on `mousedown`/`mouseup`, and also for **wheel scroll**: a wheel event
-is reported as `on_mouse_down` with `button` set to `mouse.WHEEL_UP` or
+is reported as `onMouseDown` with `button` set to `mouse.WHEEL_UP` or
 `mouse.WHEEL_DOWN` (matching pygame's convention of treating the scroll wheel
 as buttons 4 and 5, rather than a separate event). There is no
-`on_mouse_wheel` hook — check `button` inside `on_mouse_down` instead.
-camelCase names: `onMouseDown` / `onMouseUp`.
+`onMouseWheel` hook — check `button` inside `onMouseDown` instead.
 
 ```js
-function on_mouse_down(pos, button) {
+function onMouseDown(pos, button) {
   if (button === mouse.LEFT) fireAt(pos);
   if (button === mouse.WHEEL_UP) zoom += 1;
   if (button === mouse.WHEEL_DOWN) zoom -= 1;
 }
 ```
 
-## on_mouse_move(pos, rel, buttons)
+## onMouseMove(pos, rel, buttons)
 
 ```ts
-function on_mouse_move(
+function onMouseMove(
   pos: [number, number],
   rel: [number, number],
   buttons: Set<number>,
@@ -215,30 +216,24 @@ function on_mouse_move(
 Fired on `mousemove`. `rel` is the movement since the previous event (from
 the browser's `movementX`/`movementY` when available). `buttons` is a `Set`
 of currently held mouse buttons (`mouse.LEFT`, `mouse.MIDDLE`, `mouse.RIGHT`)
-— check membership with `buttons.has(mouse.LEFT)`. camelCase name:
-`onMouseMove`.
+— check membership with `buttons.has(mouse.LEFT)`.
 
-## on_music_end()
+## onMusicEnd()
 
 ```ts
-function on_music_end(): void;
+function onMusicEnd(): void;
 ```
 
 Fired once the active `music` track (and any queued tracks) finish playing
-with nothing left to play. camelCase name: `onMusicEnd`.
-
-## Duplicate hooks
-
-If you define both the snake_case and camelCase form of the same hook (e.g.
-`on_key_down` and `onKeyDown`) the runtime emits a diagnostic warning and
-runs the snake_case one; `draw` and `update` have no camelCase alias.
+with nothing left to play.
 
 ## `keyboard`
 
 `keyboard` is a live object of boolean properties reflecting which keys are
-currently held down, keyed by lowercase key name (`keyboard.left`,
-`keyboard.space`, `keyboard.a`, `keyboard.k_1` for the digit keys). Read it
-inside `update()` for continuous movement:
+currently held down, one for each key in `keys` under the same name in any
+capitalization (`keyboard.left`, `keyboard.space`, `keyboard.a`, and
+`keyboard.K_1` for the digit keys). Read it inside `update()` for continuous
+movement:
 
 ```js
 function update(dt) {
@@ -271,10 +266,11 @@ Numeric key constants, one property per key. The full set includes:
 | Locks                      | `keys.CAPSLOCK`, `keys.NUMLOCK`, `keys.SCROLLOCK`                                                                                                                                   |
 
 The values are arbitrary integers (matching SDL/pygame's numbering) — never
-hardcode them, always compare against the named constant. In a game file the
-names ignore capitalization (`keys.space` is `keys.SPACE`), and a misspelled
-name such as `keys.SPCE` throws with a suggestion instead of quietly
-comparing against `undefined`. The same goes for `keymods` and `mouse`.
+hardcode them, always compare against the named constant. Constants are
+upper case. In a game file, any other spelling such as `keys.space` or
+`keys.SPCE` throws with a suggestion (`Did you mean keys.SPACE?`) instead of
+quietly comparing against `undefined`. The same goes for `keymods` and
+`mouse`.
 
 ## `keymods`
 
@@ -296,7 +292,7 @@ A bitmask of held modifier keys, combined with `|` and tested with `&`:
 | `keymods.MODE`                      | AltGr / alternate-graphics modifier       |
 
 ```js
-function on_key_down(key, mod) {
+function onKeyDown(key, mod) {
   if (mod & keymods.SHIFT) console.log("shift-modified key");
 }
 ```
@@ -316,16 +312,16 @@ In a game file, `mouse` also says where the mouse is right now, for code in
 
 ```js
 function update(dt) {
-  ship.angle = ship.angle_to(mouse.pos); // aim at the mouse
+  ship.angle = ship.angleTo(mouse.pos); // aim at the mouse
 }
 ```
 
 Button constants:
 
-| Constant           | Value | Meaning                                                |
-| ------------------ | ----- | ------------------------------------------------------ |
-| `mouse.LEFT`       | 1     | Left mouse button                                      |
-| `mouse.MIDDLE`     | 2     | Middle mouse button (wheel click)                      |
-| `mouse.RIGHT`      | 3     | Right mouse button                                     |
-| `mouse.WHEEL_UP`   | 4     | Scroll wheel moved up (reported via `on_mouse_down`)   |
-| `mouse.WHEEL_DOWN` | 5     | Scroll wheel moved down (reported via `on_mouse_down`) |
+| Constant           | Value | Meaning                                              |
+| ------------------ | ----- | ---------------------------------------------------- |
+| `mouse.LEFT`       | 1     | Left mouse button                                    |
+| `mouse.MIDDLE`     | 2     | Middle mouse button (wheel click)                    |
+| `mouse.RIGHT`      | 3     | Right mouse button                                   |
+| `mouse.WHEEL_UP`   | 4     | Scroll wheel moved up (reported via `onMouseDown`)   |
+| `mouse.WHEEL_DOWN` | 5     | Scroll wheel moved down (reported via `onMouseDown`) |

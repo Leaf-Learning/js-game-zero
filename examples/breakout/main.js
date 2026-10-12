@@ -36,7 +36,7 @@ function buildBricks() {
     for (let columnIndex = 0; columnIndex < COLUMNS; columnIndex++) {
       const x = GRID_LEFT + columnIndex * (BRICK_W + BRICK_GAP);
       const y = GRID_TOP + rowIndex * (BRICK_H + BRICK_GAP);
-      bricks.push(new Actor(BRICK_COLORS[rowIndex], { topleft: [x, y] }));
+      bricks.push(new Actor(BRICK_COLORS[rowIndex], { topLeft: [x, y] }));
     }
   }
 }
@@ -44,7 +44,7 @@ buildBricks();
 
 function resetBall() {
   ball.center = [WIDTH / 2, HEIGHT / 2];
-  ball.vx = random_choice([-220, 220]);
+  ball.vx = randomChoice([-220, 220]);
   ball.vy = -320;
 }
 
@@ -58,20 +58,20 @@ function startNewGame() {
 }
 
 function clampPaddle() {
-  paddle.clamp_ip(screen.bounds());
+  paddle.clampIp(screen.bounds());
 }
 
-function on_mouse_move(pos) {
+function onMouseMove(pos) {
   if (state !== "playing") return;
   paddle.x = pos[0];
   clampPaddle();
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   if (state !== "playing") startNewGame();
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (state !== "playing" && key === keys.SPACE) startNewGame();
 }
 
@@ -157,7 +157,7 @@ function draw() {
     color: "white",
   });
   screen.draw.text(`Lives: ${lives}`, {
-    topright: [WIDTH - 16, 16],
+    topRight: [WIDTH - 16, 16],
     size: 22,
     color: "white",
   });

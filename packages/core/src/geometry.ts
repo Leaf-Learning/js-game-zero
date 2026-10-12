@@ -1,4 +1,4 @@
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import {
   isFiniteNumber,
   isPair,
@@ -41,7 +41,7 @@ export class Rect {
   height: number;
 
   constructor(left: number, top: number, width: number, height: number);
-  constructor(topleft: PairLike, size: PairLike);
+  constructor(topLeft: PairLike, size: PairLike);
   constructor(rect: RectLike);
   constructor(...args: unknown[]) {
     const [left, top, width, height] = parseRectArgs(args);
@@ -99,110 +99,110 @@ export class Rect {
     this.top = requireFiniteNumber(value, "bottom") - this.height;
   }
 
-  get centerx(): number {
+  get centerX(): number {
     return this.left + this.width / 2;
   }
 
-  set centerx(value: number) {
-    this.left = requireFiniteNumber(value, "centerx") - this.width / 2;
+  set centerX(value: number) {
+    this.left = requireFiniteNumber(value, "centerX") - this.width / 2;
   }
 
-  get centery(): number {
+  get centerY(): number {
     return this.top + this.height / 2;
   }
 
-  set centery(value: number) {
-    this.top = requireFiniteNumber(value, "centery") - this.height / 2;
+  set centerY(value: number) {
+    this.top = requireFiniteNumber(value, "centerY") - this.height / 2;
   }
 
-  get topleft(): Point {
+  get topLeft(): Point {
     return [this.left, this.top];
   }
 
-  set topleft(value: PairLike) {
-    const [x, y] = parsePair(value, "topleft");
+  set topLeft(value: PairLike) {
+    const [x, y] = parsePair(value, "topLeft");
     this.left = x;
     this.top = y;
   }
 
-  get topright(): Point {
+  get topRight(): Point {
     return [this.right, this.top];
   }
 
-  set topright(value: PairLike) {
-    const [x, y] = parsePair(value, "topright");
+  set topRight(value: PairLike) {
+    const [x, y] = parsePair(value, "topRight");
     this.right = x;
     this.top = y;
   }
 
-  get bottomleft(): Point {
+  get bottomLeft(): Point {
     return [this.left, this.bottom];
   }
 
-  set bottomleft(value: PairLike) {
-    const [x, y] = parsePair(value, "bottomleft");
+  set bottomLeft(value: PairLike) {
+    const [x, y] = parsePair(value, "bottomLeft");
     this.left = x;
     this.bottom = y;
   }
 
-  get bottomright(): Point {
+  get bottomRight(): Point {
     return [this.right, this.bottom];
   }
 
-  set bottomright(value: PairLike) {
-    const [x, y] = parsePair(value, "bottomright");
+  set bottomRight(value: PairLike) {
+    const [x, y] = parsePair(value, "bottomRight");
     this.right = x;
     this.bottom = y;
   }
 
-  get midtop(): Point {
-    return [this.centerx, this.top];
+  get midTop(): Point {
+    return [this.centerX, this.top];
   }
 
-  set midtop(value: PairLike) {
-    const [x, y] = parsePair(value, "midtop");
-    this.centerx = x;
+  set midTop(value: PairLike) {
+    const [x, y] = parsePair(value, "midTop");
+    this.centerX = x;
     this.top = y;
   }
 
-  get midleft(): Point {
-    return [this.left, this.centery];
+  get midLeft(): Point {
+    return [this.left, this.centerY];
   }
 
-  set midleft(value: PairLike) {
-    const [x, y] = parsePair(value, "midleft");
+  set midLeft(value: PairLike) {
+    const [x, y] = parsePair(value, "midLeft");
     this.left = x;
-    this.centery = y;
+    this.centerY = y;
   }
 
-  get midright(): Point {
-    return [this.right, this.centery];
+  get midRight(): Point {
+    return [this.right, this.centerY];
   }
 
-  set midright(value: PairLike) {
-    const [x, y] = parsePair(value, "midright");
+  set midRight(value: PairLike) {
+    const [x, y] = parsePair(value, "midRight");
     this.right = x;
-    this.centery = y;
+    this.centerY = y;
   }
 
-  get midbottom(): Point {
-    return [this.centerx, this.bottom];
+  get midBottom(): Point {
+    return [this.centerX, this.bottom];
   }
 
-  set midbottom(value: PairLike) {
-    const [x, y] = parsePair(value, "midbottom");
-    this.centerx = x;
+  set midBottom(value: PairLike) {
+    const [x, y] = parsePair(value, "midBottom");
+    this.centerX = x;
     this.bottom = y;
   }
 
   get center(): Point {
-    return [this.centerx, this.centery];
+    return [this.centerX, this.centerY];
   }
 
   set center(value: PairLike) {
     const [x, y] = parsePair(value, "center");
-    this.centerx = x;
-    this.centery = y;
+    this.centerX = x;
+    this.centerY = y;
   }
 
   get size(): Size {
@@ -256,14 +256,14 @@ export class Rect {
   move(xOrOffset: number | PairLike, y?: number): Rect {
     const [x, yOffset] = parseOffset(xOrOffset, y, "move");
     const copy = this.copy();
-    copy.move_ip(x, yOffset);
+    copy.moveIp(x, yOffset);
     return copy;
   }
 
-  move_ip(x: number, y: number): void;
-  move_ip(offset: PairLike): void;
-  move_ip(xOrOffset: number | PairLike, y?: number): void {
-    const [x, yOffset] = parseOffset(xOrOffset, y, "move_ip");
+  moveIp(x: number, y: number): void;
+  moveIp(offset: PairLike): void;
+  moveIp(xOrOffset: number | PairLike, y?: number): void {
+    const [x, yOffset] = parseOffset(xOrOffset, y, "moveIp");
     this.left += x;
     this.top += yOffset;
   }
@@ -273,14 +273,14 @@ export class Rect {
   inflate(xOrSize: number | PairLike, y?: number): Rect {
     const [x, yAmount] = parseOffset(xOrSize, y, "inflate");
     const copy = this.copy();
-    copy.inflate_ip(x, yAmount);
+    copy.inflateIp(x, yAmount);
     return copy;
   }
 
-  inflate_ip(x: number, y: number): void;
-  inflate_ip(size: PairLike): void;
-  inflate_ip(xOrSize: number | PairLike, y?: number): void {
-    const [x, yAmount] = parseOffset(xOrSize, y, "inflate_ip");
+  inflateIp(x: number, y: number): void;
+  inflateIp(size: PairLike): void;
+  inflateIp(xOrSize: number | PairLike, y?: number): void {
+    const [x, yAmount] = parseOffset(xOrSize, y, "inflateIp");
     this.left -= x / 2;
     this.top -= yAmount / 2;
     this.width += x;
@@ -320,7 +320,7 @@ export class Rect {
   }
 
   /** Mutating form of {@link clamp}. */
-  clamp_ip(other: RectLike): void {
+  clampIp(other: RectLike): void {
     this.applyGeometry(this.clamp(other));
   }
 
@@ -340,7 +340,7 @@ export class Rect {
   }
 
   /** Mutating form of {@link clip}. */
-  clip_ip(other: RectLike): void {
+  clipIp(other: RectLike): void {
     this.applyGeometry(this.clip(other));
   }
 
@@ -355,20 +355,20 @@ export class Rect {
   }
 
   /** Mutating form of {@link union}. */
-  union_ip(other: RectLike): void {
+  unionIp(other: RectLike): void {
     this.applyGeometry(this.union(other));
   }
 
-  unionall(others: RectLike[]): Rect {
+  unionAll(others: RectLike[]): Rect {
     return others.reduce<Rect>(
       (accumulator, other) => accumulator.union(other),
       this.copy(),
     );
   }
 
-  /** Mutating form of {@link unionall}. */
-  unionall_ip(others: RectLike[]): void {
-    this.applyGeometry(this.unionall(others));
+  /** Mutating form of {@link unionAll}. */
+  unionAllIp(others: RectLike[]): void {
+    this.applyGeometry(this.unionAll(others));
   }
 
   fit(other: RectLike): Rect {
@@ -402,10 +402,10 @@ export class Rect {
     );
   }
 
-  collidepoint(point: PairLike): boolean;
-  collidepoint(x: number, y: number): boolean;
-  collidepoint(pointOrX: PairLike | number, y?: number): boolean {
-    const [x, yPoint] = parseOffset(pointOrX, y, "collidepoint");
+  collidePoint(point: PairLike): boolean;
+  collidePoint(x: number, y: number): boolean;
+  collidePoint(pointOrX: PairLike | number, y?: number): boolean {
+    const [x, yPoint] = parseOffset(pointOrX, y, "collidePoint");
     const rect = normalizedRect(this);
     return (
       rect.width > 0 &&
@@ -423,11 +423,11 @@ export class Rect {
    */
   touches(target: RectLike | PairLike): boolean {
     return isPair(target)
-      ? this.collidepoint(target)
-      : this.colliderect(target as RectLike);
+      ? this.collidePoint(target)
+      : this.collideRect(target as RectLike);
   }
 
-  colliderect(other: RectLike): boolean {
+  collideRect(other: RectLike): boolean {
     const a = normalizedRect(this);
     const b = normalizedRect(other);
     return (
@@ -442,14 +442,14 @@ export class Rect {
     );
   }
 
-  collidelist(others: RectLike[]): number {
-    return others.findIndex((other) => this.colliderect(other));
+  collideList(others: RectLike[]): number {
+    return others.findIndex((other) => this.collideRect(other));
   }
 
-  collidelistall(others: RectLike[]): number[] {
+  collideListAll(others: RectLike[]): number[] {
     const indexes: number[] = [];
     others.forEach((other, index) => {
-      if (this.colliderect(other)) indexes.push(index);
+      if (this.collideRect(other)) indexes.push(index);
     });
     return indexes;
   }
@@ -462,23 +462,23 @@ export class Rect {
    * `Map` whose keys are themselves rect-likes, since plain object keys are
    * always strings).
    */
-  collidedict<V>(
+  collideDict<V>(
     dict: RectDict<V>,
     useValues = true,
   ): [unknown, V] | undefined {
     for (const [key, value] of dictEntries(dict)) {
       const candidate = (useValues ? value : key) as unknown as RectLike;
-      if (this.colliderect(candidate)) return [key, value];
+      if (this.collideRect(candidate)) return [key, value];
     }
     return undefined;
   }
 
-  /** Same as {@link collidedict}, but returns every colliding entry. */
-  collidedictall<V>(dict: RectDict<V>, useValues = true): Array<[unknown, V]> {
+  /** Same as {@link collideDict}, but returns every colliding entry. */
+  collideDictAll<V>(dict: RectDict<V>, useValues = true): Array<[unknown, V]> {
     const results: Array<[unknown, V]> = [];
     for (const [key, value] of dictEntries(dict)) {
       const candidate = (useValues ? value : key) as unknown as RectLike;
-      if (this.colliderect(candidate)) results.push([key, value]);
+      if (this.collideRect(candidate)) results.push([key, value]);
     }
     return results;
   }
@@ -499,7 +499,7 @@ function* dictEntries<V>(dict: RectDict<V>): Iterable<[unknown, V]> {
   yield* Object.entries(dict) as unknown as Iterable<[unknown, V]>;
 }
 
-addCamelCaseAliases(Rect.prototype);
+guardSpellings(Rect.prototype, "rect");
 
 export class ZRect extends Rect {}
 
@@ -527,7 +527,7 @@ function parseRectArgs(args: unknown[]): RectTuple {
   }
 
   if (args.length === 2 && isPair(args[0]) && isPair(args[1])) {
-    const [left, top] = parsePair(args[0], "topleft");
+    const [left, top] = parsePair(args[0], "topLeft");
     const [width, height] = parsePair(args[1], "size");
     return [left, top, width, height];
   }

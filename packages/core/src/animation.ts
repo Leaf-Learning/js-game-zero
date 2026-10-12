@@ -2,7 +2,8 @@
 // module (LGPL-3.0), which in turn credits: "Easing Functions ported from
 // the Clutter Project via kivy.org".
 import { Clock, clock } from "./clock";
-import { didYouMean, levenshtein } from "./util";
+import { guardedMember, guardSpellings } from "./friendly-names";
+import { didYouMean, levenshtein, looseName } from "./util";
 
 export type TweenName = keyof typeof tweens;
 
@@ -11,7 +12,7 @@ export type AnimationOptions<T extends object> = Partial<
 > & {
   tween?: TweenName | string;
   duration?: number;
-  on_finished?: () => void;
+  onFinished?: () => void;
 };
 
 type TargetValue = number | number[];
@@ -32,20 +33,20 @@ export const tweens = Object.freeze({
   decelerate(n: number): number {
     return -n * (n - 2);
   },
-  accel_decel(n: number): number {
+  accelDecel(n: number): number {
     const p = n * 2;
     if (p < 1) return 0.5 * p * p;
     const q = p - 1;
     return -0.5 * (q * (q - 2) - 1);
   },
-  in_elastic(n: number): number {
+  inElastic(n: number): number {
     const period = 0.3;
     const shift = period / 4;
     if (n === 0 || n === 1) return n;
     const q = n - 1;
     return -(2 ** (10 * q) * Math.sin(((q - shift) * (2 * Math.PI)) / period));
   },
-  out_elastic(n: number): number {
+  outElastic(n: number): number {
     const period = 0.3;
     const shift = period / 4;
     if (n === 0 || n === 1) return n;
@@ -53,7 +54,7 @@ export const tweens = Object.freeze({
       2 ** (-10 * n) * Math.sin(((n - shift) * (2 * Math.PI)) / period) + 1
     );
   },
-  in_out_elastic(n: number): number {
+  inOutElastic(n: number): number {
     const period = 0.45;
     const shift = period / 4;
     const p = n * 2;
@@ -73,48 +74,48 @@ export const tweens = Object.freeze({
       1
     );
   },
-  bounce_end(n: number): number {
+  bounceEnd(n: number): number {
     return outBounce(n);
   },
-  bounce_start(n: number): number {
+  bounceStart(n: number): number {
     return 1 - outBounce(1 - n);
   },
-  bounce_start_end(n: number): number {
+  bounceStartEnd(n: number): number {
     const p = n * 2;
     if (p < 1) return (1 - outBounce(1 - p)) * 0.5;
     return outBounce(p - 1) * 0.5 + 0.5;
   },
-  end_elastic(n: number): number {
-    return tweens.in_elastic(n);
+  endElastic(n: number): number {
+    return tweens.inElastic(n);
   },
-  start_elastic(n: number): number {
-    return tweens.out_elastic(n);
+  startElastic(n: number): number {
+    return tweens.outElastic(n);
   },
-  both_elastic(n: number): number {
-    return tweens.in_out_elastic(n);
+  bothElastic(n: number): number {
+    return tweens.inOutElastic(n);
   },
   // Plain-language names: CSS's easing words, and what the motion looks like.
-  ease_in(n: number): number {
+  easeIn(n: number): number {
     return tweens.accelerate(n);
   },
-  ease_out(n: number): number {
+  easeOut(n: number): number {
     return tweens.decelerate(n);
   },
-  ease_in_out(n: number): number {
-    return tweens.accel_decel(n);
+  easeInOut(n: number): number {
+    return tweens.accelDecel(n);
   },
   bounce(n: number): number {
-    return tweens.bounce_end(n);
+    return tweens.bounceEnd(n);
   },
   spring(n: number): number {
-    return tweens.out_elastic(n);
+    return tweens.outElastic(n);
   },
 });
 
 export const tweenNames = Object.freeze(Object.keys(tweens) as TweenName[]);
 
 export class Animation<T extends object = object> {
-  on_finished: (() => void) | undefined;
+  onFinished: (() => void) | undefined;
   readonly object: T;
   readonly duration: number;
   readonly tween: TweenName;
@@ -133,11 +134,11 @@ export class Animation<T extends object = object> {
     if (typeof object !== "object" || object === null) {
       throw new TypeError("Animation target must be an object.");
     }
-    const { tween = "linear", duration = 1, on_finished, ...targets } = options;
+    const { tween = "linear", duration = 1, onFinished, ...targets } = options;
     this.object = object;
     this.duration = validateDuration(duration);
     this.tween = resolveTween(tween);
-    this.on_finished = on_finished;
+    this.onFinished = onFinished;
     this.scheduler = scheduler;
 
     const targetEntries = Object.entries(targets).filter(
@@ -152,7 +153,7 @@ export class Animation<T extends object = object> {
         throw new ValueError(
           `object has no attribute ${property} to animate.${didYouMean(
             property,
-            ["duration", "tween", "on_finished", ...propertyNames(object)],
+            ["duration", "tween", "onFinished", ...propertyNames(object)],
           )}`,
         );
       }
@@ -170,7 +171,7 @@ export class Animation<T extends object = object> {
       replaceExistingAnimation(object, property, this as Animation<object>);
     }
 
-    this.scheduler.each_tick(this.tickCallback);
+    this.scheduler.eachTick(this.tickCallback);
   }
 
   get running(): boolean {
@@ -216,7 +217,7 @@ export class Animation<T extends object = object> {
 
   private completeNaturally(): void {
     this.apply(1);
-    const onFinished = this.on_finished;
+    const onFinished = this.onFinished;
     this.stop(false);
     onFinished?.();
   }
@@ -233,6 +234,8 @@ export class Animation<T extends object = object> {
     }
   }
 }
+
+guardSpellings(Animation.prototype, "animation", ["onFinished"]);
 
 export class ValueError extends Error {
   constructor(message: string) {
@@ -289,7 +292,7 @@ function propertyNames(object: object): string[] {
   ) {
     names.push(...Object.getOwnPropertyNames(current));
   }
-  return names;
+  return names.filter((name) => guardedMember(object, name) === undefined);
 }
 
 function validateDuration(value: number): number {
@@ -312,6 +315,10 @@ function resolveTween(name: string): TweenName {
 }
 
 function nearestTween(name: string): string | null {
+  const respelled = tweenNames.find(
+    (candidate) => looseName(candidate) === looseName(name),
+  );
+  if (respelled) return respelled;
   let bestName: string | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const candidate of tweenNames) {

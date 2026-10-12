@@ -119,7 +119,7 @@ describe("browser sound effects", () => {
   test("play once, stop, duration, volume, and unlock state use audio elements", async () => {
     const { sound, elements } = soundFixture();
 
-    sound.set_volume(0.35);
+    sound.setVolume(0.35);
     sound.play();
     const element = elements[0];
     expect(element).toBeTruthy();
@@ -130,9 +130,9 @@ describe("browser sound effects", () => {
     expect(element.playCalls).toBe(1);
     expect(element.loop).toBe(false);
     expect(element.volume).toBe(0.35);
-    expect(sound.get_volume()).toBe(0.35);
-    expect(sound.get_length()).toBe(1.25);
-    expect(sound.debug_state()).toMatchObject({
+    expect(sound.getVolume()).toBe(0.35);
+    expect(sound.getLength()).toBe(1.25);
+    expect(sound.debugState()).toMatchObject({
       active: true,
       unlocked: true,
       lastError: null,
@@ -141,7 +141,7 @@ describe("browser sound effects", () => {
     sound.stop();
     expect(element.pauseCalls).toBe(1);
     expect(element.currentTime).toBe(0);
-    expect(sound.debug_state().active).toBe(false);
+    expect(sound.debugState().active).toBe(false);
   });
 
   test("finite loop counts replay FIFO-style and -1 loops forever", () => {
@@ -154,9 +154,9 @@ describe("browser sound effects", () => {
     finite.emitEnded();
     finite.emitEnded();
     expect(finite.playCalls).toBe(3);
-    expect(sound.debug_state().active).toBe(true);
+    expect(sound.debugState().active).toBe(true);
     finite.emitEnded();
-    expect(sound.debug_state().active).toBe(false);
+    expect(sound.debugState().active).toBe(false);
 
     sound.play(-1);
     const infinite = elements[1];
@@ -165,16 +165,16 @@ describe("browser sound effects", () => {
     expect(infinite.loop).toBe(true);
     infinite.emitEnded();
     expect(infinite.playCalls).toBe(1);
-    expect(sound.debug_state().loop).toBe(true);
+    expect(sound.debugState().loop).toBe(true);
   });
 
   test("loop() plays until stop, and a bad loop count explains itself", () => {
     const { sound, elements } = soundFixture();
     sound.loop();
     expect(elements[0]?.loop).toBe(true);
-    expect(sound.debug_state().loop).toBe(true);
+    expect(sound.debugState().loop).toBe(true);
     sound.stop();
-    expect(sound.debug_state().active).toBe(false);
+    expect(sound.debugState().active).toBe(false);
     expect(() => sound.play(1.5)).toThrow("2 plays it three times");
   });
 
@@ -182,8 +182,8 @@ describe("browser sound effects", () => {
     const { sound } = soundFixture({ rejectPlay: true });
     expect(() => sound.play()).not.toThrow();
     await flushAsyncWork();
-    expect(sound.debug_state().lastError).toBe("codec unsupported");
-    expect(sound.debug_state()).toMatchObject({
+    expect(sound.debugState().lastError).toBe("codec unsupported");
+    expect(sound.debugState()).toMatchObject({
       active: false,
       unlocked: false,
     });
@@ -216,21 +216,21 @@ describe("browser sound effects", () => {
     expect(first.paused).toBe(false);
     expect(second.paused).toBe(false);
     expect(first.pauseCalls).toBe(0);
-    expect(sound.debug_instance_count()).toBe(2);
-    expect(sound.debug_state().active).toBe(true);
+    expect(sound.debugInstanceCount()).toBe(2);
+    expect(sound.debugState().active).toBe(true);
 
     sound.stop();
     expect(first.paused).toBe(true);
     expect(second.paused).toBe(true);
-    expect(sound.debug_instance_count()).toBe(0);
-    expect(sound.debug_state().active).toBe(false);
+    expect(sound.debugInstanceCount()).toBe(0);
+    expect(sound.debugState().active).toBe(false);
   });
 
-  test("set_volume applies to already-playing instances and future ones", () => {
+  test("setVolume applies to already-playing instances and future ones", () => {
     const { sound, elements } = soundFixture();
 
     sound.play();
-    sound.set_volume(0.2);
+    sound.setVolume(0.2);
     sound.play();
 
     expect(elements[0]?.volume).toBe(0.2);
@@ -273,7 +273,7 @@ describe("music player", () => {
     await player.play("boss.ogg");
 
     expect(elements[0]?.pauseCalls).toBe(1);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: "boss.ogg",
       queued: [],
       isPlaying: true,
@@ -297,7 +297,7 @@ describe("music player", () => {
       },
     });
 
-    const play = player.play_once("slow.ogg");
+    const play = player.playOnce("slow.ogg");
     await Promise.resolve();
     player.stop();
     loading.resolve({
@@ -308,7 +308,7 @@ describe("music player", () => {
     await play;
 
     expect(elements).toHaveLength(0);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: null,
       queued: [],
       isPlaying: false,
@@ -329,15 +329,15 @@ describe("music player", () => {
       createAudioElement: (url) => new MockAudioElement(url),
     });
 
-    await expect(player.play_once("missing.ogg")).resolves.toBeUndefined();
+    await expect(player.playOnce("missing.ogg")).resolves.toBeUndefined();
 
     expect(reported).toHaveLength(1);
     expect(reported[0]).toBeInstanceOf(MissingAssetError);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: null,
       isPlaying: false,
     });
-    expect(player.debug_state().lastError).toContain("missing.ogg");
+    expect(player.debugState().lastError).toContain("missing.ogg");
   });
 
   test("a newer play wins even when an older load resolves last", async () => {
@@ -359,16 +359,16 @@ describe("music player", () => {
       },
     });
 
-    const firstPlay = player.play_once("slow.ogg");
+    const firstPlay = player.playOnce("slow.ogg");
     await Promise.resolve();
-    const secondPlay = player.play_once("fast.ogg");
+    const secondPlay = player.playOnce("fast.ogg");
     fast.resolve({ kind: "music", name: "fast.ogg", url: "/fast.ogg" });
     await secondPlay;
     slow.resolve({ kind: "music", name: "slow.ogg", url: "/slow.ogg" });
     await firstPlay;
 
     expect(elements.map((element) => element.src)).toEqual(["/fast.ogg"]);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: "fast.ogg",
       isPlaying: true,
     });
@@ -393,7 +393,7 @@ describe("music player", () => {
       },
     });
 
-    await player.play_once("first.ogg");
+    await player.playOnce("first.ogg");
     await player.queue("next.ogg");
     elements[0]?.emitEnded();
     await Promise.resolve();
@@ -402,33 +402,33 @@ describe("music player", () => {
     await flushAsyncWork();
 
     expect(elements).toHaveLength(1);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: null,
       queued: [],
       isPlaying: false,
     });
   });
 
-  test("play_once and queue advance in order before on_music_end fires", async () => {
+  test("playOnce and queue advance in order before onMusicEnd fires", async () => {
     const { player, elements, ended } = musicFixture();
 
-    await player.play_once("one.ogg");
+    await player.playOnce("one.ogg");
     await player.queue("two.ogg");
     await player.queue("three.ogg");
 
     elements[0]?.emitEnded();
     await flushAsyncWork();
-    expect(player.debug_state().current).toBe("two.ogg");
+    expect(player.debugState().current).toBe("two.ogg");
     expect(ended).toEqual([]);
 
     elements[1]?.emitEnded();
     await flushAsyncWork();
-    expect(player.debug_state().current).toBe("three.ogg");
+    expect(player.debugState().current).toBe("three.ogg");
     expect(ended).toEqual([]);
 
     elements[2]?.emitEnded();
     await flushAsyncWork();
-    expect(player.debug_state().current).toBe(null);
+    expect(player.debugState().current).toBe(null);
     expect(ended).toEqual(["end"]);
   });
 
@@ -454,7 +454,7 @@ describe("music player", () => {
       },
     });
 
-    await player.play_once("one.ogg");
+    await player.playOnce("one.ogg");
     await player.queue("bad.ogg");
     await player.queue("three.ogg");
 
@@ -463,47 +463,47 @@ describe("music player", () => {
 
     expect(reported).toHaveLength(1);
     expect(reported[0]).toBeInstanceOf(MissingAssetError);
-    expect(player.debug_state().current).toBe("three.ogg");
-    expect(player.debug_state().queued).toEqual([]);
+    expect(player.debugState().current).toBe("three.ogg");
+    expect(player.debugState().queued).toEqual([]);
     expect(ended).toEqual([]);
 
     elements[1]?.emitEnded();
     await flushAsyncWork();
 
-    expect(player.debug_state().current).toBe(null);
+    expect(player.debugState().current).toBe(null);
     expect(ended).toEqual(["end"]);
   });
 
-  test("pause, unpause, stop, fadeout timing, volume, and is_playing are deterministic", async () => {
+  test("pause, unpause, stop, fadeOut timing, volume, and isPlaying are deterministic", async () => {
     const { player, elements, scheduler } = musicFixture();
 
-    player.set_volume(1.5);
-    expect(player.get_volume()).toBe(1);
-    player.set_volume(0.4);
-    await player.play_once("theme.ogg");
-    expect(player.is_playing()).toBe(true);
+    player.setVolume(1.5);
+    expect(player.getVolume()).toBe(1);
+    player.setVolume(0.4);
+    await player.playOnce("theme.ogg");
+    expect(player.isPlaying()).toBe(true);
     expect(elements[0]?.volume).toBe(0.4);
 
     player.pause();
-    expect(player.is_playing()).toBe(false);
+    expect(player.isPlaying()).toBe(false);
     player.unpause();
-    expect(player.is_playing()).toBe(true);
+    expect(player.isPlaying()).toBe(true);
     expect(elements[0]?.playCalls).toBe(2);
 
-    player.fadeout(0.25);
+    player.fadeOut(0.25);
     scheduler.advance(125);
     expect(elements[0]?.volume).toBeLessThan(0.4);
     expect(elements[0]?.volume).toBeGreaterThan(0);
-    expect(player.is_playing()).toBe(true);
+    expect(player.isPlaying()).toBe(true);
     scheduler.advance(124);
-    expect(player.is_playing()).toBe(true);
+    expect(player.isPlaying()).toBe(true);
     scheduler.advance(1);
-    expect(player.is_playing()).toBe(false);
+    expect(player.isPlaying()).toBe(false);
     expect(elements[0]?.pauseCalls).toBe(2);
 
-    await player.play_once("theme.ogg");
+    await player.playOnce("theme.ogg");
     player.stop();
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: null,
       queued: [],
       isPlaying: false,
@@ -530,12 +530,12 @@ describe("music player", () => {
       },
     });
 
-    await player.play_once("bad.ogg");
+    await player.playOnce("bad.ogg");
     await player.queue("queued.ogg");
     await flushAsyncWork();
 
     expect(elements[0]?.pauseCalls).toBe(1);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: null,
       queued: [],
       isPlaying: false,
@@ -543,24 +543,17 @@ describe("music player", () => {
     });
   });
 
-  test("rewind, get_pos, and set_pos control playback position on the underlying element", async () => {
+  test("rewind, getPos, and setPos control playback position on the underlying element", async () => {
     const { player, elements } = musicFixture();
-    await player.play_once("theme.ogg");
+    await player.playOnce("theme.ogg");
     const element = elements[0];
     expect(element).toBeTruthy();
     if (!element) throw new Error("Missing mock audio element.");
 
-    expect(player.get_pos()).toBe(0);
-    // getPos() is a camelCase alias of get_pos(): both read the same position.
     expect(player.getPos()).toBe(0);
     element.currentTime = 12.5;
-    expect(player.get_pos()).toBeCloseTo(12_500, 5);
     expect(player.getPos()).toBeCloseTo(12_500, 5);
 
-    player.set_pos(3);
-    expect(element.currentTime).toBe(3);
-    // setPos() is a camelCase alias of set_pos(): it seeks the underlying
-    // element and the new position is observable through get_pos()/getPos().
     player.setPos(7);
     expect(element.currentTime).toBe(7);
     expect(player.getPos()).toBeCloseTo(7000, 5);
@@ -568,84 +561,75 @@ describe("music player", () => {
 
     player.rewind();
     expect(element.currentTime).toBe(0);
-
-    expect(() => player.set_pos(-1)).toThrow(RangeError);
   });
 
   test("position reads and seeks in seconds", async () => {
     const { player, elements } = musicFixture();
     expect(player.position).toBe(0);
-    await player.play_once("theme.ogg");
+    await player.playOnce("theme.ogg");
     const element = elements[0];
     if (!element) throw new Error("Missing mock audio element.");
     element.currentTime = 12.5;
     expect(player.position).toBe(12.5);
     player.position = 3;
     expect(element.currentTime).toBe(3);
-    expect(player.get_pos()).toBeCloseTo(3000, 5);
+    expect(player.getPos()).toBeCloseTo(3000, 5);
     expect(() => {
       player.position = -1;
     }).toThrow(RangeError);
   });
 
-  test("get_pos returns -1 and rewind/set_pos are no-ops when nothing is loaded", () => {
+  test("getPos returns -1 and rewind/setPos are no-ops when nothing is loaded", () => {
     const { player } = musicFixture();
-    expect(player.get_pos()).toBe(-1);
     expect(player.getPos()).toBe(-1);
     expect(() => player.rewind()).not.toThrow();
-    expect(() => player.set_pos(5)).not.toThrow();
+    expect(() => player.setPos(5)).not.toThrow();
   });
 
-  test("is_playing accepts and ignores an optional track name argument", async () => {
+  test("isPlaying accepts and ignores an optional track name argument", async () => {
     const { player } = musicFixture();
-    await player.play_once("theme.ogg");
-    expect(player.is_playing()).toBe(true);
-    expect(player.is_playing("theme.ogg")).toBe(true);
-    expect(player.is_playing("some-other-track.ogg")).toBe(true);
-    // isPlaying() is a camelCase alias of is_playing(): it mirrors the same
-    // play/pause state and also ignores the optional track name argument.
+    await player.playOnce("theme.ogg");
     expect(player.isPlaying()).toBe(true);
     expect(player.isPlaying("theme.ogg")).toBe(true);
+    expect(player.isPlaying("some-other-track.ogg")).toBe(true);
     player.pause();
-    expect(player.is_playing()).toBe(false);
     expect(player.isPlaying()).toBe(false);
     player.stop();
     expect(player.isPlaying()).toBe(false);
   });
 
-  test("playOnce is a camelCase alias of play_once: plays a single non-looping track", async () => {
+  test("playOnce replaces a looping track with a single non-looping one", async () => {
     const { player, elements } = musicFixture();
 
     await player.play("theme.ogg"); // looping background track
     expect(elements[0]?.loop).toBe(true);
 
     await player.playOnce("stinger.ogg");
-    // Like play_once, the alias stops the previous track and starts the new
-    // one as a one-shot (loop === false), not on a loop.
+    // It stops the previous track and starts the new one as a one-shot
+    // (loop === false), not on a loop.
     expect(elements[0]?.pauseCalls).toBe(1);
-    expect(player.debug_state()).toMatchObject({
+    expect(player.debugState()).toMatchObject({
       current: "stinger.ogg",
       isPlaying: true,
     });
     expect(elements[1]?.loop).toBe(false);
   });
 
-  test("setOnMusicEnd is a camelCase alias of set_on_music_end: registers and clears the end callback", async () => {
+  test("setOnMusicEnd registers and clears the end callback", async () => {
     const { player, elements } = musicFixture();
     const ended: string[] = [];
-    // Registering through the alias must install the same end callback that
-    // set_on_music_end would, replacing the one the fixture set.
+    // It replaces the end callback the fixture set.
     player.setOnMusicEnd(() => ended.push("end"));
 
-    await player.play_once("solo.ogg");
+    await player.playOnce("solo.ogg");
     expect(ended).toEqual([]);
     elements[0]?.emitEnded();
     await flushAsyncWork();
     expect(ended).toEqual(["end"]);
 
-    // Clearing it through the alias stops further notifications.
+    // Clearing it stops further notifications.
     player.setOnMusicEnd(undefined);
-    await player.play_once("solo.ogg");
+    await player.playOnce("solo.ogg");
     elements[1]?.emitEnded();
     await flushAsyncWork();
     expect(ended).toEqual(["end"]);
@@ -653,16 +637,11 @@ describe("music player", () => {
 });
 
 describe("audio unlock state", () => {
-  test("isUnlocked is a camelCase alias of is_unlocked and reflects mark_unlocked", () => {
+  test("isUnlocked reflects markUnlocked", () => {
     const unlock = new AudioUnlockState();
-    expect(unlock.is_unlocked()).toBe(false);
     expect(unlock.isUnlocked()).toBe(false);
-
-    unlock.mark_unlocked();
-    expect(unlock.is_unlocked()).toBe(true);
-    // The alias reports the same state as the canonical after unlocking.
+    unlock.markUnlocked();
     expect(unlock.isUnlocked()).toBe(true);
-    expect(unlock.isUnlocked()).toBe(unlock.is_unlocked());
   });
 
   test("a successful sound playback flips the shared unlock state's isUnlocked to true", async () => {
@@ -672,7 +651,6 @@ describe("audio unlock state", () => {
     sound.play();
     await flushAsyncWork();
 
-    expect(unlockState.is_unlocked()).toBe(true);
     expect(unlockState.isUnlocked()).toBe(true);
   });
 });

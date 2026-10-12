@@ -12,17 +12,11 @@ type HookArgs = Record<string, unknown>;
 export type Hook = (...args: unknown[]) => void;
 
 export type InputHooks = {
-  on_mouse_down?: Hook;
   onMouseDown?: Hook;
-  on_mouse_up?: Hook;
   onMouseUp?: Hook;
-  on_mouse_move?: Hook;
   onMouseMove?: Hook;
-  on_key_down?: Hook;
   onKeyDown?: Hook;
-  on_key_up?: Hook;
   onKeyUp?: Hook;
-  on_music_end?: Hook;
   onMusicEnd?: Hook;
 };
 
@@ -91,31 +85,31 @@ export type MappedMouseEvent = {
   rel: Point;
 };
 
-/** Single source of truth for legacy snake_case and typed camelCase hooks. */
-export const HOOK_ALIASES = [
-  ["on_mouse_down", "onMouseDown"],
-  ["on_mouse_up", "onMouseUp"],
-  ["on_mouse_move", "onMouseMove"],
-  ["on_key_down", "onKeyDown"],
-  ["on_key_up", "onKeyUp"],
-  ["on_music_end", "onMusicEnd"],
+/** Every input hook a game can define, besides `draw` and `update`. */
+export const INPUT_HOOK_NAMES = [
+  "onMouseDown",
+  "onMouseUp",
+  "onMouseMove",
+  "onKeyDown",
+  "onKeyUp",
+  "onMusicEnd",
 ] as const;
 
-type SnakeHookName = (typeof HOOK_ALIASES)[number][0];
+export type InputHookName = (typeof INPUT_HOOK_NAMES)[number];
 
 /**
  * The values each input hook can receive, in the order an ordinary
  * (positional) reading of its parameter list hands them out.
  */
 export const HOOK_PARAMETERS: Readonly<
-  Record<SnakeHookName, readonly string[]>
+  Record<InputHookName, readonly string[]>
 > = {
-  on_mouse_down: ["pos", "button", "buttons", "rel"],
-  on_mouse_up: ["pos", "button", "buttons", "rel"],
-  on_mouse_move: ["pos", "rel", "buttons", "button"],
-  on_key_down: ["key", "mod", "unicode", "repeat"],
-  on_key_up: ["key", "mod", "unicode", "repeat"],
-  on_music_end: [],
+  onMouseDown: ["pos", "button", "buttons", "rel"],
+  onMouseUp: ["pos", "button", "buttons", "rel"],
+  onMouseMove: ["pos", "rel", "buttons", "button"],
+  onKeyDown: ["key", "mod", "unicode", "repeat"],
+  onKeyUp: ["key", "mod", "unicode", "repeat"],
+  onMusicEnd: [],
 };
 
 const browserCodeToKey = new Map<string, number>([
@@ -194,7 +188,7 @@ for (let code = "A".charCodeAt(0); code <= "Z".charCodeAt(0); code += 1) {
  * parameter named like a value (`pos`, `key`, `mod`, ...) receives that
  * value wherever it sits in the list, Pygame Zero style. Any other name
  * receives the next value in `order` not already claimed by name, the way an
- * ordinary JavaScript function would — so `on_key_down(k)` still gets the
+ * ordinary JavaScript function would — so `onKeyDown(k)` still gets the
  * key. A lone `event` parameter receives the whole `args` object.
  */
 export function dispatchHook(
@@ -227,16 +221,6 @@ export function resolveHookParameters(
   return declared.map((name) =>
     known.includes(name) ? name : unclaimed.shift(),
   );
-}
-
-export function getHook(
-  hooks: InputHooks,
-  name: SnakeHookName,
-): Hook | undefined {
-  const alias = HOOK_ALIASES.find(([snakeName]) => snakeName === name);
-  if (!alias) return undefined;
-  const [snakeName, camelName] = alias;
-  return hooks[snakeName] ?? hooks[camelName];
 }
 
 export function getParameterNames(callback: Function): string[] {
@@ -349,11 +333,7 @@ export class InputDispatcher {
     this.physicalKeys.add(mapped.key);
     this.keyboard.press(mapped.key);
     if (![...this.virtualKeys.values()].includes(mapped.key) || mapped.repeat) {
-      dispatchHook(
-        getHook(this.hooks, "on_key_down"),
-        mapped,
-        HOOK_PARAMETERS.on_key_down,
-      );
+      dispatchHook(this.hooks.onKeyDown, mapped, HOOK_PARAMETERS.onKeyDown);
     }
     return true;
   }
@@ -364,11 +344,7 @@ export class InputDispatcher {
     this.physicalKeys.delete(mapped.key);
     if ([...this.virtualKeys.values()].includes(mapped.key)) return true;
     this.keyboard.release(mapped.key);
-    dispatchHook(
-      getHook(this.hooks, "on_key_up"),
-      mapped,
-      HOOK_PARAMETERS.on_key_up,
-    );
+    dispatchHook(this.hooks.onKeyUp, mapped, HOOK_PARAMETERS.onKeyUp);
     return true;
   }
 
@@ -388,9 +364,9 @@ export class InputDispatcher {
     this.keyboard.press(key);
     if (!held) {
       dispatchHook(
-        getHook(this.hooks, "on_key_down"),
+        this.hooks.onKeyDown,
         { key, mod: keymods.NONE, unicode: "", repeat: false },
-        HOOK_PARAMETERS.on_key_down,
+        HOOK_PARAMETERS.onKeyDown,
       );
     }
   }
@@ -407,9 +383,9 @@ export class InputDispatcher {
     }
     this.keyboard.release(key);
     dispatchHook(
-      getHook(this.hooks, "on_key_up"),
+      this.hooks.onKeyUp,
       { key, mod: keymods.NONE, unicode: "", repeat: false },
-      HOOK_PARAMETERS.on_key_up,
+      HOOK_PARAMETERS.onKeyUp,
     );
   }
 
@@ -417,11 +393,7 @@ export class InputDispatcher {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.trackMouse(mapped);
     if (mapped.button === null) return false;
-    dispatchHook(
-      getHook(this.hooks, "on_mouse_down"),
-      mapped,
-      HOOK_PARAMETERS.on_mouse_down,
-    );
+    dispatchHook(this.hooks.onMouseDown, mapped, HOOK_PARAMETERS.onMouseDown);
     return true;
   }
 
@@ -429,40 +401,28 @@ export class InputDispatcher {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.trackMouse(mapped);
     if (mapped.button === null) return false;
-    dispatchHook(
-      getHook(this.hooks, "on_mouse_up"),
-      mapped,
-      HOOK_PARAMETERS.on_mouse_up,
-    );
+    dispatchHook(this.hooks.onMouseUp, mapped, HOOK_PARAMETERS.onMouseUp);
     return true;
   }
 
   handleMouseMove(event: BrowserMouseLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
     this.trackMouse(mapped);
-    dispatchHook(
-      getHook(this.hooks, "on_mouse_move"),
-      mapped,
-      HOOK_PARAMETERS.on_mouse_move,
-    );
+    dispatchHook(this.hooks.onMouseMove, mapped, HOOK_PARAMETERS.onMouseMove);
     return true;
   }
 
   /**
    * Handles a native `wheel` event. pygame/pgzero report scroll wheel
    * motion through the same channel as mouse button presses (button 4/5),
-   * so this dispatches `on_mouse_down` just like handleMouseDown.
+   * so this dispatches `onMouseDown` just like handleMouseDown.
    */
   handleWheel(event: BrowserWheelLike, target?: BoundsTarget): boolean {
     const mapped = mapBrowserWheelEvent(event, target);
     if (!mapped) return false;
     this.lastMousePos = mapped.pos;
     this.mouseState.pos = mapped.pos;
-    dispatchHook(
-      getHook(this.hooks, "on_mouse_down"),
-      mapped,
-      HOOK_PARAMETERS.on_mouse_down,
-    );
+    dispatchHook(this.hooks.onMouseDown, mapped, HOOK_PARAMETERS.onMouseDown);
     return true;
   }
 

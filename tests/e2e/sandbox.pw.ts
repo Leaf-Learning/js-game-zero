@@ -873,7 +873,7 @@ async function clickPreviewCenter(page: Page, density: number): Promise<void> {
       "WIDTH = 800;",
       "HEIGHT = 480;",
       'function draw() { screen.fill("purple"); }',
-      "function on_mouse_down(pos) {",
+      "function onMouseDown(pos) {",
       '  console.log("POS " + Math.round(pos[0]) + "," + Math.round(pos[1]));',
       "}",
     ].join("\n"),

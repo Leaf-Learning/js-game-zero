@@ -10,9 +10,9 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0f172a", "#164e63");
-  screen.draw.filled_rect([18, 22, 84, 52], "#f97316");
+  screen.draw.filledRect([18, 22, 84, 52], "#f97316");
   screen.draw.line([0, 176], [320, 112], "#fde68a", 4);
-  screen.draw.filled_circle([168, 72], 28 + Math.round(pulse * 3), "#22c55e");
+  screen.draw.filledCircle([168, 72], 28 + Math.round(pulse * 3), "#22c55e");
   screen.draw.polygon(
     [
       [238, 40],

@@ -149,7 +149,7 @@ function loadImageSurface(path: string): Promise<SurfaceLike> {
 
 /**
  * Zero-boilerplate code often accesses images synchronously at the top of
- * the file (e.g. `images.player.get_size()` right after declaring an
+ * the file (e.g. `images.player.getSize()` right after declaring an
  * Actor), the same style the bundled /examples pages use. That only works
  * if the image is registered before the source runs, so preload every
  * image under images/ up front, matching how the example gallery's own

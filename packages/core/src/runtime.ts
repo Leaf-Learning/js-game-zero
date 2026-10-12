@@ -12,9 +12,8 @@ import {
 import { Clock, setActiveClock } from "./clock";
 import {
   createInputDispatcher,
-  getHook,
   getParameterNames,
-  HOOK_ALIASES,
+  INPUT_HOOK_NAMES,
   type Hook,
   type InputHooks,
 } from "./events";
@@ -327,9 +326,8 @@ export function run(
     (error) => failRuntime("input", error),
     touchControls,
   );
-  const musicEndHook = getHook(hooks, "on_music_end") as
-    (() => void) | undefined;
-  context.music.set_on_music_end(
+  const musicEndHook = hooks.onMusicEnd as (() => void) | undefined;
+  context.music.setOnMusicEnd(
     musicEndHook
       ? () => {
           try {
@@ -521,9 +519,7 @@ function createRuntimeContext(
     // auto-save listener from the very first tick, not just mutations made
     // later inside update()/draw().
     const autosave = attachAutosave(storage, emit);
-    const onMusicEnd = module
-      ? (getHook(module, "on_music_end") as (() => void) | undefined)
-      : undefined;
+    const onMusicEnd = module?.onMusicEnd as (() => void) | undefined;
     const music = createMusicPlayer({
       loader: loaders.music,
       ...(onMusicEnd ? { onMusicEnd } : {}),
@@ -660,17 +656,17 @@ function adaptDefinedGame(module: DefinedGameModule): GameModule {
     ...(module.update ? { update: module.update as Hook } : {}),
   };
   const writable = adapted as Record<string, unknown>;
-  for (const [, camelName] of HOOK_ALIASES) {
-    const callback = module[camelName];
+  for (const name of INPUT_HOOK_NAMES) {
+    const callback = module[name];
     if (!callback) continue;
-    if (camelName === "onMusicEnd") {
-      writable[camelName] = callback;
+    if (name === "onMusicEnd") {
+      writable[name] = callback;
       continue;
     }
     const eventCallback = callback as unknown as (
       event: GameKeyEvent | GameMouseEvent,
     ) => void;
-    writable[camelName] = (event: unknown): void => {
+    writable[name] = (event: unknown): void => {
       eventCallback(event as GameKeyEvent | GameMouseEvent);
     };
   }

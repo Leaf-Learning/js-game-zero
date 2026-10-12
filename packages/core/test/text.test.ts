@@ -137,7 +137,7 @@ describe("draw.text layout", () => {
         fontsize: 10,
         lineheight: 12,
         width: 60,
-        topright: [80, 20],
+        topRight: [80, 20],
         anchor: "center",
       },
     );
@@ -239,21 +239,21 @@ describe("beginner-friendly text calls", () => {
     const readable = operationsFor((screen) =>
       screen.draw.text("Score", [40, 30], {
         size: 16,
-        gradient_color: "yellow",
+        gradientColor: "yellow",
         shadow: [2, 3],
-        shadow_color: "black",
+        shadowColor: "black",
         outline: 1,
-        outline_color: "navy",
+        outlineColor: "navy",
       }),
     );
     expect(readable).toEqual(terse);
     expect(
       operationsFor((screen) =>
-        screen.draw.textbox("Hi", [0, 0, 80, 40], { min_size: 30 }),
+        screen.draw.textbox("Hi", [0, 0, 80, 40], { minSize: 30 }),
       ),
     ).toEqual(
       operationsFor((screen) =>
-        screen.draw.textbox("Hi", [0, 0, 80, 40], { min_fontsize: 30 }),
+        screen.draw.textbox("Hi", [0, 0, 80, 40], { minFontsize: 30 }),
       ),
     );
   });
@@ -273,7 +273,7 @@ describe("draw.textbox", () => {
       context as unknown as CanvasRenderingContext2D,
       "fit these words",
       [0, 0, 50, 24],
-      { fontsize: 18, min_fontsize: 6 },
+      { fontsize: 18, minFontsize: 6 },
     );
 
     expect(fit.fontSize).toBeGreaterThanOrEqual(6);
@@ -285,7 +285,7 @@ describe("draw.textbox", () => {
     const { screen, context } = screenAndContext();
     screen.draw.textbox("compact label", [10, 12, 70, 28], {
       fontsize: 20,
-      min_fontsize: 6,
+      minFontsize: 6,
       color: "white",
       background: "black",
       align: "center",
@@ -315,13 +315,13 @@ describe("draw.textbox", () => {
     const { screen, context } = screenAndContext();
     screen.draw.textbox("hi", [10, 12, 70, 28], {
       fontsize: 12,
-      min_fontsize: 6,
-      anchor: "topleft",
+      minFontsize: 6,
+      anchor: "topLeft",
     });
 
     // Upstream drawbox computes the position point as
-    // rect.topleft + anchor * rect.size and anchors the text there, so an
-    // explicit "topleft" lays the text out from the rect's own top-left.
+    // rect.topLeft + anchor * rect.size and anchors the text there, so an
+    // explicit "topLeft" lays the text out from the rect's own top-left.
     expect(context.operations).toContainEqual({
       name: "translate",
       args: [10, 12],
@@ -386,7 +386,7 @@ describe("draw.text bold/italic/underline", () => {
       fontsize: 20,
       underline: true,
       align: "right",
-      anchor: "topright",
+      anchor: "topRight",
     });
     const fillRectOps = context.operations.filter(
       (op) => op.name === "fillRect",
@@ -530,7 +530,7 @@ describe("draw.text scalar positioning kwargs", () => {
     ).topLeft;
   }
 
-  test("right + top combine per-axis (a corner without needing `topright`)", () => {
+  test("right + top combine per-axis (a corner without needing `topRight`)", () => {
     expect(topLeftFor({ right: 780, top: 10 })).toEqual([730, 10]);
   });
 
@@ -539,8 +539,8 @@ describe("draw.text scalar positioning kwargs", () => {
     expect(topLeftFor({ left: 100, bottom: 200 })).toEqual([100, 188]);
   });
 
-  test("centerx + centery combine per-axis", () => {
-    expect(topLeftFor({ centerx: 400, centery: 300 })).toEqual([375, 294]);
+  test("centerX + centerY combine per-axis", () => {
+    expect(topLeftFor({ centerX: 400, centerY: 300 })).toEqual([375, 294]);
   });
 
   test("a lone scalar falls back to the matching axis of `pos`", () => {
@@ -578,7 +578,7 @@ describe("draw.text scalar positioning kwargs", () => {
           lineheight: 12,
           width: 50,
           right: 10,
-          topleft: [1, 2],
+          topLeft: [1, 2],
         },
       ),
     ).toThrow(TypeError);

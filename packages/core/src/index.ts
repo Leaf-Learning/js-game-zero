@@ -77,8 +77,8 @@ export const distanceTo = geometryModule.distanceTo;
 export type { Point, RectDict, RectLike, RectTuple, Size } from "./geometry";
 
 export const clamp = helpersModule.clamp;
-export const random_choice = helpersModule.random_choice;
-export const random_int = helpersModule.random_int;
+export const randomChoice = helpersModule.randomChoice;
+export const randomInt = helpersModule.randomInt;
 
 export const KeyboardState = inputModule.KeyboardState;
 export type KeyboardState = inputModule.KeyboardState;

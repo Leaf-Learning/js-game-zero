@@ -89,10 +89,10 @@ function loaderWithSprites() {
 }
 
 describe("Actor positioning and anchors", () => {
-  test("defaults to topleft while using a center anchor", () => {
+  test("defaults to topLeft while using a center anchor", () => {
     const actor = new Actor("hero.svg", { loader: loaderWithSprites() });
     expect(actor.anchor).toEqual(["center", "center"]);
-    expect(actor.topleft).toEqual([0, 0]);
+    expect(actor.topLeft).toEqual([0, 0]);
     expect(actor.pos).toEqual([10, 5]);
     expect(actor.rect()).toMatchObject({
       left: 0,
@@ -107,14 +107,14 @@ describe("Actor positioning and anchors", () => {
     expect(new Actor("hero.svg", [100, 50], { loader }).pos).toEqual([100, 50]);
 
     const cases = {
-      topleft: [1, 2],
-      topright: [21, 2],
-      bottomleft: [1, 12],
-      bottomright: [21, 12],
-      midtop: [11, 2],
-      midleft: [1, 7],
-      midright: [21, 7],
-      midbottom: [11, 12],
+      topLeft: [1, 2],
+      topRight: [21, 2],
+      bottomLeft: [1, 12],
+      bottomRight: [21, 12],
+      midTop: [11, 2],
+      midLeft: [1, 7],
+      midRight: [21, 7],
+      midBottom: [11, 12],
       center: [11, 7],
     } as const;
 
@@ -130,19 +130,19 @@ describe("Actor positioning and anchors", () => {
       loader,
       anchor: ["left", "top"],
     });
-    expect(topLeftAnchor.topleft).toEqual([5, 6]);
+    expect(topLeftAnchor.topLeft).toEqual([5, 6]);
 
     const numericAnchor = new Actor("hero.svg", [50, 40], {
       loader,
       anchor: [3, 4],
     });
-    expect(numericAnchor.topleft).toEqual([47, 36]);
+    expect(numericAnchor.topLeft).toEqual([47, 36]);
 
     const bottomRightAnchor = new Actor("hero.svg", [50, 40], {
       loader,
       anchor: ["right", "bottom"],
     });
-    expect(bottomRightAnchor.bottomright).toEqual([50, 40]);
+    expect(bottomRightAnchor.bottomRight).toEqual([50, 40]);
   });
 
   test("rejects mixed positions and unknown keywords", () => {
@@ -163,10 +163,10 @@ describe("Actor positioning and anchors", () => {
 describe("Actor edge/position setters", () => {
   test("left/top/right/bottom setters translate the rect, preserving width/height", () => {
     // hero.svg is 20x10 (see loaderWithSprites). Starting from
-    // topleft [0, 0] with the default center/center anchor gives
+    // topLeft [0, 0] with the default center/center anchor gives
     // rect() = {left: 0, top: 0, width: 20, height: 10}.
     const left = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     left.left = 5;
@@ -180,7 +180,7 @@ describe("Actor edge/position setters", () => {
     });
 
     const top = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     top.top = 8;
@@ -193,7 +193,7 @@ describe("Actor edge/position setters", () => {
     });
 
     const right = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     right.right = 50;
@@ -207,7 +207,7 @@ describe("Actor edge/position setters", () => {
     });
 
     const bottom = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     bottom.bottom = 40;
@@ -223,7 +223,7 @@ describe("Actor edge/position setters", () => {
 
   test("x/y setters move the anchor point along a single axis, independent of rect edges", () => {
     // Explicit pos [10, 5] with the default center/center anchor on a
-    // 20x10 image puts the rect's topleft at (0, 0).
+    // 20x10 image puts the rect's topLeft at (0, 0).
     const x = new Actor("hero.svg", [10, 5], { loader: loaderWithSprites() });
     x.x = 100;
     expect(x.x).toBe(100);
@@ -249,7 +249,7 @@ describe("Actor asset lifecycle", () => {
     const actor = new Actor("mystery.svg", { loader });
 
     const surface = await actor.ready();
-    expect(surface.get_size()).toEqual([20, 10]);
+    expect(surface.getSize()).toEqual([20, 10]);
     expect(actor.width).toBe(20);
     expect(actor.height).toBe(10);
 
@@ -259,20 +259,20 @@ describe("Actor asset lifecycle", () => {
     expect(again).toBe(surface);
   });
 
-  test("unload_image() evicts the loader cache entry and clears the actor's own surface", async () => {
+  test("unloadImage() evicts the loader cache entry and clears the actor's own surface", async () => {
     const loader = loaderWithSprites();
-    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
+    const actor = new Actor("hero.svg", { topLeft: [0, 0], loader });
     expect(actor.width).toBe(20);
     expect(loader.has("hero.svg")).toBe(true);
 
-    actor.unload_image();
+    actor.unloadImage();
 
     expect(loader.has("hero.svg")).toBe(false);
     // With no surface, width/height fall back to 0 (surfaceWidth/Height
     // default when `_surface` is null).
     expect(actor.width).toBe(0);
     expect(actor.height).toBe(0);
-    // unload_image() also clears the pending-load promise, so ready()
+    // unloadImage() also clears the pending-load promise, so ready()
     // has nothing left to await.
     await expect(actor.ready()).rejects.toThrow("Actor image is not loading.");
   });
@@ -281,7 +281,7 @@ describe("Actor asset lifecycle", () => {
 describe("Actor behavior", () => {
   test("computes rotated bounding rectangles and clamps opacity", () => {
     const actor = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     actor.opacity = 2;
@@ -302,12 +302,12 @@ describe("Actor behavior", () => {
 
   test("computes a genuinely rotated (non-axis-aligned) bounding rectangle at angle 30", () => {
     const actor = new Actor("hero.svg", {
-      topleft: [0, 0],
+      topLeft: [0, 0],
       loader: loaderWithSprites(),
     });
     // hero.svg is 20x10 (see loaderWithSprites). The default anchor is
     // center/center, so rotation pivots around the rect's own center,
-    // which sits at pos = (10, 5) for a rect at topleft [0, 0].
+    // which sits at pos = (10, 5) for a rect at topLeft [0, 0].
     actor.angle = 30;
 
     // Standard rotated-rectangle AABB formula for a w x h rect rotated
@@ -338,20 +338,20 @@ describe("Actor behavior", () => {
 
   test("swaps images and delegates collision helpers", () => {
     const loader = loaderWithSprites();
-    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
+    const actor = new Actor("hero.svg", { topLeft: [0, 0], loader });
     actor.image = "ship.svg";
     expect(actor.width).toBe(30);
     expect(actor.height).toBe(12);
-    expect(actor.collidepoint([1, 1])).toBe(true);
-    expect(actor.colliderect([29, 11, 4, 4])).toBe(true);
+    expect(actor.collidePoint([1, 1])).toBe(true);
+    expect(actor.collideRect([29, 11, 4, 4])).toBe(true);
     expect(
-      actor.collidelist([
+      actor.collideList([
         [40, 40, 1, 1],
         [2, 2, 1, 1],
       ]),
     ).toBe(1);
     expect(
-      actor.collidelistall([
+      actor.collideListAll([
         [2, 2, 1, 1],
         [50, 50, 1, 1],
       ]),
@@ -361,7 +361,7 @@ describe("Actor behavior", () => {
 
   test("delegates the wider Rect helper surface", () => {
     const actor = new Actor("hero.svg", {
-      topleft: [10, 20],
+      topLeft: [10, 20],
       loader: loaderWithSprites(),
     });
 
@@ -377,15 +377,15 @@ describe("Actor behavior", () => {
       width: 20,
       height: 10,
     });
-    actor.move_ip([5, -5]);
-    expect(actor.topleft).toEqual([15, 15]);
+    actor.moveIp([5, -5]);
+    expect(actor.topLeft).toEqual([15, 15]);
     expect(actor.inflate(10, 4)).toMatchObject({
       left: 10,
       top: 13,
       width: 30,
       height: 14,
     });
-    actor.inflate_ip([10, 4]);
+    actor.inflateIp([10, 4]);
     expect(actor.rect()).toMatchObject({
       left: 10,
       top: 13,
@@ -410,7 +410,7 @@ describe("Actor behavior", () => {
       width: 40,
       height: 27,
     });
-    expect(actor.unionall([[50, 50, 5, 5]])).toMatchObject({
+    expect(actor.unionAll([[50, 50, 5, 5]])).toMatchObject({
       left: 10,
       top: 13,
       width: 45,
@@ -428,9 +428,9 @@ describe("Actor behavior", () => {
     const loader = loaderWithSprites();
     const actor = new Actor("hero.svg", [0, 0], { loader });
     const other = new Actor("hero.svg", [3, -4], { loader });
-    expect(actor.distance_to([3, 4])).toBe(5);
-    expect(actor.angle_to([10, 0])).toBe(0);
-    expect(actor.angle_to(other)).toBeCloseTo(53.1301, 4);
+    expect(actor.distanceTo([3, 4])).toBe(5);
+    expect(actor.angleTo([10, 0])).toBe(0);
+    expect(actor.angleTo(other)).toBeCloseTo(53.1301, 4);
   });
 
   test("draws with opacity, anchor offset, and rotation", () => {
@@ -565,9 +565,9 @@ describe("Actor flip-book animation", () => {
 describe("Actor touches", () => {
   test("tests another actor, a rect, or a click point", () => {
     const loader = loaderWithSprites();
-    const player = new Actor("hero.svg", { topleft: [0, 0], loader });
-    const enemy = new Actor("ship.svg", { topleft: [15, 5], loader });
-    const far = new Actor("ship.svg", { topleft: [200, 200], loader });
+    const player = new Actor("hero.svg", { topLeft: [0, 0], loader });
+    const enemy = new Actor("ship.svg", { topLeft: [15, 5], loader });
+    const far = new Actor("ship.svg", { topLeft: [200, 200], loader });
     expect(player.touches(enemy)).toBe(true);
     expect(player.touches(far)).toBe(false);
     expect(player.touches([5, 5])).toBe(true);
@@ -576,11 +576,11 @@ describe("Actor touches", () => {
   });
 });
 
-describe("Actor clamp_ip", () => {
+describe("Actor clampIp", () => {
   test("moves the actor itself so it fits inside an area", () => {
     const loader = loaderWithSprites();
     const actor = new Actor("hero.svg", { center: [500, -40], loader });
-    actor.clamp_ip([0, 0, 320, 180]);
+    actor.clampIp([0, 0, 320, 180]);
     expect(actor.rect()).toMatchObject({
       left: 300,
       top: 0,
@@ -588,7 +588,7 @@ describe("Actor clamp_ip", () => {
       height: 10,
     });
     expect(actor.pos).toEqual([310, 5]);
-    actor.clamp_ip([0, 0, 320, 180]);
+    actor.clampIp([0, 0, 320, 180]);
     expect(actor.pos).toEqual([310, 5]);
   });
 
@@ -599,7 +599,7 @@ describe("Actor clamp_ip", () => {
       loader: loaderWithSprites(),
     });
     actor.angle = 90;
-    actor.clamp_ip([0, 0, 320, 180]);
+    actor.clampIp([0, 0, 320, 180]);
     expect(actor.left).toBeCloseTo(0);
     expect(actor.top).toBeCloseTo(0);
     expect(actor.width).toBeCloseTo(20);
@@ -608,10 +608,10 @@ describe("Actor clamp_ip", () => {
 
   test("accepts another actor or a Rect as the area", () => {
     const loader = loaderWithSprites();
-    const arena = new Actor("ship.svg", { topleft: [100, 100], loader });
-    const actor = new Actor("hero.svg", { topleft: [0, 0], loader });
-    actor.clamp_ip(arena);
-    expect(actor.topleft).toEqual([100, 100]);
+    const arena = new Actor("ship.svg", { topLeft: [100, 100], loader });
+    const actor = new Actor("hero.svg", { topLeft: [0, 0], loader });
+    actor.clampIp(arena);
+    expect(actor.topLeft).toEqual([100, 100]);
   });
 });
 
@@ -632,11 +632,11 @@ describe("Actor sizing", () => {
 
   test("scale multiplies the drawn size and the hitbox, keeping the anchored position", () => {
     const loader = loaderWithSprites();
-    const actor = new Actor("hero.svg", { midbottom: [50, 100], loader });
+    const actor = new Actor("hero.svg", { midBottom: [50, 100], loader });
     actor.scale = 2;
     expect(actor.scale).toBe(2);
     expect(actor.rect()).toMatchObject({ width: 40, height: 20 });
-    expect(actor.midbottom).toEqual([50, 100]);
+    expect(actor.midBottom).toEqual([50, 100]);
     expect(drawWith(actor, loader)).toEqual([
       expect.anything(),
       -20,
@@ -646,7 +646,7 @@ describe("Actor sizing", () => {
     ]);
     actor.scale = 0.5;
     expect(actor.rect()).toMatchObject({ width: 10, height: 5 });
-    expect(actor.midbottom).toEqual([50, 100]);
+    expect(actor.midBottom).toEqual([50, 100]);
   });
 
   test("width and height set the drawn size keeping proportions, as options or later", () => {
@@ -680,7 +680,7 @@ describe("Actor sizing", () => {
   test("a width requested before the image loads is honoured once it arrives", async () => {
     const loader = loaderWithSprites();
     const actor = new Actor("later.svg", {
-      midbottom: [50, 100],
+      midBottom: [50, 100],
       width: 60,
       loader,
     });
@@ -688,13 +688,13 @@ describe("Actor sizing", () => {
     await actor.ready();
     expect(actor.scale).toBe(3);
     expect(actor.rect()).toMatchObject({ width: 60, height: 30 });
-    expect(actor.midbottom).toEqual([50, 100]);
+    expect(actor.midBottom).toEqual([50, 100]);
   });
 
-  test("inflate_ip grows the hitbox in drawn pixels without stretching the picture", () => {
+  test("inflateIp grows the hitbox in drawn pixels without stretching the picture", () => {
     const loader = loaderWithSprites();
     const actor = new Actor("hero.svg", { center: [50, 50], scale: 2, loader });
-    actor.inflate_ip(10, 10);
+    actor.inflateIp(10, 10);
     expect(actor.rect()).toMatchObject({ width: 50, height: 30 });
     expect(actor.center).toEqual([50, 50]);
     expect(drawWith(actor, loader)?.slice(3)).toEqual([40, 20]);

@@ -12,7 +12,7 @@ snake a little faster, and your best score is remembered between visits.
 ## What it teaches
 
 - Driving gameplay from the **`clock`** API instead of every-frame code:
-  `clock.schedule_interval()` moves the snake on a fixed schedule, and
+  `clock.scheduleInterval()` moves the snake on a fixed schedule, and
   eating an apple calls `clock.unschedule()` before rescheduling at a
   shorter interval to speed the game up.
 - Modelling a game grid as plain data (an array of `{x, y}` cells) and

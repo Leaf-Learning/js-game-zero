@@ -46,7 +46,7 @@ storage.score; // 10
 | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `storage.get(key, defaultValue?)`       | Returns the stored value, or `defaultValue` (`undefined` if omitted) if `key` isn't set.           |
 | `storage.set(key, value)`               | Stores `value` under `key`.                                                                        |
-| `storage.setdefault(key, defaultValue)` | Sets `key` to `defaultValue` only if it isn't already set; returns the resulting value either way. |
+| `storage.setDefault(key, defaultValue)` | Sets `key` to `defaultValue` only if it isn't already set; returns the resulting value either way. |
 | `storage.has(key)`                      | `boolean`.                                                                                         |
 | `storage.delete(key)`                   | Removes `key`; also works as `delete storage.key`. Returns `true` if something was removed.        |
 | `storage.clear()`                       | Removes everything.                                                                                |
@@ -60,12 +60,12 @@ offending path, e.g. `highScores[2].player`.
 
 ## Gotchas
 
-- **Don't shadow method names.** `storage.save`, `storage.load`, `storage.path`,
-  the other method names above, and their camelCase spellings (such as
-  `storage.setDefault`) are real properties on `storage` itself,
+- **Don't shadow method names.** `storage.save`, `storage.load`, `storage.path`
+  and the other method names above are real properties on `storage` itself,
   not just proxy-forwarded keys — writing `storage.save = 5` overwrites the
-  actual `save` method instead of storing a value. Pick key names that don't
-  collide with the method list.
+  actual `save` method instead of storing a value, and another spelling of
+  a method, such as `storage.setdefault`, throws naming the method. Pick key
+  names that don't collide with the method list.
 - Storage is scoped per project: in the browser it's namespaced by project
   id (so two different games on the same site don't share data); in the
   sandbox it's a JSON file inside that project's own directory.

@@ -22,12 +22,12 @@ reach you, and survive as the waves get faster and bigger.
 - A tiny hand-rolled sprite animation: cycling an `Actor`'s `image`
   through a list of frames to play an explosion, advancing all elapsed
   frames after a slow update.
-- Reacting to input with `on_key_down()`/`on_mouse_down()` and polling
+- Reacting to input with `onKeyDown()`/`onMouseDown()` and polling
   `keyboard` every frame for smooth movement.
 - Playing sound effects with `sounds.<name>.play()`.
 - Escalating difficulty by scaling speed and enemy count with a wave
   counter.
-- A starfield background drawn entirely with `screen.draw.filled_rect()` -
+- A starfield background drawn entirely with `screen.draw.filledRect()` -
   no image asset required.
 
 ## Reading and extending it

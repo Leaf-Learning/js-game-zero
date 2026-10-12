@@ -231,7 +231,7 @@ if (coreSemanticsCanvas) {
     {
       x: 100,
       duration: 0.12,
-      on_finished: () => {
+      onFinished: () => {
         state.animationDone = true;
       },
     },
@@ -261,10 +261,10 @@ if (drawingCanvas) {
   const clearPixel = samplePixel(drawingCanvas, 4, 4);
   const clearedAlpha = clearPixel[3] ?? 0;
   screen.fill("#10243d", "#8fd0ff");
-  screen.draw.filled_rect([16, 18, 48, 34], "#e84855");
+  screen.draw.filledRect([16, 18, 48, 34], "#e84855");
   screen.draw.line([0, 0], [120, 90], "#f6c85f", 4);
-  screen.draw.filled_circle([126, 42], 18, "#34d399");
-  screen.draw.filled_polygon(
+  screen.draw.filledCircle([126, 42], 18, "#34d399");
+  screen.draw.filledPolygon(
     [
       [150, 82],
       [190, 40],
@@ -317,7 +317,7 @@ if (textCanvas) {
     [18, 72, 190, 54],
     {
       fontsize: 24,
-      min_fontsize: 8,
+      minFontsize: 8,
       color: "#f8fafc",
       background: "#243447",
       align: "center",
@@ -325,7 +325,7 @@ if (textCanvas) {
   );
   screen.draw.textbox("wrapped canvas text fits here", [18, 72, 190, 54], {
     fontsize: 24,
-    min_fontsize: 8,
+    minFontsize: 8,
     color: "#f8fafc",
     background: "#243447",
     align: "center",
@@ -417,7 +417,7 @@ if (loaderCanvas) {
     screen.blit(first, [20, 20]);
     screen.blit("player.svg", [76, 20]);
     state.cacheHit = first === second;
-    state.dimensions = first.get_size();
+    state.dimensions = first.getSize();
     state.imagePixel = samplePixel(loaderCanvas, 36, 36);
     state.soundName = sound.name;
     state.musicName = music.name;
@@ -489,7 +489,7 @@ if (actorCanvas) {
       state.rotatedRect = rectState(actor.rect());
       state.publicSize = [actor.width, actor.height];
       state.anchorRect = rectState(anchored.rect());
-      state.colliding = actor.colliderect(obstacle);
+      state.colliding = actor.collideRect(obstacle);
     };
 
     window.addEventListener("keydown", (event) => {
@@ -534,10 +534,10 @@ if (soundButton) {
     void (async () => {
       state.clicked = true;
       try {
-        sound.set_volume(0.5);
+        sound.setVolume(0.5);
         sound.play(-1);
         await delay(100);
-        const afterPlay = sound.debug_state();
+        const afterPlay = sound.debugState();
         state.dataUrlSound = sound.url.startsWith("data:audio/wav");
         state.activeAfterPlay = afterPlay.active;
         state.loop = afterPlay.loop;
@@ -545,7 +545,7 @@ if (soundButton) {
         state.unlocked = afterPlay.unlocked;
         state.lastError = afterPlay.lastError;
         sound.stop();
-        state.activeAfterStop = sound.debug_state().active;
+        state.activeAfterStop = sound.debugState().active;
       } catch (error) {
         state.errors.push(errorMessage(error));
       }
@@ -574,7 +574,7 @@ if (toneButton) {
       try {
         await tone.unlock();
         await tone.play("A4", 0.05, { volume: 0.2 });
-        const debug = tone.debug_state();
+        const debug = tone.debugState();
         state.scheduled = debug.scheduled.length;
         state.unlocked = debug.unlocked;
         state.contextState = debug.contextState;
@@ -616,7 +616,7 @@ if (musicButton) {
     loader,
     onMusicEnd: () => {
       state.endedCount += 1;
-      state.current = player.debug_state().current;
+      state.current = player.debugState().current;
     },
   });
 
@@ -624,9 +624,9 @@ if (musicButton) {
     void (async () => {
       state.clicked = true;
       try {
-        await player.play_once("short.wav");
-        state.current = player.debug_state().current;
-        const element = player.debug_current_element();
+        await player.playOnce("short.wav");
+        state.current = player.debugState().current;
+        const element = player.debugCurrentElement();
         state.dataUrlTrack = Boolean(element?.src.startsWith("data:audio/wav"));
       } catch (error) {
         state.errors.push(errorMessage(error));

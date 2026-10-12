@@ -57,10 +57,10 @@ function createFakeEventTarget() {
 describe("hook dispatch", () => {
   test("calls hooks by parameter name or event object", () => {
     const calls: unknown[][] = [];
-    function on_mouse_down(button: unknown, pos: unknown) {
+    function onMouseDown(button: unknown, pos: unknown) {
       calls.push([button, pos]);
     }
-    dispatchHook(on_mouse_down, { pos: [1, 2], button: mouse.LEFT });
+    dispatchHook(onMouseDown, { pos: [1, 2], button: mouse.LEFT });
     dispatchHook((event) => calls.push([event]), { key: keys.A });
     expect(calls).toEqual([[mouse.LEFT, [1, 2]], [{ key: keys.A }]]);
   });
@@ -87,10 +87,10 @@ describe("hook dispatch", () => {
   test("InputDispatcher hands a positional parameter the documented value", () => {
     const received: unknown[] = [];
     const dispatcher = new InputDispatcher({
-      on_key_down(k: unknown) {
+      onKeyDown(k: unknown) {
         received.push(k);
       },
-      on_mouse_move(where: unknown, moved: unknown) {
+      onMouseMove(where: unknown, moved: unknown) {
         received.push(where, moved);
       },
     });
@@ -106,7 +106,7 @@ describe("hook dispatch", () => {
 
   test("extracts parameter names from function and arrow forms", () => {
     expect(
-      getParameterNames(function on_key_down(
+      getParameterNames(function onKeyDown(
         key: unknown,
         mod: unknown,
         unicode: unknown,
@@ -124,18 +124,18 @@ describe("hook dispatch", () => {
 
   test("nested arrows in function and method hooks preserve the outer parameters", () => {
     const received: unknown[] = [];
-    function on_mouse_down(pos: unknown) {
+    function onMouseDown(pos: unknown) {
       received.push([pos].find((value) => value !== undefined));
     }
     const hooks = {
-      on_mouse_move(pos: unknown, rel: unknown) {
+      onMouseMove(pos: unknown, rel: unknown) {
         [pos, rel].forEach((value) => received.push(value));
       },
     };
-    expect(getParameterNames(on_mouse_down)).toEqual(["pos"]);
-    expect(getParameterNames(hooks.on_mouse_move)).toEqual(["pos", "rel"]);
-    dispatchHook(on_mouse_down, { pos: [12, 34] });
-    dispatchHook(hooks.on_mouse_move, { pos: [20, 40], rel: [8, 6] });
+    expect(getParameterNames(onMouseDown)).toEqual(["pos"]);
+    expect(getParameterNames(hooks.onMouseMove)).toEqual(["pos", "rel"]);
+    dispatchHook(onMouseDown, { pos: [12, 34] });
+    dispatchHook(hooks.onMouseMove, { pos: [20, 40], rel: [8, 6] });
     expect(received).toEqual([
       [12, 34],
       [20, 40],
@@ -333,7 +333,7 @@ describe("live mouse state", () => {
 });
 
 describe("InputDispatcher", () => {
-  test("updates keyboard before hooks and supports camelCase import-mode aliases", () => {
+  test("updates keyboard before calling the input hooks", () => {
     const events: unknown[] = [];
     const dispatcher = new InputDispatcher({
       onKeyDown(key: unknown, mod: unknown, unicode: unknown) {
@@ -382,10 +382,10 @@ describe("InputDispatcher", () => {
     ]);
   });
 
-  test("handleWheel dispatches on_mouse_down with WHEEL_UP/WHEEL_DOWN and ignores zero-delta scroll", () => {
+  test("handleWheel dispatches onMouseDown with WHEEL_UP/WHEEL_DOWN and ignores zero-delta scroll", () => {
     const events: unknown[] = [];
     const dispatcher = new InputDispatcher({
-      on_mouse_down(pos: unknown, button: unknown) {
+      onMouseDown(pos: unknown, button: unknown) {
         events.push({ pos, button });
       },
     });
@@ -406,7 +406,7 @@ describe("InputDispatcher", () => {
     ]);
   });
 
-  test("handleMouseUp dispatches on_mouse_up with pos/button and tracks lastMousePos", () => {
+  test("handleMouseUp dispatches onMouseUp with pos/button and tracks lastMousePos", () => {
     const events: unknown[] = [];
     const dispatcher = new InputDispatcher({
       onMouseUp(pos: unknown, button: unknown) {

@@ -42,7 +42,7 @@ and the same goes for `screen.rect` and `screen.draw.rect`.
 
 A wrong call throws a `TypeError` that says what to change. A list, as in
 `screen.circle([200, 150], 25)`, points to the `screen.draw` method that
-takes lists (here `screen.draw.filled_circle`). A missing or non-number
+takes lists (here `screen.draw.filledCircle`). A missing or non-number
 argument is named, and an extra one, such as an outline width, points to
 the outline method.
 
@@ -92,10 +92,10 @@ function draw() {
 }
 ```
 
-## `screen.fill(color, bottom_color?)`
+## `screen.fill(color, bottomColor?)`
 
 Fills the canvas with a solid color, or a top-to-bottom gradient when a
-second color is given: `color` at the top fading to `bottom_color` at the
+second color is given: `color` at the top fading to `bottomColor` at the
 bottom.
 
 ```js
@@ -159,33 +159,33 @@ the canvas.
 screen.draw.line([20, 20], [200, 120], "white", 3);
 ```
 
-## `screen.draw.circle(pos, radius, color, width = 1)` / `filled_circle(pos, radius, color)`
+## `screen.draw.circle(pos, radius, color, width = 1)` / `filledCircle(pos, radius, color)`
 
-`screen.draw.circle` draws an outline; `filled_circle` and the short form
+`screen.draw.circle` draws an outline; `filledCircle` and the short form
 [`screen.circle`](#short-forms) fill.
 
 ```js
 screen.draw.circle([160, 90], 40, "#38bdf8", 2); // outline
-screen.draw.filled_circle([160, 90], 40, "#38bdf8"); // filled
+screen.draw.filledCircle([160, 90], 40, "#38bdf8"); // filled
 ```
 
-## `screen.draw.rect(rect, color, width = 1)` / `filled_rect(rect, color)`
+## `screen.draw.rect(rect, color, width = 1)` / `filledRect(rect, color)`
 
 `rect` accepts anything geometry accepts: a `Rect`, an `Actor` (via its
 `.rect()` duck type — see [`docs/reference/rect.md`](rect.md)), or a plain
 `[left, top, width, height]` tuple.
 
 ```js
-screen.draw.filled_rect([40, 40, 120, 60], "#f97316");
+screen.draw.filledRect([40, 40, 120, 60], "#f97316");
 screen.draw.rect(player.rect(), "yellow", 2); // highlight a hitbox
 ```
 
-## `screen.draw.polygon(points, color, width = 1)` / `filled_polygon(points, color)`
+## `screen.draw.polygon(points, color, width = 1)` / `filledPolygon(points, color)`
 
 Needs at least three points.
 
 ```js
-screen.draw.filled_polygon(
+screen.draw.filledPolygon(
   [
     [238, 40],
     [292, 64],
@@ -209,7 +209,7 @@ screen.draw.text("Score: 12", [16, 16], {
 });
 ```
 
-When the options say where the text goes (`center`, `topright`, ...), pass
+When the options say where the text goes (`center`, `topRight`, ...), pass
 them second, in place of the position:
 
 ```js
@@ -219,14 +219,14 @@ screen.draw.text("Game Over", { center: [WIDTH / 2, HEIGHT / 2], size: 40 });
 Several options have two names: a readable one, and the shorter one Pygame
 Zero uses. Either works, but not both at once:
 
-| Readable name    | Pygame Zero name |
-| ---------------- | ---------------- |
-| `size`           | `fontsize`       |
-| `outline`        | `owidth`         |
-| `outline_color`  | `ocolor`         |
-| `shadow_color`   | `scolor`         |
-| `gradient_color` | `gcolor`         |
-| `min_size`       | `min_fontsize`   |
+| Readable name   | Pygame Zero name |
+| --------------- | ---------------- |
+| `size`          | `fontsize`       |
+| `outline`       | `owidth`         |
+| `outlineColor`  | `ocolor`         |
+| `shadowColor`   | `scolor`         |
+| `gradientColor` | `gcolor`         |
+| `minSize`       | `minFontsize`    |
 
 ### Position options
 
@@ -234,13 +234,13 @@ Give **exactly one** of the following ways to position the text (mixing
 them throws a `TypeError`):
 
 - `pos` (or the second positional argument) — a `[x, y]` point. Combined
-  with `anchor` (default `"topleft"`) to decide which part of the text box
+  with `anchor` (default `"topLeft"`) to decide which part of the text box
   sits at that point.
-- A named anchor point directly: `topleft`, `topright`, `bottomleft`,
-  `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `center` —
+- A named anchor point directly: `topLeft`, `topRight`, `bottomLeft`,
+  `bottomRight`, `midTop`, `midLeft`, `midRight`, `midBottom`, `center` —
   each takes a `[x, y]` point for that corner/edge/center of the text.
-- Scalar axis keywords, combined per-axis: `left`/`centerx`/`right` for the
-  horizontal position, `top`/`centery`/`bottom` for the vertical position.
+- Scalar axis keywords, combined per-axis: `left`/`centerX`/`right` for the
+  horizontal position, `top`/`centerY`/`bottom` for the vertical position.
   You can mix one horizontal and one vertical scalar (`{ right: 300, top: 10
 }`), or use just one axis and fall back to `pos` for the other.
 
@@ -261,7 +261,7 @@ screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10
   Mutually exclusive with `fontname`.
 - `bold`, `italic`, `underline` — booleans.
 - `color` (default `"white"`), `background` (fills a box behind the text).
-- `gradient_color` / `gcolor` — a second color for a top-to-bottom gradient
+- `gradientColor` / `gcolor` — a second color for a top-to-bottom gradient
   across the text.
 
 ### Layout options
@@ -283,9 +283,9 @@ screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10
 
 ### Effects
 
-- `outline` / `owidth` + `outline_color` / `ocolor` — an outline stroke
+- `outline` / `owidth` + `outlineColor` / `ocolor` — an outline stroke
   around the glyphs, `outline` pixels thick.
-- `shadow` (a number or `[x, y]` offset) + `shadow_color` / `scolor`
+- `shadow` (a number or `[x, y]` offset) + `shadowColor` / `scolor`
   (default `"black"`) — a drop shadow.
 - `alpha` — overall opacity, `0`–`1` (default `1`).
 
@@ -293,8 +293,8 @@ screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10
 
 Like `draw.text`, but instead of a fixed `size` you give a rectangle and
 `textbox` picks the **largest font size that fits inside it** (shrinking
-down to `min_size`, default `4`, if necessary). Text is centered in the
-rect by default; pass `anchor` (e.g. `"topleft"`) to change that. `textbox`
+down to `minSize`, default `4`, if necessary). Text is centered in the
+rect by default; pass `anchor` (e.g. `"topLeft"`) to change that. `textbox`
 does not accept `pos`, `width`, or the scalar position keywords — the rect
 defines its layout box.
 

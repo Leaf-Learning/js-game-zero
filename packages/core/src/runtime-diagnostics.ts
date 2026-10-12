@@ -1,8 +1,8 @@
 import { validateAssetName } from "./assets";
 import {
   getParameterNames,
-  HOOK_ALIASES,
   HOOK_PARAMETERS,
+  INPUT_HOOK_NAMES,
   resolveHookParameters,
   type Hook,
 } from "./events";
@@ -13,7 +13,12 @@ import type {
   RuntimeMode,
 } from "./runtime-contracts";
 import { scanSource } from "./source-scan";
-import { closestName, imageExtensions, soundExtensions } from "./util";
+import {
+  closestName,
+  imageExtensions,
+  looseName,
+  soundExtensions,
+} from "./util";
 
 export const RUNTIME_CONFIGURATION_NAMES = [
   "WIDTH",
@@ -24,15 +29,11 @@ export const RUNTIME_CONFIGURATION_NAMES = [
   "TOUCH_CONTROLS",
 ] as const;
 
-/**
- * Every hook a zero-boilerplate script can define. The camelCase input hooks
- * are accepted too, since `function onKeyDown()` is what most JavaScript
- * learners will try first.
- */
+/** Every hook a zero-boilerplate script can define. */
 export const RUNTIME_SOURCE_HOOK_NAMES = [
   "draw",
   "update",
-  ...HOOK_ALIASES.flat(),
+  ...INPUT_HOOK_NAMES,
 ] as const;
 
 const hookNames = RUNTIME_SOURCE_HOOK_NAMES;
@@ -78,7 +79,6 @@ export function diagnoseGameModule(
       });
     }
   }
-  warnDuplicateHookAliases(module, emit);
   warnHookParameters(module, emit);
   warnHookArity("draw", module.draw, 0, emit);
   warnHookArity("update", module.update, 1, emit);
@@ -198,12 +198,17 @@ function diagnoseIdentifier(
   if (kind !== "function") return;
   const hookSuggestion = closestName(name, hookNames);
   if (hookSuggestion && !defined.has(hookSuggestion)) {
+    // Another spelling of a hook (Pygame Zero's `on_key_down`) is never
+    // called, which is worth saying outright rather than as a typo.
+    const respelled = looseName(name) === looseName(hookSuggestion);
     emit({
       code: "hook-typo",
       severity: "warning",
       name,
       suggestion: hookSuggestion,
-      message: `Did you mean ${hookSuggestion} instead of ${name}?`,
+      message: respelled
+        ? `${name} is never called. Hooks are named in camelCase, so rename it to ${hookSuggestion}.`
+        : `Did you mean ${hookSuggestion} instead of ${name}?`,
     });
   }
 }
@@ -233,57 +238,38 @@ function diagnoseAssetName(
   }
 }
 
-function warnDuplicateHookAliases(
-  module: GameModule,
-  emit: (diagnostic: RuntimeDiagnostic) => void,
-): void {
-  for (const [snake, camel] of HOOK_ALIASES) {
-    if (module[snake] && module[camel]) {
-      emit({
-        code: "duplicate-hook-alias",
-        severity: "warning",
-        name: snake,
-        suggestion: camel,
-        message: `${snake} and ${camel} are both defined; ${snake} will run first.`,
-      });
-    }
-  }
-}
-
 /**
  * Input hooks are matched by parameter name, with any other name filled by
- * its place in the list. That keeps `on_key_down(k)` working, but a learner
- * who wrote `on_mouse_down(btn)` gets the position, not the button — so say
+ * its place in the list. That keeps `onKeyDown(k)` working, but a learner
+ * who wrote `onMouseDown(btn)` gets the position, not the button — so say
  * which value each unfamiliar name receives.
  */
 function warnHookParameters(
   module: GameModule,
   emit: (diagnostic: RuntimeDiagnostic) => void,
 ): void {
-  for (const [snake, camel] of HOOK_ALIASES) {
-    for (const name of [snake, camel]) {
-      const hook = module[name];
-      if (typeof hook !== "function") continue;
-      const declared = getParameterNames(hook);
-      if (declared.length === 1 && declared[0] === "event") continue;
-      const known = HOOK_PARAMETERS[snake];
-      const resolved = resolveHookParameters(declared, known);
-      declared.forEach((parameter, index) => {
-        if ((known as readonly string[]).includes(parameter)) return;
-        const receives = resolved[index];
-        const knownList = known.length > 0 ? known.join(", ") : "nothing";
-        emit({
-          code: "hook-parameter",
-          severity: "warning",
-          name,
-          ...(receives === undefined ? {} : { suggestion: receives }),
-          message:
-            receives === undefined
-              ? `${name} receives ${knownList}, so its ${parameter} parameter will always be undefined.`
-              : `${name}'s ${parameter} parameter receives ${receives}, because it is in that place in the list. Rename it to ${receives} to make that clear (${name} receives ${knownList}).`,
-        });
+  for (const name of INPUT_HOOK_NAMES) {
+    const hook = module[name];
+    if (typeof hook !== "function") continue;
+    const declared = getParameterNames(hook);
+    if (declared.length === 1 && declared[0] === "event") continue;
+    const known = HOOK_PARAMETERS[name];
+    const resolved = resolveHookParameters(declared, known);
+    declared.forEach((parameter, index) => {
+      if ((known as readonly string[]).includes(parameter)) return;
+      const receives = resolved[index];
+      const knownList = known.length > 0 ? known.join(", ") : "nothing";
+      emit({
+        code: "hook-parameter",
+        severity: "warning",
+        name,
+        ...(receives === undefined ? {} : { suggestion: receives }),
+        message:
+          receives === undefined
+            ? `${name} receives ${knownList}, so its ${parameter} parameter will always be undefined.`
+            : `${name}'s ${parameter} parameter receives ${receives}, because it is in that place in the list. Rename it to ${receives} to make that clear (${name} receives ${knownList}).`,
       });
-    }
+    });
   }
 }
 

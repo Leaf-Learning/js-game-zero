@@ -253,7 +253,7 @@ WIDTH = 200;
 HEIGHT = 120;
 let clicked = null;
 function draw() { screen.rect(0, 0, WIDTH, HEIGHT, "navy"); }
-function on_mouse_down(pos) { clicked = pos; }
+function onMouseDown(pos) { clicked = pos; }
 `;
 
   test("defaults to the device's ratio and keeps the mouse in logical pixels", async () => {

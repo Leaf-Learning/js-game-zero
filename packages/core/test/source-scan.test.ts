@@ -168,11 +168,11 @@ describe("scanSource", () => {
     expect(
       scanSource(`
 function draw() {}
-async function on_key_down(key) {}
+async function onKeyDown(key) {}
 function* gen() {}
 export function update(dt) {}
 `).topLevelFunctions,
-    ).toEqual(["draw", "on_key_down", "gen", "update"]);
+    ).toEqual(["draw", "onKeyDown", "gen", "update"]);
   });
 
   test("finds every function-shaped top-level assignment", () => {
@@ -214,7 +214,7 @@ var g = "done";
       scanSource(`
 for (let row = 0; row < 3; row++) rows[row] = row;
 draw();
-foo(update, on_key_down);
+foo(update, onKeyDown);
 const { drow } = pkg;
 const [darw] = list;
 obj.draw = () => {};

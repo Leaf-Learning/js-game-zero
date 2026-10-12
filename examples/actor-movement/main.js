@@ -9,12 +9,12 @@ function update(dt) {
   if (keyboard.right) player.x += MOVE_SPEED * dt;
   if (keyboard.left) player.x -= MOVE_SPEED * dt;
   // Keep the whole sprite on screen, whatever size it is.
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 }
 
 function draw() {
   screen.fill("#111827");
-  screen.draw.filled_rect([0, 130, WIDTH, 50], "#334155");
+  screen.draw.filledRect([0, 130, WIDTH, 50], "#334155");
   screen.draw.line([0, 130], [WIDTH, 130], "#facc15", 3);
   player.draw();
 }

@@ -20,7 +20,7 @@ over; clear every brick and you win.
   the ball lands.
 - Rectangle collision with `touches()` and stepping the simulation in
   small increments so a fast ball can't tunnel through the paddle.
-- Mouse input with `on_mouse_move(pos)` alongside `keyboard` polling.
+- Mouse input with `onMouseMove(pos)` alongside `keyboard` polling.
 - Simple game states (`playing` / `won` / `lost`) and restart handling.
 - Sound effects with `sounds.<name>.play()`.
 

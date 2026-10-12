@@ -85,15 +85,15 @@ const markerGame = `
 WIDTH = 200;
 HEIGHT = 120;
 let clicks = [];
-const badge = new Actor("player.svg", { topleft: [150, 80] });
+const badge = new Actor("player.svg", { topLeft: [150, 80] });
 function draw() {
   screen.fill("black");
   screen.rect(10, 20, 30, 40, "red");
-  screen.draw.text("Hi", { topleft: [60, 20], size: 20 });
+  screen.draw.text("Hi", { topLeft: [60, 20], size: 20 });
   badge.draw();
 }
-function on_mouse_down(pos) {
-  clicks.push([pos[0], pos[1], badge.collidepoint(pos)]);
+function onMouseDown(pos) {
+  clicks.push([pos[0], pos[1], badge.collidePoint(pos)]);
   storage.clicks = clicks;
 }
 `;
@@ -164,7 +164,7 @@ test.describe("on a 2x screen", () => {
       WIDTH = 160;
       HEIGHT = 140;
       PIXEL_DENSITY = ${density};
-      const big = new Actor("player.svg", { topleft: [0, 0], width: 128 });
+      const big = new Actor("player.svg", { topLeft: [0, 0], width: 128 });
       function draw() {
         screen.fill("#101820");
         big.draw();
@@ -334,7 +334,7 @@ test.describe("on a 2x phone with the touch dock", () => {
       HEIGHT = 640;
       TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT };
       function draw() { screen.fill("navy"); screen.rect(0, 0, 36, 64, "red"); }
-      function on_mouse_down(pos) { storage.tap = pos; }
+      function onMouseDown(pos) { storage.tap = pos; }
       `,
       {
         css: "#game { height: 100dvh; display: flex; flex-direction: column; align-items: center; }",

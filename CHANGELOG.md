@@ -4,6 +4,44 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Names are camelCase
+
+- **Breaking:** snake_case names are gone, a breaking change made before
+  the first published release. Every library name has one spelling, its
+  camelCase one: hooks (`onKeyDown`, `onKeyUp`, `onMouseDown`, `onMouseUp`,
+  `onMouseMove`, `onMusicEnd`), helpers (`randomInt`, `randomChoice`), and
+  every method, property and option (`screen.draw.filledCircle`,
+  `actor.angleTo`, `rect.moveIp`, `clock.scheduleInterval`,
+  `music.setVolume`, `images.cacheKeys`, `onFinished`, `outlineColor`).
+  Pygame Zero's run-together names become camelCase too (`collideRect`,
+  `collidePoint`, `topLeft`, `midBottom`, `centerX`, `unionAll`, `fadeOut`,
+  `setDefault`), as do the tween names (`bounceEnd`, `accelDecel`,
+  `inOutElastic`) and the text anchors (`anchor: "topLeft"`). One-word and
+  run-together names with no camelCase spelling keep theirs (`blit`,
+  `unschedule`, `fontsize`, `owidth`).
+- Constants stay upper case, as is usual in JavaScript: `WIDTH`, `HEIGHT`,
+  `TITLE`, `ICON`, `PIXEL_DENSITY`, `TOUCH_CONTROLS`, `keys.LEFT`,
+  `keys.KP_ENTER`, `mouse.WHEEL_UP`, `keymods.SHIFT`, `DEFAULT_TONE_VOLUME`.
+- Another spelling fails where it's written, naming the real name: reading
+  or setting `actor.angle_to`, `rect.colliderect` or `storage.setdefault`
+  throws `actor.angle_to doesn't exist. Did you mean actor.angleTo?`; a
+  service member such as `screen.draw.filled_circle` or `keys.space` throws
+  the same way; `random_int` is not defined (`Did you mean randomInt?`); a
+  snake_case tween suggests its camelCase name; and an asset loader names its
+  method (`images.cache_keys`) instead of loading an image by that name.
+- A hook defined under another spelling, such as `function on_mouse_down`,
+  is never called, and gets a `hook-typo` warning saying so:
+  `on_mouse_down is never called. Hooks are named in camelCase, so rename it
+to onMouseDown.` The `duplicate-hook-alias` diagnostic is gone, since a hook
+  can no longer be given two ways.
+- Host interfaces follow the same rule: a `SurfaceLike` implements
+  `getWidth()`, `getHeight()`, `getSize()` and `getRect()`; a `SoundAsset`
+  implements `getLength()`, `setVolume()` and `getVolume()`; asset loaders
+  have `unloadAll()` and `cacheKeys()`; and the debug helpers are
+  `debugState()`, `debugInstanceCount()` and `debugCurrentElement()`.
+- `docs/migrating-from-pgzero.md` lists every Pygame Zero name with its
+  js-game-zero spelling.
+
 ### Pixel density
 
 - Games are sharp on high-density screens. The canvas holds
@@ -56,10 +94,9 @@ All notable changes to `js-game-zero` are recorded here.
 
 ### Helpers
 
-- `random_int(min, max)` (both ends included), `random_choice(list)` and
+- `randomInt(min, max)` (both ends included), `randomChoice(list)` and
   `clamp(value, min, max)` are game-file globals and package exports, with
-  errors that explain a backwards range or an empty list. camelCase
-  spellings of snake_case globals (`randomInt`) resolve too.
+  errors that explain a backwards range or an empty list.
 - In game files and `defineGame()`, `mouse` also reports the live pointer:
   `mouse.pos`, `mouse.x`, `mouse.y` (the screen center until the mouse
   moves), `mouse.buttons`, and `mouse.down` (true while any button or a
@@ -71,20 +108,13 @@ All notable changes to `js-game-zero` are recorded here.
 - New `docs/reference/helpers.md` page; the tutorial, cookbook and examples
   use the helpers instead of hand-written `Math.random`/`Math.max` code.
 
-### Naming
+### Service errors
 
-- Every snake_case library method and property also answers to its
-  camelCase spelling, through non-enumerable aliases on `Actor`, `Rect`,
-  `Clock`, `MusicPlayer`, sound assets, `ImageSurface` and `Storage`:
-  `actor.angleTo`, `actor.topLeft`, `rect.collidePoint`, `clock.eachTick`,
-  `music.setVolume`, `storage.setDefault`, and so on. The aliases are not
-  part of the typed API, so TypeScript users and the docs keep one style.
 - In zero-boilerplate games, `screen` (including `screen.draw`), `clock`,
-  `music`, `tone`, `keys`, `keymods` and `mouse` match members regardless of
-  capitalization and underscores (`screen.draw.filledCircle`, `keys.space`),
-  and reading a member they don't have throws
-  `screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`
-  instead of `undefined is not a function`. Guesses such as
+  `music`, `tone`, `keys`, `keymods` and `mouse` throw when a game reads a
+  member they don't have,
+  `screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`,
+  instead of failing as `undefined is not a function`. Guesses such as
   `screen.drawRect` or `screen.draw.fillRect` point at the real method.
 
 ### Friendlier call shapes
@@ -93,9 +123,9 @@ All notable changes to `js-game-zero` are recorded here.
   position the text, so `text("Game Over", { center: [x, y] })` replaces the
   `undefined`/`[]` placeholder the examples used to need.
 - Readable text option names alongside Pygame Zero's: `size` (`fontsize`),
-  `outline` (`owidth`), `outline_color` (`ocolor`), `shadow_color`
-  (`scolor`), `gradient_color` (`gcolor`) and, for textboxes, `min_size`
-  (`min_fontsize`). Giving both names for one option is an error.
+  `outline` (`owidth`), `outlineColor` (`ocolor`), `shadowColor`
+  (`scolor`), `gradientColor` (`gcolor`) and, for textboxes, `minSize`
+  (`minFontsize`). Giving both names for one option is an error.
 - `actor.touches(target)` and `rect.touches(target)` test overlap with an
   actor, a rect, or an `[x, y]` point in one method.
 - `screen.draw.image(image, pos)` is a readable name for `screen.blit`.
@@ -104,17 +134,17 @@ All notable changes to `js-game-zero` are recorded here.
   `loop()` member (lazy sounds fall back to `play(-1)` for host assets
   without one).
 - `music.position` reads and seeks the current track in seconds, avoiding
-  the milliseconds/seconds mismatch between `get_pos()` and `set_pos()`.
-- Tween aliases `ease_in`, `ease_out`, `ease_in_out`, `bounce` and `spring`.
+  the milliseconds/seconds mismatch between `getPos()` and `setPos()`.
+- Tween aliases `easeIn`, `easeOut`, `easeInOut`, `bounce` and `spring`.
   The tween table describes each curve by what the motion looks like, and
-  explains that Pygame Zero's `end_elastic`/`start_elastic` name when the
-  wobble happens, not where.
+  explains that `endElastic`/`startElastic` (Pygame Zero's `end_elastic`/
+  `start_elastic`) name when the wobble happens, not where.
 - The tutorial, cookbook and examples use these forms.
 
 ### Actor
 
-- `Actor.clamp_ip(area)` moves the actor so its bounding box fits inside
-  `area`; `player.clamp_ip(screen.bounds())` keeps a player on screen in one
+- `Actor.clampIp(area)` moves the actor so its bounding box fits inside
+  `area`; `player.clampIp(screen.bounds())` keeps a player on screen in one
   line. The Rect reference's "keep the player on screen" example, which only
   clamped a copy of the player's rectangle, now shows the working form, and
   the tutorial, cookbook and examples use it in place of hand-written
@@ -122,9 +152,6 @@ All notable changes to `js-game-zero` are recorded here.
 
 ### Beginner-facing errors
 
-- `randomInt` and `randomChoice` in a game file name themselves in their
-  errors (`randomInt(400, 0) has no whole numbers to pick from…`) instead of
-  their snake_case spellings.
 - A capital letter by mistake on a service, as in `Screen.fill("navy")`,
   reaches the class `Screen` and used to fail as "Screen.fill is not a
   function". Reading one of a service's members on its class (`Screen`,
@@ -143,10 +170,8 @@ All notable changes to `js-game-zero` are recorded here.
   hint naming the js-game-zero equivalent. `isNaN`, `isFinite`, `Symbol`,
   `BigInt`, `Intl`, `WeakMap`, `WeakSet` and the URI helpers are now
   available to game code.
-- camelCase input hooks (`onKeyDown`, `onMouseDown`, ...) now run in
-  zero-boilerplate game files, not just import mode.
 - A hook parameter that isn't one of the documented names now receives the
-  next unclaimed value by position (`on_key_down(k)` gets the key) instead of
+  next unclaimed value by position (`onKeyDown(k)` gets the key) instead of
   `undefined`, and a new `hook-parameter` warning says which value it gets.
 - Colors are validated: a misspelled name throws with a suggestion
   (`"lightblu"` → `"lightblue"`), malformed hex codes are rejected, and a

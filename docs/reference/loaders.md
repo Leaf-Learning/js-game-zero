@@ -45,15 +45,15 @@ directly — for its dimensions, say — the zero-boilerplate `images` global
 lazy access:
 
 ```js
-let size = images.player.get_size(); // starts loading images/player.svg
+let size = images.player.getSize(); // starts loading images/player.svg
 ```
 
 Or load explicitly and `await` the result:
 
 ```js
 let sprite = await images.load("player.svg");
-sprite.get_width();
-sprite.get_height();
+sprite.getWidth();
+sprite.getHeight();
 ```
 
 ### Sounds and music
@@ -92,9 +92,8 @@ loaders import `createAssetLoaders()` or the individual factories from
 - `define(name, asset)` — registers an asset object directly without going
   through the network, useful for tests or preloading fixtures.
 - `unload(name): boolean` — evicts one cached asset.
-- `unload_all()` — clears the whole cache. `unloadAll()` is a camelCase
-  alias of `unload_all`.
-- `cache_keys(): string[]` — every currently-cached asset name, sorted.
+- `unloadAll()` — clears the whole cache.
+- `cacheKeys(): string[]` — every currently-cached asset name, sorted.
 
 Why a frame never shows a half-loaded sprite: each runtime tracks its own image
 and font loads started while the script's top level runs (and any started

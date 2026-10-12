@@ -14,19 +14,19 @@ describe("tweens", () => {
       "linear",
       "accelerate",
       "decelerate",
-      "accel_decel",
-      "in_elastic",
-      "out_elastic",
-      "in_out_elastic",
-      "bounce_end",
-      "bounce_start",
-      "bounce_start_end",
-      "end_elastic",
-      "start_elastic",
-      "both_elastic",
-      "ease_in",
-      "ease_out",
-      "ease_in_out",
+      "accelDecel",
+      "inElastic",
+      "outElastic",
+      "inOutElastic",
+      "bounceEnd",
+      "bounceStart",
+      "bounceStartEnd",
+      "endElastic",
+      "startElastic",
+      "bothElastic",
+      "easeIn",
+      "easeOut",
+      "easeInOut",
       "bounce",
       "spring",
     ]);
@@ -42,6 +42,15 @@ describe("tweens", () => {
     expect(
       () => new Animation({ x: 0 }, { x: 1, tween: "wildly_missing" }),
     ).toThrow(/wildly_missing/);
+    // Pygame Zero's snake_case names suggest the camelCase tween.
+    expect(
+      () => new Animation({ x: 0 }, { x: 1, tween: "in_out_elastic" }),
+    ).toThrow(
+      "No tween called in_out_elastic found, did you mean inOutElastic?",
+    );
+    expect(
+      () => new Animation({ x: 0 }, { x: 1, tween: "bounce_end" }),
+    ).toThrow("did you mean bounceEnd?");
   });
 
   test("golden values match the reference pgzero easing formulas at n=0,0.25,0.5,0.75,1", () => {
@@ -62,19 +71,19 @@ describe("tweens", () => {
       linear,
       accelerate,
       decelerate,
-      accel_decel: accelDecel,
-      in_elastic: inElastic,
-      out_elastic: outElastic,
-      in_out_elastic: inOutElastic,
-      bounce_end: bounceEnd,
-      bounce_start: bounceStart,
-      bounce_start_end: bounceStartEnd,
-      end_elastic: inElastic,
-      start_elastic: outElastic,
-      both_elastic: inOutElastic,
-      ease_in: accelerate,
-      ease_out: decelerate,
-      ease_in_out: accelDecel,
+      accelDecel: accelDecel,
+      inElastic: inElastic,
+      outElastic: outElastic,
+      inOutElastic: inOutElastic,
+      bounceEnd: bounceEnd,
+      bounceStart: bounceStart,
+      bounceStartEnd: bounceStartEnd,
+      endElastic: inElastic,
+      startElastic: outElastic,
+      bothElastic: inOutElastic,
+      easeIn: accelerate,
+      easeOut: decelerate,
+      easeInOut: accelDecel,
       bounce: bounceEnd,
       spring: outElastic,
     };
@@ -88,32 +97,32 @@ describe("tweens", () => {
     }
   });
 
-  test("in_elastic/in_out_elastic (and their aliases) clamp exactly to 0 at n=0", () => {
+  test("inElastic/inOutElastic (and their aliases) clamp exactly to 0 at n=0", () => {
     // The raw trigonometric formula produces a tiny nonzero value at n=0;
     // the source deliberately clamps `n === 0` (and `n === 1`) to exactly
-    // the input value for boundary safety. out_elastic needs no such clamp
+    // the input value for boundary safety. outElastic needs no such clamp
     // because its raw formula already lands on exactly 0 via a trig
     // identity.
-    expect(tweens.in_elastic(0)).toBe(0);
-    expect(tweens.end_elastic(0)).toBe(0);
-    expect(tweens.in_out_elastic(0)).toBe(0);
-    expect(tweens.both_elastic(0)).toBe(0);
+    expect(tweens.inElastic(0)).toBe(0);
+    expect(tweens.endElastic(0)).toBe(0);
+    expect(tweens.inOutElastic(0)).toBe(0);
+    expect(tweens.bothElastic(0)).toBe(0);
   });
 
   test("aliases delegate to the tween they wrap across the full domain", () => {
     for (let n = 0; n <= 1; n += 0.1) {
-      expect(tweens.end_elastic(n)).toBe(tweens.in_elastic(n));
-      expect(tweens.start_elastic(n)).toBe(tweens.out_elastic(n));
-      expect(tweens.both_elastic(n)).toBe(tweens.in_out_elastic(n));
+      expect(tweens.endElastic(n)).toBe(tweens.inElastic(n));
+      expect(tweens.startElastic(n)).toBe(tweens.outElastic(n));
+      expect(tweens.bothElastic(n)).toBe(tweens.inOutElastic(n));
     }
   });
 
-  test("linear, accelerate, decelerate, and accel_decel are monotonically non-decreasing on [0,1]", () => {
+  test("linear, accelerate, decelerate, and accelDecel are monotonically non-decreasing on [0,1]", () => {
     const monotonic: Array<keyof typeof tweens> = [
       "linear",
       "accelerate",
       "decelerate",
-      "accel_decel",
+      "accelDecel",
     ];
     for (const name of monotonic) {
       let previous = tweens[name](0);
@@ -178,7 +187,7 @@ describe("Animation error paths and edge cases", () => {
       {
         x: 10,
         duration: 0,
-        on_finished: () => {
+        onFinished: () => {
           finishedCalls += 1;
         },
       },
@@ -255,7 +264,7 @@ describe("Animation", () => {
       {
         x: 10,
         duration: 0.5,
-        on_finished: () => {
+        onFinished: () => {
           calls += 1;
         },
       },

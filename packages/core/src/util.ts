@@ -52,25 +52,32 @@ export function editDistance(a: string, b: string): number {
   return rows[a.length]?.[b.length] ?? 0;
 }
 
+/** Case- and underscore-insensitive form, so `filled_circle` meets `filledCircle`. */
+export function looseName(name: string): string {
+  return name.toLowerCase().replaceAll("_", "");
+}
+
 /**
- * The candidate `name` most plausibly misspells, if any. Short names get one
- * edit of slack and longer ones two (so `drow` and `on_key_dwon` match while
- * `row` and `dow` do not), a transposition counts as one edit, comparison is
- * case-insensitive, and a name that contains a candidate whole (`redraw`,
- * `updates`) is taken as deliberately derived from it rather than mistyped.
+ * The candidate `name` most plausibly misspells, if any. Capitals and
+ * underscores don't count, so another spelling of a name (`filled_circle`,
+ * `on_key_down`, `Screen`) is always matched. Short names get one edit of
+ * slack and longer ones two (so `drow` and `onKeyDwon` match while `row` and
+ * `dow` do not), a transposition counts as one edit, and a name that
+ * contains a candidate whole (`redraw`, `updates`) is taken as deliberately
+ * derived from it rather than mistyped.
  */
 export function closestName(
   name: string,
   candidates: Iterable<string>,
 ): string | undefined {
-  const lower = name.toLowerCase();
-  const threshold = lower.length < 6 ? 1 : 2;
+  const loose = looseName(name);
+  const threshold = loose.length < 6 ? 1 : 2;
   let best: { name: string; distance: number; exact: number } | null = null;
   for (const candidate of candidates) {
     if (candidate === name) continue;
-    const candidateLower = candidate.toLowerCase();
-    if (lower !== candidateLower && lower.includes(candidateLower)) continue;
-    const distance = editDistance(lower, candidateLower);
+    const candidateLoose = looseName(candidate);
+    if (loose !== candidateLoose && loose.includes(candidateLoose)) continue;
+    const distance = editDistance(loose, candidateLoose);
     if (distance > threshold) continue;
     // Between equally close candidates, prefer the one whose capitals match
     // too, so `scren` suggests `screen` rather than `Screen`.
@@ -196,18 +203,18 @@ export function verticalAnchorOffset(
 }
 
 /**
- * The compound Rect-anchor position keys (`topleft`…`center`), shared by the
+ * The compound Rect-anchor position keys (`topLeft`…`center`), shared by the
  * actor, assets, and rendering modules for validating position keywords.
  */
 export const rectPositionKeys = [
-  "topleft",
-  "topright",
-  "bottomleft",
-  "bottomright",
-  "midtop",
-  "midleft",
-  "midright",
-  "midbottom",
+  "topLeft",
+  "topRight",
+  "bottomLeft",
+  "bottomRight",
+  "midTop",
+  "midLeft",
+  "midRight",
+  "midBottom",
   "center",
 ] as const;
 

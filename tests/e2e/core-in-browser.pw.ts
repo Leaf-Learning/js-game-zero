@@ -33,7 +33,7 @@ declare global {
 }
 
 // --- Guarantee #1 + #3: real DOM input reaches InputDispatcher/KeyboardState
-// and fires the hooks, while clock.schedule and Animation.on_finished advance
+// and fires the hooks, while clock.schedule and Animation.onFinished advance
 // under a real requestAnimationFrame loop. ------------------------------------
 test("real browser key + mouse input updates KeyboardState, fires hooks, and drives the clock and animation", async ({
   page,
@@ -122,7 +122,7 @@ test("real browser key + mouse input updates KeyboardState, fires hooks, and dri
   expect(mouseDown).toBeTruthy();
   expect(dragMove?.rel).not.toEqual([0, 0]);
   expect(state.keyboardState).toMatchObject({ left: false, a: false });
-  // clock.schedule fired and Animation.on_finished ran to completion under the
+  // clock.schedule fired and Animation.onFinished ran to completion under the
   // real rAF loop.
   expect(state.clockFired).toBe(true);
   expect(state.animationDone).toBe(true);
@@ -133,9 +133,9 @@ test("real browser key + mouse input updates KeyboardState, fires hooks, and dri
 
 // --- Guarantee #1 (wheel) + #2 (overlapping sounds) + #3 (clock resilience) ---
 // Drives packages/core directly from the served `/runtime/core.js` bundle so a
-// native wheel event, overlapping sound playbacks, and a throwing each_tick are
+// native wheel event, overlapping sound playbacks, and a throwing eachTick are
 // all exercised in one real browser context.
-test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tick is auto-unscheduled without stopping the loop", async ({
+test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing eachTick is auto-unscheduled without stopping the loop", async ({
   page,
 }) => {
   const { errors: consoleErrors, pageErrors } = collectPageErrors(page);
@@ -149,11 +149,11 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
     const coreRuntimeUrl = "/runtime/core.js";
     const core = (await import(coreRuntimeUrl)) as {
       Clock: new () => {
-        each_tick(callback: (dt: number) => void): void;
+        eachTick(callback: (dt: number) => void): void;
         tick(dt: number): void;
       };
       InputDispatcher: new (hooks: {
-        on_mouse_down(pos: [number, number], button: number): void;
+        onMouseDown(pos: [number, number], button: number): void;
       }) => {
         attach(target: EventTarget): () => void;
       };
@@ -164,7 +164,7 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
       }): {
         play(loops?: number): void;
         stop(): void;
-        debug_instance_count(): number;
+        debugInstanceCount(): number;
       };
     };
     const { Clock, InputDispatcher, createBrowserSoundAsset } = core;
@@ -179,9 +179,9 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
     };
     window.__jgzInputAudioParity = state;
 
-    // --- 1. Mouse wheel maps to on_mouse_down with WHEEL_UP/WHEEL_DOWN ---
+    // --- 1. Mouse wheel maps to onMouseDown with WHEEL_UP/WHEEL_DOWN ---
     const dispatcher = new InputDispatcher({
-      on_mouse_down(pos, button) {
+      onMouseDown(pos, button) {
         state.wheelEvents.push({ pos, button });
       },
     });
@@ -196,7 +196,7 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
     window.__jgzSoundHandle = {
       stopAndCount: () => {
         sound.stop();
-        return sound.debug_instance_count();
+        return sound.debugInstanceCount();
       },
     };
     const button = document.createElement("button");
@@ -209,17 +209,17 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
       // actual audible playback (which this fixture does not depend on).
       sound.play();
       sound.play();
-      state.soundInstanceCountAfterPlay = sound.debug_instance_count();
+      state.soundInstanceCountAfterPlay = sound.debugInstanceCount();
     });
     document.body.appendChild(button);
 
     // --- 3. Clock survives a throwing callback ---
     const clock = new Clock();
-    clock.each_tick(() => {
+    clock.eachTick(() => {
       state.throwingCalls += 1;
       if (state.throwingCalls === 3) throw new Error("e2e-clock-boom");
     });
-    clock.each_tick(() => {
+    clock.eachTick(() => {
       state.animationX += 1;
     });
 
@@ -275,9 +275,9 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing each_tic
   expect(state.soundInstanceCountAfterPlay).toBe(2);
   expect(instanceCountAfterStop).toBe(0);
 
-  // The throwing each_tick callback fires THREE times: it only throws on the
+  // The throwing eachTick callback fires THREE times: it only throws on the
   // 3rd invocation and is auto-unscheduled afterwards, while the sibling
-  // each_tick callback -- and the requestAnimationFrame loop driving
+  // eachTick callback -- and the requestAnimationFrame loop driving
   // clock.tick() -- keep running every frame, proving the exception did not
   // abort the frame.
   expect(state.throwingCalls).toBe(3);
@@ -397,8 +397,8 @@ test("tone unlocks browser audio and schedules a tone on the resumed context", a
   expect(pageErrors).toEqual([]);
 });
 
-// --- Guarantee #2: music fires on_music_end when the queue drains. -------------
-test("music triggers on_music_end for a generated data URL track", async ({
+// --- Guarantee #2: music fires onMusicEnd when the queue drains. -------------
+test("music triggers onMusicEnd for a generated data URL track", async ({
   page,
 }) => {
   const { errors, pageErrors } = collectPageErrors(page);

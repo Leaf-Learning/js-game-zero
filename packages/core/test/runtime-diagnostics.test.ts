@@ -16,12 +16,35 @@ describe("source typo diagnostics", () => {
     expect(typos("function darw() {}")).toEqual(["darw->draw"]);
     expect(typos("function udpate(dt) {}")).toEqual(["udpate->update"]);
     expect(typos("function on_key_dwon(key) {}")).toEqual([
-      "on_key_dwon->on_key_down",
+      "on_key_dwon->onKeyDown",
     ]);
     expect(typos("function onKeyDwon(key) {}")).toEqual([
       "onKeyDwon->onKeyDown",
     ]);
     expect(typos("function Draw() {}")).toEqual(["Draw->draw"]);
+  });
+
+  test("says a hook spelled in snake_case is never called, naming the camelCase hook", () => {
+    for (const [snake, camel] of [
+      ["on_key_down", "onKeyDown"],
+      ["on_key_up", "onKeyUp"],
+      ["on_mouse_down", "onMouseDown"],
+      ["on_mouse_up", "onMouseUp"],
+      ["on_mouse_move", "onMouseMove"],
+      ["on_music_end", "onMusicEnd"],
+    ]) {
+      const [diagnostic] = collectRuntimeDiagnostics(`function ${snake}() {}`);
+      expect(diagnostic).toMatchObject({
+        code: "hook-typo",
+        severity: "warning",
+        name: snake,
+        suggestion: camel,
+        message: `${snake} is never called. Hooks are named in camelCase, so rename it to ${camel}.`,
+      });
+    }
+    expect(typos("function onkeydown(key) {}")).toEqual([
+      "onkeydown->onKeyDown",
+    ]);
   });
 
   test("flags function-shaped top-level assignments too", () => {
@@ -82,7 +105,7 @@ x == drow;
     expect(typos("function upd_te() {}")).toEqual(["upd_te->update"]);
     expect(typos("function upxyzte() {}")).toEqual([]);
     expect(typos("function on_key_dow() {}")).toEqual([
-      "on_key_dow->on_key_down",
+      "on_key_dow->onKeyDown",
     ]);
     expect(typos("function on_mouse_downs() {}")).toEqual([]);
   });
@@ -153,6 +176,9 @@ describe("module typo diagnostics", () => {
 
   test("flags misspelled keys with the length-aware distance", () => {
     expect(moduleTypos({ drow() {} })).toEqual(["drow->draw"]);
+    expect(moduleTypos({ on_mouse_down() {} })).toEqual([
+      "on_mouse_down->onMouseDown",
+    ]);
     expect(moduleTypos({ udpate() {} })).toEqual(["udpate->update"]);
     expect(moduleTypos({ WIDHT: 800 })).toEqual(["WIDHT->WIDTH"]);
     expect(moduleTypos({ dow: 1, crow: 2, redraw() {} })).toEqual([]);
@@ -172,8 +198,8 @@ describe("hook parameter diagnostics", () => {
   }
 
   test("says which value an unfamiliar parameter name receives", () => {
-    expect(parameterWarnings({ on_mouse_down(position: unknown) {} })).toEqual([
-      "on_mouse_down's position parameter receives pos, because it is in that place in the list. Rename it to pos to make that clear (on_mouse_down receives pos, button, buttons, rel).",
+    expect(parameterWarnings({ onMouseDown(position: unknown) {} })).toEqual([
+      "onMouseDown's position parameter receives pos, because it is in that place in the list. Rename it to pos to make that clear (onMouseDown receives pos, button, buttons, rel).",
     ]);
     expect(
       parameterWarnings({ onKeyDown(key: unknown, shift: unknown) {} }),
@@ -183,16 +209,16 @@ describe("hook parameter diagnostics", () => {
   });
 
   test("flags parameters a hook can never fill", () => {
-    expect(parameterWarnings({ on_music_end(track: unknown) {} })).toEqual([
-      "on_music_end receives nothing, so its track parameter will always be undefined.",
+    expect(parameterWarnings({ onMusicEnd(track: unknown) {} })).toEqual([
+      "onMusicEnd receives nothing, so its track parameter will always be undefined.",
     ]);
   });
 
   test("stays quiet for documented names and a lone event parameter", () => {
     expect(
       parameterWarnings({
-        on_key_down(mod: unknown, key: unknown) {},
-        on_mouse_move(pos: unknown, rel: unknown, buttons: unknown) {},
+        onKeyDown(mod: unknown, key: unknown) {},
+        onMouseMove(pos: unknown, rel: unknown, buttons: unknown) {},
         onMouseDown(event: unknown) {},
       }),
     ).toEqual([]);

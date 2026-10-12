@@ -27,7 +27,7 @@ water below.
 - A simple "fall off the world" rule: once the player drops below the
   bottom of the screen, they respawn at the start instead of the game
   ending outright.
-- Reacting to input with `on_key_down(key, repeat)` for jumping, explicitly
+- Reacting to input with `onKeyDown(key, repeat)` for jumping, explicitly
   ignoring OS key repeats, alongside `keyboard` polling for running.
 
 ## Reading and extending it

@@ -74,7 +74,7 @@ function update(dt) {
 
 function draw() {
   screen.fill("#132436");
-  screen.draw.filled_circle([x, y], 20, "#7dd8c6");
+  screen.draw.filledCircle([x, y], 20, "#7dd8c6");
   screen.draw.text("Use the arrow keys!", [20, 20], {
     fontsize: 16,
     color: "#ffffff",

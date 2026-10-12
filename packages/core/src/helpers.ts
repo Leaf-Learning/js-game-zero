@@ -5,25 +5,16 @@
 
 /**
  * A random whole number from `min` to `max`, including both ends:
- * `random_int(1, 6)` rolls a die.
+ * `randomInt(1, 6)` rolls a die.
  */
-export function random_int(min: number, max: number): number {
-  return pickInt(min, max, "random_int");
+export function randomInt(min: number, max: number): number {
+  return pickInt(min, max, "randomInt");
 }
 
-/** A random item from a list: `random_choice(["red", "green", "blue"])`. */
-export function random_choice<T>(items: readonly T[]): T {
-  return pickFrom(items, "random_choice");
+/** A random item from a list: `randomChoice(["red", "green", "blue"])`. */
+export function randomChoice<T>(items: readonly T[]): T {
+  return pickFrom(items, "randomChoice");
 }
-
-/**
- * The helpers under their camelCase spellings, for game files: the same
- * helpers, but their errors name the spelling the game wrote.
- */
-export const camelCaseHelpers = {
-  randomInt: (min: number, max: number) => pickInt(min, max, "randomInt"),
-  randomChoice: <T>(items: readonly T[]) => pickFrom(items, "randomChoice"),
-};
 
 function pickInt(min: number, max: number, name: string): number {
   requireNumber(min, name, "min");

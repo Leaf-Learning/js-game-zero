@@ -8,7 +8,7 @@ Use the arrow keys to move; press space to reset the position.
 - `main.ts` contains host setup: selecting a canvas and calling `run()`.
   The game module can be reused with a different canvas without DOM changes.
 - `onKeyDown(event)` receives a typed event object in scoped import mode.
-  Global examples use named arguments such as `on_key_down(key, repeat)`.
+  Global examples use named arguments such as `onKeyDown(key, repeat)`.
 
 For your own page, bundle `main.ts` with a browser bundler that resolves
 `@js-game-zero/core`, then load the resulting JavaScript as a module beside:

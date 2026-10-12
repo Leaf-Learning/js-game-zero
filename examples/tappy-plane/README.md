@@ -15,7 +15,7 @@ remembered between visits.
   tips), rotation (`plane.angle`), and collision with tapered mountains.
 - Frame-rate independent movement with `update(dt)`, plus simple gravity
   and velocity.
-- Reacting to input with `on_mouse_down()` and `on_key_down(key)`.
+- Reacting to input with `onMouseDown()` and `onKeyDown(key)`.
 - Playing sound effects with `sounds.flap.play()`.
 - Persisting a high score by assigning to `storage` — saving happens
   automatically.

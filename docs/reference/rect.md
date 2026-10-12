@@ -10,7 +10,7 @@ are interchangeable.
 
 ```ts
 new Rect(left: number, top: number, width: number, height: number)
-new Rect(topleft: [number, number], size: [number, number])
+new Rect(topLeft: [number, number], size: [number, number])
 new Rect(other: Rect)
 new Rect([left, top, width, height])
 new Rect({ left, top, width, height })
@@ -43,10 +43,10 @@ property moves the rectangle without changing its size, and setting `width`,
 | `left`, `top`, `width`, `height`                   | The four base fields.             |
 | `x`, `y`, `w`, `h`                                 | Aliases for the same.             |
 | `right`, `bottom`                                  | `left + width`, `top + height`.   |
-| `centerx`, `centery`                               | Center point, one axis at a time. |
-| `topleft`, `topright`, `bottomleft`, `bottomright` | Corners, as `[x, y]`.             |
-| `midtop`, `midleft`, `midright`, `midbottom`       | Edge midpoints, as `[x, y]`.      |
-| `center`                                           | `[centerx, centery]`.             |
+| `centerX`, `centerY`                               | Center point, one axis at a time. |
+| `topLeft`, `topRight`, `bottomLeft`, `bottomRight` | Corners, as `[x, y]`.             |
+| `midTop`, `midLeft`, `midRight`, `midBottom`       | Edge midpoints, as `[x, y]`.      |
+| `center`                                           | `[centerX, centerY]`.             |
 | `size`                                             | `[width, height]`.                |
 
 `Rect` also supports index access (`rect[0]` through `rect[3]` for
@@ -63,9 +63,9 @@ let [left, top, width, height] = hitbox;
 ## Copying and moving
 
 - `copy(): Rect`
-- `move(x, y)` / `move([x, y])` → new `Rect`; `move_ip(...)` moves in place.
+- `move(x, y)` / `move([x, y])` → new `Rect`; `moveIp(...)` moves in place.
 - `inflate(x, y)` / `inflate([x, y])` → new `Rect`, grown by `x`/`y` around
-  its center (negative shrinks); `inflate_ip(...)` mutates in place.
+  its center (negative shrinks); `inflateIp(...)` mutates in place.
 - `normalize()` — flips a negative `width`/`height` so the rectangle has a
   well-defined top-left corner (mutates in place).
 
@@ -74,24 +74,24 @@ let [left, top, width, height] = hitbox;
 Each has a mutating `*_ip` counterpart that applies the result back onto the
 rectangle itself instead of returning a new one:
 
-- `clamp(other)` / `clamp_ip(other)` — moves (without resizing) to fit
+- `clamp(other)` / `clampIp(other)` — moves (without resizing) to fit
   entirely inside `other`, centering on whichever axis doesn't fit.
-- `clip(other)` / `clip_ip(other)` — the overlapping area of this rect and
+- `clip(other)` / `clipIp(other)` — the overlapping area of this rect and
   `other` (zero-sized if they don't overlap).
-- `union(other)` / `union_ip(other)` — the smallest rect containing both.
-- `unionall(others)` / `unionall_ip(others)` — union across an array of
+- `union(other)` / `unionIp(other)` — the smallest rect containing both.
+- `unionAll(others)` / `unionAllIp(others)` — union across an array of
   rect-likes.
 - `fit(other)` — scales (preserving aspect ratio) and centers this rect to
   fit inside `other`.
 
 ```js
 let hitbox = new Rect(300, 60, 40, 40);
-hitbox.clamp_ip(screen.bounds()); // now fully on screen
+hitbox.clampIp(screen.bounds()); // now fully on screen
 ```
 
-`Actor` has its own `clamp_ip`, which moves the actor itself:
-`player.clamp_ip(screen.bounds())` keeps the player on screen. (Calling
-`player.rect().clamp_ip(...)` would only move a copy of the player's
+`Actor` has its own `clampIp`, which moves the actor itself:
+`player.clampIp(screen.bounds())` keeps the player on screen. (Calling
+`player.rect().clampIp(...)` would only move a copy of the player's
 rectangle, not the player.)
 
 ## Collision tests
@@ -104,25 +104,25 @@ bottom edge does not count as colliding. This matches pygame's `Rect`.
   `[x, y]` point (does the rect contain it?) or any rect-like value, such as
   another `Rect` or an `Actor` (do they overlap?).
 - `contains(other): boolean`
-- `collidepoint(point)` / `collidepoint(x, y): boolean`
-- `colliderect(other): boolean`
-- `collidelist(others): number` — index of the first colliding rect-like in
+- `collidePoint(point)` / `collidePoint(x, y): boolean`
+- `collideRect(other): boolean`
+- `collideList(others): number` — index of the first colliding rect-like in
   the array, or `-1`.
-- `collidelistall(others): number[]` — indexes of every colliding entry.
-- `collidedict(dict, useValues = true)` — `dict` is a `Map` or plain object;
+- `collideListAll(others): number[]` — indexes of every colliding entry.
+- `collideDict(dict, useValues = true)` — `dict` is a `Map` or plain object;
   returns the first `[key, value]` entry whose value (or key, if
   `useValues` is `false`) collides with this rect, or `undefined`.
-- `collidedictall(dict, useValues = true)` — same, but returns every
+- `collideDictAll(dict, useValues = true)` — same, but returns every
   matching `[key, value]` entry as an array.
 
 ```js
 let enemies = { goblin: goblinRect, bat: batRect };
-let hit = player.rect().collidedict(enemies);
+let hit = player.rect().collideDict(enemies);
 if (hit) console.log(`hit the ${hit[0]}`);
 ```
 
 ## Standalone helpers
 
 `angleTo(from, to)` and `distanceTo(from, to)` are exported functions (used
-internally by `Actor.angle_to`/`distance_to`) if you need the same math on
+internally by `Actor.angleTo`/`distanceTo`) if you need the same math on
 plain points without an `Actor`.

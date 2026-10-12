@@ -17,7 +17,7 @@ describe("Clock scheduling", () => {
   test("repeats intervals deterministically across large dt jumps", () => {
     const clock = new Clock();
     let count = 0;
-    clock.schedule_interval(() => {
+    clock.scheduleInterval(() => {
       count += 1;
     }, 0.25);
     clock.tick(1.1);
@@ -26,15 +26,14 @@ describe("Clock scheduling", () => {
     expect(count).toBe(5);
   });
 
-  test("scheduleUnique and scheduleInterval aliases delegate to their snake_case canonicals", () => {
+  test("scheduleUnique replaces pending timers, and scheduleInterval repeats until unscheduled", () => {
     const clock = new Clock();
     let count = 0;
     const callback = () => {
       count += 1;
     };
-    // scheduleUnique de-dups exactly like schedule_unique: two already-pending
-    // schedule() calls plus a scheduleUnique() leave only the latest timer, so
-    // the callback fires once (at 0.3s), not three times.
+    // Two already-pending schedule() calls plus a scheduleUnique() leave only
+    // the latest timer, so the callback fires once (at 0.3s), not three times.
     clock.schedule(callback, 0.1);
     clock.schedule(callback, 0.2);
     clock.scheduleUnique(callback, 0.3);
@@ -43,9 +42,9 @@ describe("Clock scheduling", () => {
     clock.tick(0.01);
     expect(count).toBe(1);
 
-    // scheduleInterval repeats on a fixed cadence like schedule_interval, and
-    // the resulting timer is cancelable through unschedule(). A fresh clock
-    // keeps the interval timing independent of the ticks above.
+    // scheduleInterval repeats on a fixed cadence, and the resulting timer is
+    // cancelable through unschedule(). A fresh clock keeps the interval timing
+    // independent of the ticks above.
     const intervalClock = new Clock();
     let intervalCount = 0;
     const interval = () => {
@@ -66,8 +65,8 @@ describe("Clock scheduling", () => {
       calls += 1;
     };
     clock.schedule(callback, 0.1);
-    clock.schedule_interval(callback, 0.1);
-    clock.each_tick(callback);
+    clock.scheduleInterval(callback, 0.1);
+    clock.eachTick(callback);
     clock.unschedule(callback);
     clock.tick(1);
     expect(calls).toBe(0);
@@ -76,7 +75,7 @@ describe("Clock scheduling", () => {
   test("per-tick callbacks receive dt each tick", () => {
     const clock = new Clock();
     const dts: number[] = [];
-    clock.each_tick((dt) => dts.push(dt));
+    clock.eachTick((dt) => dts.push(dt));
     clock.tick(0.16);
     clock.tick(0.34);
     expect(dts).toEqual([0.16, 0.34]);
@@ -100,7 +99,7 @@ describe("Clock scheduling", () => {
       expect(loggedErrors.length).toBe(1);
 
       let intervalCalls = 0;
-      clock.schedule_interval(() => {
+      clock.scheduleInterval(() => {
         intervalCalls += 1;
         if (intervalCalls === 2) throw new Error("interval boom");
       }, 0.1);
@@ -118,7 +117,7 @@ describe("Clock scheduling", () => {
     }
   });
 
-  test("a throwing each_tick callback is logged and auto-unscheduled while others keep running", () => {
+  test("a throwing eachTick callback is logged and auto-unscheduled while others keep running", () => {
     const clock = new Clock();
     const originalConsoleError = console.error;
     const loggedErrors: unknown[][] = [];
@@ -128,11 +127,11 @@ describe("Clock scheduling", () => {
     try {
       let throwingCalls = 0;
       let safeCalls = 0;
-      clock.each_tick(() => {
+      clock.eachTick(() => {
         throwingCalls += 1;
-        throw new Error("each_tick boom");
+        throw new Error("eachTick boom");
       });
-      clock.each_tick(() => {
+      clock.eachTick(() => {
         safeCalls += 1;
       });
       clock.tick(0.1);
@@ -148,7 +147,7 @@ describe("Clock scheduling", () => {
     }
   });
 
-  test("clear removes all scheduled and each_tick callbacks", () => {
+  test("clear removes all scheduled and eachTick callbacks", () => {
     const clock = new Clock();
     let scheduledCalls = 0;
     let intervalCalls = 0;
@@ -156,10 +155,10 @@ describe("Clock scheduling", () => {
     clock.schedule(() => {
       scheduledCalls += 1;
     }, 0.1);
-    clock.schedule_interval(() => {
+    clock.scheduleInterval(() => {
       intervalCalls += 1;
     }, 0.1);
-    clock.each_tick(() => {
+    clock.eachTick(() => {
       tickCalls += 1;
     });
     clock.clear();
@@ -173,7 +172,7 @@ describe("Clock scheduling", () => {
     const clock = new Clock();
     let intervalCalls = 0;
     let laterCalls = 0;
-    clock.schedule_interval(() => {
+    clock.scheduleInterval(() => {
       intervalCalls += 1;
       clock.clear();
     }, 0.1);
@@ -205,8 +204,8 @@ describe("Clock scheduling", () => {
     expect(() => loose.scheduleInterval!(undefined, 1)).toThrow(
       "clock.scheduleInterval needs a function to call later, but got undefined. Give the function's name without brackets: clock.scheduleInterval(spawn, 1), not clock.scheduleInterval(spawn(), 1).",
     );
-    expect(() => loose.schedule_interval!(3, 1)).toThrow(
-      "clock.schedule_interval needs a function to call later, but got 3.",
+    expect(() => loose.scheduleInterval!(3, 1)).toThrow(
+      "clock.scheduleInterval needs a function to call later, but got 3.",
     );
     expect(() => loose.schedule!("spawn", 1)).toThrow(
       'clock.schedule needs a function to call later, but got "spawn".',
@@ -214,7 +213,10 @@ describe("Clock scheduling", () => {
     expect(() => loose.scheduleUnique!(null, 1)).toThrow(
       "clock.scheduleUnique needs a function to call later",
     );
-    expect(() => loose.schedule_unique!(null, 1)).toThrow(TypeError);
+    expect(() => loose.scheduleUnique!(null, 1)).toThrow(TypeError);
+    expect(() => loose.schedule_interval!(() => {}, 1)).toThrow(
+      "clock.schedule_interval doesn't exist. Did you mean clock.scheduleInterval?",
+    );
   });
 
   test("schedule rejects a negative delay with RangeError and a non-finite delay with TypeError", () => {
@@ -232,20 +234,20 @@ describe("Clock scheduling", () => {
     );
   });
 
-  test("schedule_interval rejects a negative interval with RangeError, a non-finite interval with TypeError, and an interval of exactly 0 with a distinct RangeError", () => {
+  test("scheduleInterval rejects a negative interval with RangeError, a non-finite interval with TypeError, and an interval of exactly 0 with a distinct RangeError", () => {
     const clock = new Clock();
-    expect(() => clock.schedule_interval(() => {}, -1)).toThrow(RangeError);
-    expect(() => clock.schedule_interval(() => {}, -1)).toThrow(
+    expect(() => clock.scheduleInterval(() => {}, -1)).toThrow(RangeError);
+    expect(() => clock.scheduleInterval(() => {}, -1)).toThrow(
       /interval must be non-negative/,
     );
-    expect(() => clock.schedule_interval(() => {}, Number.NaN)).toThrow(
+    expect(() => clock.scheduleInterval(() => {}, Number.NaN)).toThrow(
       TypeError,
     );
     expect(() =>
-      clock.schedule_interval(() => {}, Number.POSITIVE_INFINITY),
+      clock.scheduleInterval(() => {}, Number.POSITIVE_INFINITY),
     ).toThrow(TypeError);
-    expect(() => clock.schedule_interval(() => {}, 0)).toThrow(RangeError);
-    expect(() => clock.schedule_interval(() => {}, 0)).toThrow(
+    expect(() => clock.scheduleInterval(() => {}, 0)).toThrow(RangeError);
+    expect(() => clock.scheduleInterval(() => {}, 0)).toThrow(
       /interval must be greater than 0/,
     );
   });

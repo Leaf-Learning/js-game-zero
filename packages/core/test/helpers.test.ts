@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { clamp, random_choice, random_int } from "@js-game-zero/core";
+import { clamp, randomChoice, randomInt } from "@js-game-zero/core";
 
 const realRandom = Math.random;
 
@@ -11,43 +11,43 @@ afterEach(() => {
   Math.random = realRandom;
 });
 
-describe("random_int", () => {
+describe("randomInt", () => {
   test("includes both ends of the range", () => {
     withRandom(0);
-    expect(random_int(1, 6)).toBe(1);
+    expect(randomInt(1, 6)).toBe(1);
     withRandom(0.9999999);
-    expect(random_int(1, 6)).toBe(6);
+    expect(randomInt(1, 6)).toBe(6);
     withRandom(0.5);
-    expect(random_int(-3, 3)).toBe(0);
-    expect(random_int(4, 4)).toBe(4);
+    expect(randomInt(-3, 3)).toBe(0);
+    expect(randomInt(4, 4)).toBe(4);
   });
 
   test("stays within whole numbers inside a fractional range", () => {
     withRandom(0);
-    expect(random_int(0.5, 3.5)).toBe(1);
+    expect(randomInt(0.5, 3.5)).toBe(1);
     withRandom(0.9999999);
-    expect(random_int(0.5, 3.5)).toBe(3);
+    expect(randomInt(0.5, 3.5)).toBe(3);
   });
 
   test("explains a backwards range or a non-number", () => {
-    expect(() => random_int(6, 1)).toThrow("put the smaller number first");
-    expect(() => random_int(1, "6" as never)).toThrow(
-      "random_int's max must be a number",
+    expect(() => randomInt(6, 1)).toThrow("put the smaller number first");
+    expect(() => randomInt(1, "6" as never)).toThrow(
+      "randomInt's max must be a number",
     );
   });
 });
 
-describe("random_choice", () => {
+describe("randomChoice", () => {
   test("picks any item, first to last", () => {
     withRandom(0);
-    expect(random_choice(["red", "green", "blue"])).toBe("red");
+    expect(randomChoice(["red", "green", "blue"])).toBe("red");
     withRandom(0.9999999);
-    expect(random_choice(["red", "green", "blue"])).toBe("blue");
+    expect(randomChoice(["red", "green", "blue"])).toBe("blue");
   });
 
   test("explains an empty list or a non-list", () => {
-    expect(() => random_choice([])).toThrow("at least one item");
-    expect(() => random_choice("abc" as never)).toThrow("needs a list");
+    expect(() => randomChoice([])).toThrow("at least one item");
+    expect(() => randomChoice("abc" as never)).toThrow("needs a list");
   });
 });
 

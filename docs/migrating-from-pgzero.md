@@ -41,32 +41,61 @@ imports" recipe in [the cookbook](cookbook.md#use-explicit-imports-no-globals).
 
 ## API equivalences
 
-Almost everything keeps its Pygame Zero name, including the snake_case
-hook and method names (`on_key_down`, `schedule_interval`, `angle_to`, ...)
-— this project keeps them deliberately rather than renaming to camelCase, so
-a Pygame Zero script's _shape_ is immediately recognizable. Learners who
-guess camelCase aren't stuck, though: every library name also answers to
-its camelCase spelling (`screen.draw.filledCircle`, `actor.angleTo`,
-`rect.collidePoint`, `clock.scheduleInterval`, `onKeyDown`), and the docs
-and examples stick to one style.
+Almost everything keeps its Pygame Zero name, spelled in camelCase the way
+JavaScript names usually are: `on_key_down` is `onKeyDown`,
+`schedule_interval` is `scheduleInterval`, `colliderect` is `collideRect`.
+Constants stay upper case, as in Pygame Zero (`WIDTH`, `keys.SPACE`,
+`keymods.SHIFT`, `mouse.LEFT`). Each name has only its camelCase spelling,
+but a Pygame Zero spelling fails helpfully rather than quietly:
 
-| Pygame Zero                                                                         | js-game-zero                                                            | Notes                                                                                         |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `WIDTH`, `HEIGHT`, `TITLE`                                                          | Same                                                                    | Assign as plain top-level variables.                                                          |
-| `def draw():`                                                                       | `function draw() {}`                                                    | Must take zero parameters in both.                                                            |
-| `def update(dt):`                                                                   | `function update(dt) {}`                                                | `dt` is seconds in both.                                                                      |
-| `def on_key_down(key, mod, unicode):`                                               | Same names; `key`/`mod` are the same kind of numeric constant           | See [`docs/reference/hooks.md`](reference/hooks.md).                                          |
-| `def on_mouse_down(pos, button):`                                                   | Same                                                                    | `pos` is a tuple/array either way.                                                            |
-| `keyboard.left`, `keys.SPACE`, `keymods.SHIFT`, `mouse.LEFT`                        | Same names                                                              | See [`docs/reference/hooks.md`](reference/hooks.md).                                          |
-| `Actor("alien", pos=(0, 0))`                                                        | `new Actor("alien", { pos: [0, 0] })` (or `new Actor("alien", [0, 0])`) | Position keyword or positional argument; see [`docs/reference/actor.md`](reference/actor.md). |
-| `Rect`, `ZRect`                                                                     | Same names, same methods                                                | See "Rect" below.                                                                             |
-| `screen.draw.filled_rect(rect, color)` etc.                                         | Same                                                                    | See [`docs/reference/screen.md`](reference/screen.md).                                        |
-| `clock.schedule`, `schedule_interval`, `schedule_unique`, `unschedule`, `each_tick` | Same                                                                    | See [`docs/reference/clock.md`](reference/clock.md).                                          |
-| `animate(obj, tween='linear', duration=1, x=300)`                                   | `animate(obj, { tween: "linear", duration: 1, x: 300 })`                | Python keyword arguments become one options object — see "Animation" below.                   |
-| `sounds.eep.play()`, `music.play("theme")`                                          | Same                                                                    | See [`docs/reference/audio.md`](reference/audio.md).                                          |
-| `tone.play('A4', 0.2)`                                                              | Same                                                                    | See "Tone" below for the duration cap.                                                        |
-| `storage["score"]`, `storage.get(...)`                                              | Same, plus `storage.score`                                              | See "Storage" below.                                                                          |
-| `images.alien`, `sounds.eep`, `music`                                               | Same                                                                    | See [`docs/reference/loaders.md`](reference/loaders.md).                                      |
+- Reading or setting a member by its Pygame Zero name throws, naming the
+  real one: `actor.angle_to doesn't exist. Did you mean actor.angleTo?`
+- A helper by its Pygame Zero name isn't defined:
+  `random_int is not defined. Did you mean randomInt?`
+- A hook by its Pygame Zero name is never called, so the runtime warns
+  (`on_key_down is never called. Hooks are named in camelCase, so rename it
+to onKeyDown.`) — see [`docs/reference/hooks.md`](reference/hooks.md).
+
+| Pygame Zero                                                                         | js-game-zero                                                                     | Notes                                                                                                   |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `WIDTH`, `HEIGHT`, `TITLE`                                                          | Same                                                                             | Assign as plain top-level variables.                                                                    |
+| `def draw():`                                                                       | `function draw() {}`                                                             | Must take zero parameters in both.                                                                      |
+| `def update(dt):`                                                                   | `function update(dt) {}`                                                         | `dt` is seconds in both.                                                                                |
+| `def on_key_down(key, mod, unicode):`                                               | `function onKeyDown(key, mod, unicode) {}`                                       | `key`/`mod` are the same kind of numeric constant; see [`docs/reference/hooks.md`](reference/hooks.md). |
+| `def on_mouse_down(pos, button):`                                                   | `function onMouseDown(pos, button) {}`                                           | `pos` is a tuple/array either way.                                                                      |
+| `keyboard.left`, `keys.SPACE`, `keymods.SHIFT`, `mouse.LEFT`                        | Same names                                                                       | See [`docs/reference/hooks.md`](reference/hooks.md).                                                    |
+| `Actor("alien", pos=(0, 0))`                                                        | `new Actor("alien", { pos: [0, 0] })` (or `new Actor("alien", [0, 0])`)          | Position keyword or positional argument; see [`docs/reference/actor.md`](reference/actor.md).           |
+| `Rect`, `ZRect`                                                                     | Same names, same methods in camelCase                                            | See "Rect" below.                                                                                       |
+| `screen.draw.filled_rect(rect, color)` etc.                                         | `screen.draw.filledRect(rect, color)` etc.                                       | See [`docs/reference/screen.md`](reference/screen.md).                                                  |
+| `clock.schedule`, `schedule_interval`, `schedule_unique`, `unschedule`, `each_tick` | `clock.schedule`, `scheduleInterval`, `scheduleUnique`, `unschedule`, `eachTick` | See [`docs/reference/clock.md`](reference/clock.md).                                                    |
+| `animate(obj, tween='linear', duration=1, x=300)`                                   | `animate(obj, { tween: "linear", duration: 1, x: 300 })`                         | Python keyword arguments become one options object — see "Animation" below.                             |
+| `sounds.eep.play()`, `music.play("theme")`                                          | Same                                                                             | See [`docs/reference/audio.md`](reference/audio.md).                                                    |
+| `tone.play('A4', 0.2)`                                                              | Same                                                                             | See "Tone" below for the duration cap.                                                                  |
+| `storage["score"]`, `storage.get(...)`                                              | Same, plus `storage.score`                                                       | See "Storage" below.                                                                                    |
+| `images.alien`, `sounds.eep`, `music`                                               | Same                                                                             | See [`docs/reference/loaders.md`](reference/loaders.md).                                                |
+
+### Every renamed name
+
+| Pygame Zero                                                                                                                                                                                     | js-game-zero                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hooks: `on_key_down`, `on_key_up`, `on_mouse_down`, `on_mouse_up`, `on_mouse_move`, `on_music_end`                                                                                              | `onKeyDown`, `onKeyUp`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMusicEnd`                                                                                  |
+| Positions: `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `centerx`, `centery`                                                               | `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `midTop`, `midLeft`, `midRight`, `midBottom`, `centerX`, `centerY`                                           |
+| Collisions: `collidepoint`, `colliderect`, `collidelist`, `collidelistall`, `collidedict`, `collidedictall`                                                                                     | `collidePoint`, `collideRect`, `collideList`, `collideListAll`, `collideDict`, `collideDictAll`                                                                  |
+| Rect changes: `move_ip`, `inflate_ip`, `clamp_ip`, `clip_ip`, `union_ip`, `unionall`, `unionall_ip`                                                                                             | `moveIp`, `inflateIp`, `clampIp`, `clipIp`, `unionIp`, `unionAll`, `unionAllIp`                                                                                  |
+| Actor: `angle_to`, `distance_to`                                                                                                                                                                | `angleTo`, `distanceTo`                                                                                                                                          |
+| Drawing: `screen.draw.filled_circle`, `filled_rect`, `filled_polygon`; the text option `min_fontsize`                                                                                           | `screen.draw.filledCircle`, `filledRect`, `filledPolygon`; `minFontsize`                                                                                         |
+| Images: `get_width()`, `get_height()`, `get_size()`, `get_rect()`                                                                                                                               | `getWidth()`, `getHeight()`, `getSize()`, `getRect()`                                                                                                            |
+| Sounds: `get_length()`, `set_volume()`, `get_volume()`                                                                                                                                          | `getLength()`, `setVolume()`, `getVolume()`                                                                                                                      |
+| Music: `play_once`, `fadeout`, `set_volume`, `get_volume`, `get_pos`, `set_pos`, `is_playing`                                                                                                   | `playOnce`, `fadeOut`, `setVolume`, `getVolume`, `getPos`, `setPos`, `isPlaying`                                                                                 |
+| Clock: `schedule_interval`, `schedule_unique`, `each_tick`                                                                                                                                      | `scheduleInterval`, `scheduleUnique`, `eachTick`                                                                                                                 |
+| Storage: `setdefault`                                                                                                                                                                           | `setDefault`                                                                                                                                                     |
+| Animation: `on_finished`; tweens `accel_decel`, `in_elastic`, `out_elastic`, `in_out_elastic`, `bounce_end`, `bounce_start`, `bounce_start_end`, `end_elastic`, `start_elastic`, `both_elastic` | `onFinished`; `accelDecel`, `inElastic`, `outElastic`, `inOutElastic`, `bounceEnd`, `bounceStart`, `bounceStartEnd`, `endElastic`, `startElastic`, `bothElastic` |
+
+Pygame Zero names that are one word, or run words together with no
+camelCase spelling, keep their spelling: `blit`, `unschedule`, `unpause`,
+`rewind`, `textbox`, and the text options `fontname`, `sysfontname`,
+`fontsize`, `lineheight`, `widthem`, `owidth`, `ocolor`, `scolor` and
+`gcolor`.
 
 ## Where behavior genuinely differs
 
@@ -76,9 +105,9 @@ project's source, not assumptions from the Python API's shape.
 - **Animation calls take one options object, not keyword arguments.**
   JavaScript has no equivalent of Python's `**kwargs`, so
   `animate(ship, angle=90, tween='bounce_end')` becomes
-  `animate(ship, { angle: 90, tween: "bounce_end" })` — every Pygame Zero
-  tween name and the animation semantics are otherwise the same 13 curves
-  (plus friendlier aliases such as `ease_out` and `bounce`). See
+  `animate(ship, { angle: 90, tween: "bounceEnd" })` — the tweens are
+  otherwise Pygame Zero's same 13 curves, in camelCase (plus friendlier
+  names such as `easeOut` and `bounce`). See
   [`docs/reference/clock.md#animation`](reference/clock.md#animation).
 - **Generated tones are capped at 4 seconds.** `tone.play(note, duration)`
   throws a `RangeError` if `duration` is greater than `4` (or not greater
@@ -122,7 +151,7 @@ project's source, not assumptions from the Python API's shape.
   one-to-one with its closest Python equivalent.
 - **Hook arguments are matched by JavaScript parameter name, via source
   inspection — not Python's `inspect.signature`.** The effect is the same
-  (`function on_key_down(mod, key) {}` gets `mod` and `key` correctly, in
+  (`function onKeyDown(mod, key) {}` gets `mod` and `key` correctly, in
   whatever order you declare them, exactly like Pygame Zero), but the
   mechanism is a lightweight parse of your function's own source text rather
   than true runtime reflection. Ordinary parameter lists work exactly as
@@ -132,14 +161,14 @@ project's source, not assumptions from the Python API's shape.
 
 ## Friendlier names you'll see in this project's examples
 
-Every Pygame Zero name above still works. The tutorial and examples also use
-a few additions that read more easily for beginners:
+The tutorial and examples also use a few additions that read more easily
+for beginners:
 
-| Pygame Zero                                                                        | Also available                                                       |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `actor.colliderect(other)`, `actor.collidepoint(pos)`                              | `actor.touches(other_or_pos)`                                        |
-| `screen.blit(image, pos)`                                                          | `screen.draw.image(image, pos)`                                      |
-| `screen.draw.text(..., fontsize=24, owidth=1, ocolor=..., scolor=..., gcolor=...)` | `size`, `outline`, `outline_color`, `shadow_color`, `gradient_color` |
-| `screen.draw.text("Hi", None, center=(x, y))`                                      | `screen.draw.text("Hi", { center: [x, y] })`                         |
-| `sound.play(-1)`                                                                   | `sound.loop()`                                                       |
-| `music.get_pos()` (ms) / `music.set_pos(seconds)`                                  | `music.position` (seconds, read and write)                           |
+| Pygame Zero's form, in js-game-zero                                         | Also available                                                    |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `actor.collideRect(other)`, `actor.collidePoint(pos)`                       | `actor.touches(otherOrPos)`                                       |
+| `screen.blit(image, pos)`                                                   | `screen.draw.image(image, pos)`                                   |
+| `screen.draw.text(text, pos, { fontsize, owidth, ocolor, scolor, gcolor })` | `size`, `outline`, `outlineColor`, `shadowColor`, `gradientColor` |
+| `screen.draw.text("Hi", undefined, { center: [x, y] })`                     | `screen.draw.text("Hi", { center: [x, y] })`                      |
+| `sound.play(-1)`                                                            | `sound.loop()`                                                    |
+| `music.getPos()` (ms) / `music.setPos(seconds)`                             | `music.position` (seconds, read and write)                        |

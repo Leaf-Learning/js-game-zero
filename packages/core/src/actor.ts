@@ -1,6 +1,6 @@
 import { images, type AssetLoader, type SurfaceLike } from "./assets";
 import { getActiveClock, type Clock } from "./clock";
-import { addCamelCaseAliases } from "./friendly-names";
+import { guardSpellings } from "./friendly-names";
 import {
   angleTo,
   distanceTo,
@@ -34,14 +34,14 @@ export type VerticalActorAnchor = "top" | "center" | "middle" | "bottom";
 
 export type ActorPositionKey =
   | "pos"
-  | "topleft"
-  | "topright"
-  | "bottomleft"
-  | "bottomright"
-  | "midtop"
-  | "midleft"
-  | "midright"
-  | "midbottom"
+  | "topLeft"
+  | "topRight"
+  | "bottomLeft"
+  | "bottomRight"
+  | "midTop"
+  | "midLeft"
+  | "midRight"
+  | "midBottom"
   | "center";
 
 export type ActorOptions = Partial<Record<ActorPositionKey, Point>> & {
@@ -109,19 +109,19 @@ class SizedSurface implements SurfaceLike {
     return this.inner.source;
   }
 
-  get_width(): number {
+  getWidth(): number {
     return this.width;
   }
 
-  get_height(): number {
+  getHeight(): number {
     return this.height;
   }
 
-  get_size(): Point {
+  getSize(): Point {
     return [this.width, this.height];
   }
 
-  get_rect(): Rect {
+  getRect(): Rect {
     return new Rect(0, 0, this.width, this.height);
   }
 }
@@ -139,7 +139,7 @@ export class Actor {
   private _angle = 0;
   private _opacity = 1;
   private _scale = 1;
-  /** The native image, before inflate_ip/normalize wrap the hitbox size. */
+  /** The native image, before inflateIp/normalize wrap the hitbox size. */
   private _native: SurfaceLike | null = null;
   private sizeSource: ActorSizeSource = { key: "scale", value: 1 };
   private positionSource: ActorPositionSource;
@@ -348,7 +348,7 @@ export class Actor {
   /**
    * Size multiplier applied when drawing: `2` doubles the sprite, `0.5`
    * halves it. The hitbox and every position property follow the drawn
-   * size, and the anchored position (a `midbottom` on the floor) stays put.
+   * size, and the anchored position (a `midBottom` on the floor) stays put.
    */
   get scale(): number {
     return this._scale;
@@ -379,68 +379,68 @@ export class Actor {
     this.applySizeSource();
   }
 
-  get topleft(): Point {
-    return this.rect().topleft;
+  get topLeft(): Point {
+    return this.rect().topLeft;
   }
 
-  set topleft(value: Point) {
-    this.setRectPosition("topleft", value);
+  set topLeft(value: Point) {
+    this.setRectPosition("topLeft", value);
   }
 
-  get topright(): Point {
-    return this.rect().topright;
+  get topRight(): Point {
+    return this.rect().topRight;
   }
 
-  set topright(value: Point) {
-    this.setRectPosition("topright", value);
+  set topRight(value: Point) {
+    this.setRectPosition("topRight", value);
   }
 
-  get bottomleft(): Point {
-    return this.rect().bottomleft;
+  get bottomLeft(): Point {
+    return this.rect().bottomLeft;
   }
 
-  set bottomleft(value: Point) {
-    this.setRectPosition("bottomleft", value);
+  set bottomLeft(value: Point) {
+    this.setRectPosition("bottomLeft", value);
   }
 
-  get bottomright(): Point {
-    return this.rect().bottomright;
+  get bottomRight(): Point {
+    return this.rect().bottomRight;
   }
 
-  set bottomright(value: Point) {
-    this.setRectPosition("bottomright", value);
+  set bottomRight(value: Point) {
+    this.setRectPosition("bottomRight", value);
   }
 
-  get midtop(): Point {
-    return this.rect().midtop;
+  get midTop(): Point {
+    return this.rect().midTop;
   }
 
-  set midtop(value: Point) {
-    this.setRectPosition("midtop", value);
+  set midTop(value: Point) {
+    this.setRectPosition("midTop", value);
   }
 
-  get midleft(): Point {
-    return this.rect().midleft;
+  get midLeft(): Point {
+    return this.rect().midLeft;
   }
 
-  set midleft(value: Point) {
-    this.setRectPosition("midleft", value);
+  set midLeft(value: Point) {
+    this.setRectPosition("midLeft", value);
   }
 
-  get midright(): Point {
-    return this.rect().midright;
+  get midRight(): Point {
+    return this.rect().midRight;
   }
 
-  set midright(value: Point) {
-    this.setRectPosition("midright", value);
+  set midRight(value: Point) {
+    this.setRectPosition("midRight", value);
   }
 
-  get midbottom(): Point {
-    return this.rect().midbottom;
+  get midBottom(): Point {
+    return this.rect().midBottom;
   }
 
-  set midbottom(value: Point) {
-    this.setRectPosition("midbottom", value);
+  set midBottom(value: Point) {
+    this.setRectPosition("midBottom", value);
   }
 
   get center(): Point {
@@ -504,10 +504,10 @@ export class Actor {
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
     const corners = [
-      base.topleft,
-      base.topright,
-      base.bottomright,
-      base.bottomleft,
+      base.topLeft,
+      base.topRight,
+      base.bottomRight,
+      base.bottomLeft,
     ].map(([x, y]) => {
       const dx = x - this.x;
       const dy = y - this.y;
@@ -543,26 +543,26 @@ export class Actor {
         this._surface.source as CanvasImageSource,
         -anchorX,
         -anchorY,
-        native.get_width() * this._scale,
-        native.get_height() * this._scale,
+        native.getWidth() * this._scale,
+        native.getHeight() * this._scale,
       );
     } finally {
       target.context.restore();
     }
   }
 
-  unload_image(): void {
+  unloadImage(): void {
     this.loader.unload(this.image);
     this._surface = null;
     this._native = null;
     this.imageLoadPromise = null;
   }
 
-  angle_to(target: Actor | Point): number {
+  angleTo(target: Actor | Point): number {
     return angleTo(this.pos, actorTargetPoint(target));
   }
 
-  distance_to(target: Actor | Point): number {
+  distanceTo(target: Actor | Point): number {
     return distanceTo(this.pos, actorTargetPoint(target));
   }
 
@@ -577,12 +577,12 @@ export class Actor {
     return this.rect().move(xOrOffset, y as number);
   }
 
-  move_ip(x: number, y: number): void;
-  move_ip(offset: Point): void;
-  move_ip(xOrOffset: number | Point, y?: number): void {
+  moveIp(x: number, y: number): void;
+  moveIp(offset: Point): void;
+  moveIp(xOrOffset: number | Point, y?: number): void {
     const rect = this.baseRect();
-    if (Array.isArray(xOrOffset)) rect.move_ip(xOrOffset);
-    else rect.move_ip(xOrOffset, y as number);
+    if (Array.isArray(xOrOffset)) rect.moveIp(xOrOffset);
+    else rect.moveIp(xOrOffset, y as number);
     this.setPosFromBaseRect(rect);
   }
 
@@ -593,12 +593,12 @@ export class Actor {
     return this.rect().inflate(xOrSize, y as number);
   }
 
-  inflate_ip(x: number, y: number): void;
-  inflate_ip(size: Point): void;
-  inflate_ip(xOrSize: number | Point, y?: number): void {
+  inflateIp(x: number, y: number): void;
+  inflateIp(size: Point): void;
+  inflateIp(xOrSize: number | Point, y?: number): void {
     const rect = this.baseRect();
-    if (Array.isArray(xOrSize)) rect.inflate_ip(xOrSize);
-    else rect.inflate_ip(xOrSize, y as number);
+    if (Array.isArray(xOrSize)) rect.inflateIp(xOrSize);
+    else rect.inflateIp(xOrSize, y as number);
     this.applyBaseRectGeometry(rect);
   }
 
@@ -614,9 +614,9 @@ export class Actor {
 
   /**
    * Moves the actor (without resizing it) so its bounding box fits inside
-   * `other` — `player.clamp_ip(screen.bounds())` keeps it on screen.
+   * `other` — `player.clampIp(screen.bounds())` keeps it on screen.
    */
-  clamp_ip(other: RectLike): void {
+  clampIp(other: RectLike): void {
     const current = this.rect();
     const clamped = current.clamp(other);
     const [x, y] = this.pos;
@@ -631,19 +631,19 @@ export class Actor {
     return this.rect().union(other);
   }
 
-  unionall(others: RectLike[]): Rect {
-    return this.rect().unionall(others);
+  unionAll(others: RectLike[]): Rect {
+    return this.rect().unionAll(others);
   }
 
   fit(other: RectLike): Rect {
     return this.rect().fit(other);
   }
 
-  collidepoint(point: Point): boolean;
-  collidepoint(x: number, y: number): boolean;
-  collidepoint(pointOrX: Point | number, y?: number): boolean {
-    if (Array.isArray(pointOrX)) return this.rect().collidepoint(pointOrX);
-    return this.rect().collidepoint(pointOrX, y as number);
+  collidePoint(point: Point): boolean;
+  collidePoint(x: number, y: number): boolean;
+  collidePoint(pointOrX: Point | number, y?: number): boolean {
+    if (Array.isArray(pointOrX)) return this.rect().collidePoint(pointOrX);
+    return this.rect().collidePoint(pointOrX, y as number);
   }
 
   /**
@@ -654,16 +654,16 @@ export class Actor {
     return this.rect().touches(target);
   }
 
-  colliderect(other: RectLike): boolean {
-    return this.rect().colliderect(other);
+  collideRect(other: RectLike): boolean {
+    return this.rect().collideRect(other);
   }
 
-  collidelist(others: RectLike[]): number {
-    return this.rect().collidelist(others);
+  collideList(others: RectLike[]): number {
+    return this.rect().collideList(others);
   }
 
-  collidelistall(others: RectLike[]): number[] {
-    return this.rect().collidelistall(others);
+  collideListAll(others: RectLike[]): number[] {
+    return this.rect().collideListAll(others);
   }
 
   contains(other: RectLike): boolean {
@@ -681,11 +681,11 @@ export class Actor {
   }
 
   private surfaceWidth(): number {
-    return (this._surface?.get_width() ?? 0) * this._scale;
+    return (this._surface?.getWidth() ?? 0) * this._scale;
   }
 
   private surfaceHeight(): number {
-    return (this._surface?.get_height() ?? 0) * this._scale;
+    return (this._surface?.getHeight() ?? 0) * this._scale;
   }
 
   private adoptSurface(surface: SurfaceLike): void {
@@ -702,7 +702,7 @@ export class Actor {
     const { key, value } = this.sizeSource;
     if (key === "scale") this._scale = value;
     else if (native) {
-      const basis = key === "width" ? native.get_width() : native.get_height();
+      const basis = key === "width" ? native.getWidth() : native.getHeight();
       this._scale = basis > 0 ? value / basis : 1;
     }
     this.applyPositionSource();
@@ -779,7 +779,7 @@ function resolvePositionSource(
   if (source) {
     return { key: source, value: requirePoint(options[source], source) };
   }
-  return { key: "topleft", value: [0, 0] };
+  return { key: "topLeft", value: [0, 0] };
 }
 
 function resolveSizeSource(options: ActorOptions): ActorSizeSource {
@@ -839,4 +839,4 @@ function actorTargetPoint(target: Actor | Point): Point {
   return target instanceof Actor ? target.pos : requirePoint(target, "target");
 }
 
-addCamelCaseAliases(Actor.prototype);
+guardSpellings(Actor.prototype, "actor");

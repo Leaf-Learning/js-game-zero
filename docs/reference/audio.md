@@ -4,7 +4,7 @@ Browsers block audio from playing until the page has seen a user gesture
 (a click or key press). Every audio API below works fine technically before
 that gesture, but nothing will actually be _audible_ until the player has
 interacted with the page at least once — trigger your first sound from an
-`on_mouse_down` or `on_key_down` handler, not from top-level code or the
+`onMouseDown` or `onKeyDown` handler, not from top-level code or the
 first `draw()` frame.
 
 ## Sound effects: `sounds`
@@ -13,7 +13,7 @@ first `draw()` frame.
 [`docs/reference/loaders.md`](loaders.md)) the first time you touch it.
 
 ```js
-function on_mouse_down() {
+function onMouseDown() {
   sounds.tap.play();
 }
 ```
@@ -44,11 +44,11 @@ sounds.engine.stop();
 
 Stops every currently-overlapping playback of this sound.
 
-### `.get_length()`
+### `.getLength()`
 
 Duration in seconds (`0` if not yet known).
 
-### `.set_volume(volume)` / `.get_volume()`
+### `.setVolume(volume)` / `.getVolume()`
 
 Per-sound volume, `0`–`1`.
 
@@ -61,28 +61,23 @@ track always stops whatever was playing.
 music.play("theme.ogg"); // loops forever
 ```
 
-| Method                                            | Behavior                                                                                                                                 |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `music.play(name)`                                | Stops the current track, plays `name` on a loop.                                                                                         |
-| `music.play_once(name)`                           | Stops the current track, plays `name` once.                                                                                              |
-| `music.queue(name)`                               | Appends `name` to the queue; starts immediately (as a one-shot) if nothing is currently playing. Queued tracks play in order, each once. |
-| `music.stop()`                                    | Stops playback and clears the queue.                                                                                                     |
-| `music.pause()` / `music.unpause()`               | Pause and resume without losing position.                                                                                                |
-| `music.rewind()`                                  | Restarts the current track from the beginning without stopping it.                                                                       |
-| `music.fadeout(seconds)`                          | Fades the volume to zero over `seconds`, then stops. `0` stops immediately.                                                              |
-| `music.set_volume(volume)` / `music.get_volume()` | `0`–`1`.                                                                                                                                 |
-| `music.position`                                  | Seconds into the current track (`0` if nothing is loaded). Set it to jump: `music.position = 30`.                                        |
-| `music.get_pos()`                                 | **Milliseconds** the current track has been playing, or `-1` if nothing is loaded (Pygame's unit).                                       |
-| `music.set_pos(seconds)`                          | Seeks the current track to a position, in **seconds**. To save and restore a spot, use `music.position` for both.                        |
-| `music.is_playing()`                              | `true` if a track is currently playing and not paused.                                                                                   |
+| Method                                          | Behavior                                                                                                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `music.play(name)`                              | Stops the current track, plays `name` on a loop.                                                                                         |
+| `music.playOnce(name)`                          | Stops the current track, plays `name` once.                                                                                              |
+| `music.queue(name)`                             | Appends `name` to the queue; starts immediately (as a one-shot) if nothing is currently playing. Queued tracks play in order, each once. |
+| `music.stop()`                                  | Stops playback and clears the queue.                                                                                                     |
+| `music.pause()` / `music.unpause()`             | Pause and resume without losing position.                                                                                                |
+| `music.rewind()`                                | Restarts the current track from the beginning without stopping it.                                                                       |
+| `music.fadeOut(seconds)`                        | Fades the volume to zero over `seconds`, then stops. `0` stops immediately.                                                              |
+| `music.setVolume(volume)` / `music.getVolume()` | `0`–`1`.                                                                                                                                 |
+| `music.position`                                | Seconds into the current track (`0` if nothing is loaded). Set it to jump: `music.position = 30`.                                        |
+| `music.getPos()`                                | **Milliseconds** the current track has been playing, or `-1` if nothing is loaded (Pygame's unit).                                       |
+| `music.setPos(seconds)`                         | Seeks the current track to a position, in **seconds**. To save and restore a spot, use `music.position` for both.                        |
+| `music.isPlaying()`                             | `true` if a track is currently playing and not paused.                                                                                   |
 
-Several `music` methods also offer a camelCase alias for JS ergonomics —
-`music.playOnce`, `music.getPos`, `music.setPos`, and `music.isPlaying`
-behave identically to `play_once`, `get_pos`, `set_pos`, and `is_playing`.
-
-`on_music_end()` (or `music.set_on_music_end(callback)`, camelCase alias
-`music.setOnMusicEnd(callback)`) fires once the queue is exhausted and
-nothing is left to play.
+`onMusicEnd()` (or a callback given to `music.setOnMusicEnd(callback)`)
+fires once the queue is exhausted and nothing is left to play.
 
 ## Generated tones: `tone`
 
@@ -90,7 +85,7 @@ nothing is left to play.
 needed, useful for quick feedback sounds (menu blips, jumps, coin pickups).
 
 ```js
-function on_mouse_down() {
+function onMouseDown() {
   tone.play("A4", 0.2);
 }
 ```
@@ -120,14 +115,14 @@ on the result whenever you want to trigger it, optionally overriding
 ```js
 const jumpTone = tone.create("E5", 0.12, { waveform: "square" });
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (key === keys.SPACE) jumpTone.play();
 }
 ```
 
-### `tone.is_unlocked()`
+### `tone.isUnlocked()`
 
 Returns whether the browser has granted audio playback yet — it flips to
 `true` the first time a sound or tone actually plays after a user gesture.
 This unlock state is shared across `sounds` and `tone`, so a single tap
-un-gates both. `tone.isUnlocked()` is a camelCase alias of `is_unlocked`.
+un-gates both.

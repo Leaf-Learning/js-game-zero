@@ -57,10 +57,10 @@ describe("combined touch and keyboard input", () => {
   test("multiple fingers and the physical keyboard share key ownership and transition hooks", () => {
     const transitions: Array<[string, unknown, boolean]> = [];
     const input = new InputDispatcher({
-      on_key_down(key) {
+      onKeyDown(key) {
         transitions.push(["down", key, input.keyboard.space as boolean]);
       },
-      on_key_up(key) {
+      onKeyUp(key) {
         transitions.push(["up", key, input.keyboard.space as boolean]);
       },
     });

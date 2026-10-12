@@ -66,14 +66,14 @@ TITLE = "Comet Catcher";
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
-  screen.draw.filled_circle([240, 300], 18, "#38bdf8");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledCircle([240, 300], 18, "#38bdf8");
 }
 ```
 
 `screen.fill(color, gcolor)` with two colors draws a top-to-bottom gradient
-instead of a flat fill. `screen.draw.filled_rect([left, top, width,
-height], color)` and `screen.draw.filled_circle([x, y], radius, color)` are
+instead of a flat fill. `screen.draw.filledRect([left, top, width,
+height], color)` and `screen.draw.filledCircle([x, y], radius, color)` are
 two of several drawing primitives — `docs/reference/screen.md` covers the
 rest (lines, outlined shapes, polygons, text).
 
@@ -89,16 +89,16 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   player.draw();
 }
 ```
 
-`new Actor("player.svg", { midbottom: [240, 350] })` loads the image named
+`new Actor("player.svg", { midBottom: [240, 350] })` loads the image named
 `player.svg` and positions it so its bottom-center point sits at `[240,
 350]` — standing on the ground strip. Full positioning and property details
 are in `docs/reference/actor.md`.
@@ -118,17 +118,17 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 }
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   player.draw();
 }
 ```
@@ -138,9 +138,9 @@ of seconds since the last frame — multiplying a speed (pixels per second)
 by `dt` gives you frame-rate-independent movement, so the player moves at
 the same speed whether the game is running at 30fps or 144fps.
 `keyboard.left` and `keyboard.right` are `true` while those arrow keys are
-held down. `player.clamp_ip(screen.bounds())` keeps the player from sliding
+held down. `player.clampIp(screen.bounds())` keeps the player from sliding
 off either edge of the window: `screen.bounds()` is a rectangle covering the
-whole game, and `clamp_ip` moves the player back inside it.
+whole game, and `clampIp` moves the player back inside it.
 
 Press Play, then **click the game canvas once** before pressing the arrow
 keys — the sandbox (like any web page with an embedded frame) only sends
@@ -159,21 +159,21 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 let comets = [];
 
 function spawnComet(x) {
   comets.push({ x, y: -20, radius: 14 });
 }
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   spawnComet(pos[0]);
 }
 
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 
   for (const comet of comets) {
     comet.y += 140 * dt;
@@ -182,17 +182,17 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   for (const comet of comets) {
-    screen.draw.filled_circle([comet.x, comet.y], comet.radius, "#facc15");
+    screen.draw.filledCircle([comet.x, comet.y], comet.radius, "#facc15");
   }
   player.draw();
 }
 ```
 
-`on_mouse_down(pos)` fires whenever the canvas is clicked; `pos` is the
+`onMouseDown(pos)` fires whenever the canvas is clicked; `pos` is the
 `[x, y]` click position in canvas pixels. Click anywhere and watch a yellow
-comet fall from that x position. (`on_mouse_down` also receives a second
+comet fall from that x position. (`onMouseDown` also receives a second
 parameter, `button`, if you want to tell left/right/middle clicks apart —
 see `docs/reference/hooks.md`.)
 
@@ -206,7 +206,7 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 let comets = [];
 let score = 0;
 
@@ -214,14 +214,14 @@ function spawnComet(x) {
   comets.push({ x, y: -20, radius: 14 });
 }
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   spawnComet(pos[0]);
 }
 
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -238,9 +238,9 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   for (const comet of comets) {
-    screen.draw.filled_circle([comet.x, comet.y], comet.radius, "#facc15");
+    screen.draw.filledCircle([comet.x, comet.y], comet.radius, "#facc15");
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
@@ -268,7 +268,7 @@ key press instead of at startup, or it may play silently.
 ## 8. Schedule comets with the clock
 
 Clicking to spawn every comet works, but a real game should keep the
-pressure on by itself. `clock.schedule_interval` calls a function
+pressure on by itself. `clock.scheduleInterval` calls a function
 repeatedly, on a timer:
 
 ```js
@@ -276,7 +276,7 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 let comets = [];
 let score = 0;
 
@@ -285,19 +285,19 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(random_int(24, WIDTH - 24));
+  spawnComet(randomInt(24, WIDTH - 24));
 }
 
-clock.schedule_interval(spawnRandomComet, 1.1);
+clock.scheduleInterval(spawnRandomComet, 1.1);
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   spawnComet(pos[0]);
 }
 
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -314,9 +314,9 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   for (const comet of comets) {
-    screen.draw.filled_circle([comet.x, comet.y], comet.radius, "#facc15");
+    screen.draw.filledCircle([comet.x, comet.y], comet.radius, "#facc15");
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
@@ -326,10 +326,10 @@ function draw() {
 }
 ```
 
-`clock.schedule_interval(spawnRandomComet, 1.1)` is called once, at the top
+`clock.scheduleInterval(spawnRandomComet, 1.1)` is called once, at the top
 of the file — it doesn't need to be inside `update()`. From then on, a new
 comet appears at a random x position roughly every 1.1 seconds, on top of
-whatever you spawn by clicking. `random_int(24, WIDTH - 24)` picks a random
+whatever you spawn by clicking. `randomInt(24, WIDTH - 24)` picks a random
 whole number from 24 to `WIDTH - 24`, including both ends, so comets never
 start half off the screen.
 
@@ -344,7 +344,7 @@ WIDTH = 480;
 HEIGHT = 360;
 TITLE = "Comet Catcher";
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 let comets = [];
 let score = 0;
 let highScore = storage.get("highScore") ?? 0;
@@ -354,19 +354,19 @@ function spawnComet(x) {
 }
 
 function spawnRandomComet() {
-  spawnComet(random_int(24, WIDTH - 24));
+  spawnComet(randomInt(24, WIDTH - 24));
 }
 
-clock.schedule_interval(spawnRandomComet, 1.1);
+clock.scheduleInterval(spawnRandomComet, 1.1);
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   spawnComet(pos[0]);
 }
 
 function update(dt) {
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -387,9 +387,9 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   for (const comet of comets) {
-    screen.draw.filled_circle([comet.x, comet.y], comet.radius, "#facc15");
+    screen.draw.filledCircle([comet.x, comet.y], comet.radius, "#facc15");
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
@@ -423,7 +423,7 @@ TITLE = "Comet Catcher";
 const WIN_SCORE = 8;
 const START_LIVES = 3;
 
-let player = new Actor("player.svg", { midbottom: [240, 350] });
+let player = new Actor("player.svg", { midBottom: [240, 350] });
 let comets = [];
 let score = 0;
 let lives = START_LIVES;
@@ -437,10 +437,10 @@ function spawnComet(x) {
 
 function spawnRandomComet() {
   if (over) return;
-  spawnComet(random_int(24, WIDTH - 24));
+  spawnComet(randomInt(24, WIDTH - 24));
 }
 
-clock.schedule_interval(spawnRandomComet, 1.1);
+clock.scheduleInterval(spawnRandomComet, 1.1);
 
 function endGame(playerWon) {
   over = true;
@@ -459,7 +459,7 @@ function resetGame() {
   won = false;
 }
 
-function on_mouse_down(pos) {
+function onMouseDown(pos) {
   if (over) {
     resetGame();
     return;
@@ -472,7 +472,7 @@ function update(dt) {
 
   if (keyboard.left) player.x -= 220 * dt;
   if (keyboard.right) player.x += 220 * dt;
-  player.clamp_ip(screen.bounds());
+  player.clampIp(screen.bounds());
 
   const remaining = [];
   for (const comet of comets) {
@@ -494,9 +494,9 @@ function update(dt) {
 
 function draw() {
   screen.fill("#0b1220", "#132a43");
-  screen.draw.filled_rect([0, 330, WIDTH, 30], "#1e293b");
+  screen.draw.filledRect([0, 330, WIDTH, 30], "#1e293b");
   for (const comet of comets) {
-    screen.draw.filled_circle([comet.x, comet.y], comet.radius, "#facc15");
+    screen.draw.filledCircle([comet.x, comet.y], comet.radius, "#facc15");
   }
   player.draw();
   screen.draw.text(`Score: ${score}`, [16, 16], {
@@ -536,7 +536,7 @@ What changed:
 - While `over` is `true`, `update()` returns immediately (nothing keeps
   moving) and `spawnRandomComet` refuses to add more comets, so the scene
   holds still.
-- `on_mouse_down` now does double duty: normally it spawns a comet, but
+- `onMouseDown` now does double duty: normally it spawns a comet, but
   once the game is over the very next click calls `resetGame()` instead,
   putting everything back to the start.
 

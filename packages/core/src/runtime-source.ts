@@ -4,9 +4,9 @@ import type { AssetLoaders } from "./assets";
 import { createBrowserSoundAsset, type MusicPlayer } from "./audio";
 import { Clock } from "./clock";
 import { rgb } from "./color";
-import { friendlyService } from "./friendly-names";
+import { friendlyService, guardedMember } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
-import { camelCaseHelpers, clamp, random_choice, random_int } from "./helpers";
+import { clamp, randomChoice, randomInt } from "./helpers";
 import {
   createLiveMouse,
   KeyboardState,
@@ -24,7 +24,7 @@ import type { GameModule, RuntimeDiagnostic } from "./runtime-contracts";
 import { scanSource, tokenizeSource } from "./source-scan";
 import { Storage } from "./storage";
 import type { ToneGenerator } from "./tone";
-import { didYouMean } from "./util";
+import { didYouMean, looseName } from "./util";
 
 export type SourceEvaluationContext = {
   readonly screen: Screen;
@@ -76,11 +76,11 @@ const builtinGlobals: Record<string, unknown> = {
 const drawMethods = [
   "line",
   "circle",
-  "filled_circle",
+  "filledCircle",
   "polygon",
-  "filled_polygon",
+  "filledPolygon",
   "rect",
-  "filled_rect",
+  "filledRect",
   "text",
   "textbox",
   "image",
@@ -89,25 +89,25 @@ const drawMethods = [
 /**
  * Where guesses at drawing methods belong: `screen.drawRect`,
  * `screen.polygon` and `screen.draw.fillRect` all point at the real
- * `screen.draw` method. (Bare `screen.circle`, `screen.rect`,
- * `screen.line` and `screen.text` are real short forms, so their entries
- * never fire.) There
- * is no `screen.draw.triangle`, so it points at the short form.
+ * `screen.draw` method. (`screen.circle`, `screen.rect`, `screen.line` and
+ * `screen.text` are real short forms, so another spelling of one, such as
+ * `screen.Circle`, points at the short form instead.) There is no
+ * `screen.draw.triangle`, so it points at the short form.
  */
 const screenHints: Record<string, string> = Object.fromEntries([
   ...drawMethods.flatMap((name) => {
-    const loose = name.replaceAll("_", "");
+    const loose = looseName(name);
     return [
       [`draw${loose}`, `screen.draw.${name}`],
       [loose, `screen.draw.${name}`],
     ];
   }),
-  ["fillrect", "screen.draw.filled_rect"],
-  ["fillcircle", "screen.draw.filled_circle"],
-  ["fillpolygon", "screen.draw.filled_polygon"],
+  ["fillrect", "screen.draw.filledRect"],
+  ["fillcircle", "screen.draw.filledCircle"],
+  ["fillpolygon", "screen.draw.filledPolygon"],
   ["rectangle", "screen.draw.rect"],
-  ["filledrectangle", "screen.draw.filled_rect"],
-  ["fillrectangle", "screen.draw.filled_rect"],
+  ["filledrectangle", "screen.draw.filledRect"],
+  ["fillrectangle", "screen.draw.filledRect"],
   ["drawrectangle", "screen.draw.rect"],
   ["triangle", "screen.triangle"],
   ["filledtriangle", "screen.triangle"],
@@ -133,8 +133,9 @@ function pointToService<T extends object>(
         !(property in target) &&
         property in service
       ) {
+        const member = guardedMember(service, property) ?? property;
         throw new TypeError(
-          `${className}.${property} doesn't exist. Did you mean ${serviceName}.${property}?`,
+          `${className}.${property} doesn't exist. Did you mean ${serviceName}.${member}?`,
         );
       }
       return Reflect.get(target, property, receiver) as unknown;
@@ -162,7 +163,7 @@ const unavailableGlobalHints: Record<string, string> = {
   setTimeout:
     "Use clock.schedule(callback, seconds) instead. It takes seconds, not milliseconds, and pauses with the game.",
   setInterval:
-    "Use clock.schedule_interval(callback, seconds) instead. It takes seconds, not milliseconds, and pauses with the game.",
+    "Use clock.scheduleInterval(callback, seconds) instead. It takes seconds, not milliseconds, and pauses with the game.",
   clearTimeout:
     "Use clock.unschedule(callback) to cancel something scheduled with clock.",
   clearInterval:
@@ -172,13 +173,13 @@ const unavailableGlobalHints: Record<string, string> = {
   alert:
     "Show a message with screen.draw.text() inside draw(), or print it with console.log().",
   confirm:
-    "Show a question with screen.draw.text() and read the answer in on_key_down() or on_mouse_down().",
+    "Show a question with screen.draw.text() and read the answer in onKeyDown() or onMouseDown().",
   prompt:
-    "Show a question with screen.draw.text() and read the answer in on_key_down() or on_mouse_down().",
+    "Show a question with screen.draw.text() and read the answer in onKeyDown() or onMouseDown().",
   window:
-    "Games draw on their canvas with screen, and read input with keyboard and hooks like on_key_down().",
+    "Games draw on their canvas with screen, and read input with keyboard and hooks like onKeyDown().",
   document:
-    "Games draw on their canvas with screen, and read input with keyboard and hooks like on_key_down().",
+    "Games draw on their canvas with screen, and read input with keyboard and hooks like onKeyDown().",
   localStorage: 'Use storage instead, for example storage.set("score", 10).',
   sessionStorage: 'Use storage instead, for example storage.set("score", 10).',
   Image:
@@ -252,9 +253,8 @@ export function executeZeroBoilerplateSource(
     Screen: pointToService(Screen, "Screen", "screen", context.screen),
     Storage: pointToService(Storage, "Storage", "storage", context.storage),
     Actor: RuntimeActor,
-    // Services answer to camelCase and other spellings of their members, and
-    // a misspelled member fails with a suggestion. Storage, keyboard and the
-    // asset loaders already treat unknown names as data, keys, or assets.
+    // A misspelled service member fails with a suggestion. Storage, keyboard
+    // and the asset loaders treat unknown names as data, keys, or assets.
     screen: friendlyService(context.screen, "screen", {
       hidden: screenInternals,
       nested: ["draw"],
@@ -279,9 +279,8 @@ export function executeZeroBoilerplateSource(
     createBrowserSoundAsset,
     storage: context.storage,
     tone: friendlyService(context.tone, "tone"),
-    random_int,
-    random_choice,
-    ...camelCaseHelpers,
+    randomInt,
+    randomChoice,
     clamp,
     rgb,
     run: runFunction,
@@ -313,14 +312,6 @@ export function executeZeroBoilerplateSource(
       if (property in target) return target[property];
       if (property in builtinGlobals) return builtinGlobals[property];
       if (optionalNames.has(property)) return undefined;
-      // camelCase spellings of snake_case globals: randomInt -> random_int.
-      const snake = property.replace(
-        /[A-Z]/g,
-        (letter) => `_${letter.toLowerCase()}`,
-      );
-      if (snake !== property && snake in globals) {
-        return globals[snake as keyof typeof globals];
-      }
       throw undefinedNameError(property, source, target);
     },
     set(target, property, value) {

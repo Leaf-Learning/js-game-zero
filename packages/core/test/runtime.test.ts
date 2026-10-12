@@ -13,6 +13,7 @@ import {
   storage as globalStorage,
   type AssetLoader,
   type DrawableImage,
+  type GameModule,
   type RuntimeCanvas,
   type SoundAsset,
   type SurfaceLike,
@@ -271,7 +272,7 @@ function update(dt) {
   player.x += 1;
 }
 
-function on_key_down() {
+function onKeyDown() {
   bonus += 3;
 }
 `,
@@ -287,7 +288,7 @@ function on_key_down() {
     ]);
     expect(inspector?.read("score")).toBe(1);
     expect(inspector?.read("player")).toEqual({ x: 4 });
-    expect(inspector?.functions()).toEqual(["helper", "update", "on_key_down"]);
+    expect(inspector?.functions()).toEqual(["helper", "update", "onKeyDown"]);
     expect(typeof inspector?.read("helper")).toBe("function");
     expect((inspector?.read("helper") as () => string)()).toBe("hidden");
     expect(() => inspector?.read("missing")).toThrow(
@@ -343,7 +344,7 @@ function draw() {
   storage.set("drawSize", [screen.width, screen.height]);
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   storage.set("lastKey", key);
 }
 `,
@@ -496,7 +497,7 @@ describe("runtime explicit import mode", () => {
     const widths: number[] = [];
     const module = {
       update() {
-        widths.push(globalImages.get("hero.svg")?.get_width() ?? -1);
+        widths.push(globalImages.get("hero.svg")?.getWidth() ?? -1);
       },
     };
     const first = run(module, {
@@ -522,7 +523,7 @@ describe("runtime explicit import mode", () => {
     const target = canvas();
     const handle = run(
       `
-let loadedSize = images.player.get_size();
+let loadedSize = images.player.getSize();
 
 function update() {
   storage.set("playerSize", loadedSize);
@@ -609,7 +610,7 @@ function draw() {}
     noDraw.stop();
   });
 
-  test("reports duplicate run configuration and duplicate hook aliases", () => {
+  test("reports duplicate run configuration, a snake_case hook and draw parameters", () => {
     const diagnostics = collectRuntimeDiagnostics(
       {
         WIDTH: 100,
@@ -617,8 +618,7 @@ function draw() {}
           return unused;
         },
         on_key_down() {},
-        onKeyDown() {},
-      },
+      } as GameModule,
       {
         WIDTH: 120,
       },
@@ -627,9 +627,14 @@ function draw() {}
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
       "duplicate-config",
     );
-    expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
-      "duplicate-hook-alias",
-    );
+    expect(
+      diagnostics.find((diagnostic) => diagnostic.code === "hook-typo"),
+    ).toMatchObject({
+      name: "on_key_down",
+      suggestion: "onKeyDown",
+      message:
+        "on_key_down is never called. Hooks are named in camelCase, so rename it to onKeyDown.",
+    });
     expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(
       "hook-arity",
     );
@@ -686,7 +691,7 @@ function draw() {
 let heroRef = images["hero.svg"];
 
 function draw() {
-  storage.set("size", heroRef.get_size());
+  storage.set("size", heroRef.getSize());
 }
 `,
       {
@@ -1308,7 +1313,7 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
     let calls = 0;
     const handle = run(
       {
-        on_key_down() {
+        onKeyDown() {
           calls += 1;
           throw new Error("input exploded");
         },
@@ -1736,9 +1741,9 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
       play() {},
       loop() {},
       stop() {},
-      get_length: () => 0,
-      set_volume() {},
-      get_volume: () => 1,
+      getLength: () => 0,
+      setVolume() {},
+      getVolume: () => 1,
     });
     await soundLoader.waitForIdle();
     await handle.dispose();
@@ -1902,14 +1907,14 @@ function draw() {}
   test("a hook parameter with another name still receives its value, with a hint", async () => {
     const { handle, diagnostics, target } = start(`
 let clicked = null;
-function on_mouse_down(position) { clicked = position; }
+function onMouseDown(position) { clicked = position; }
 function draw() {}
 `);
     target.dispatchEvent(mouseEvent("mousedown"));
     expect(getGameInspector(handle)?.read("clicked")).toEqual([4, 6]);
     expect(
       diagnostics.find((diagnostic) => diagnostic.code === "hook-parameter"),
-    ).toMatchObject({ name: "on_mouse_down", suggestion: "pos" });
+    ).toMatchObject({ name: "onMouseDown", suggestion: "pos" });
     await handle.dispose();
   });
 
@@ -1955,8 +1960,8 @@ function draw() {
     const { handle } = start(`WIDTH = 320;
 HEIGHT = 180;
 let ticks = 0;
-let space = keys.space;
-let mods = keymods.Shift;
+let space = keys.SPACE;
+let mods = keymods.SHIFT;
 let circle = typeof screen.draw.filledCircle;
 clock.scheduleInterval(() => { ticks += 1; }, 0.05);
 function draw() {
@@ -1970,6 +1975,47 @@ function draw() {
     expect(inspector?.read("space")).toBe(keys.SPACE);
     expect(inspector?.read("mods")).toBe(keymods.SHIFT);
     expect(inspector?.read("circle")).toBe("function");
+    await handle.dispose();
+  });
+
+  test("Pygame Zero's snake_case names fail where they're written, naming the camelCase one", async () => {
+    expect(startupError("random_int(1, 6);")).toBe(
+      "ReferenceError: random_int is not defined. Did you mean randomInt?",
+    );
+    expect(startupError("clock.schedule_interval(() => {}, 1);")).toBe(
+      "TypeError: clock.schedule_interval doesn't exist. Did you mean clock.scheduleInterval?",
+    );
+    expect(startupError('screen.draw.filled_circle([1, 1], 2, "red");')).toBe(
+      "TypeError: screen.draw.filled_circle doesn't exist. Did you mean screen.draw.filledCircle?",
+    );
+    expect(
+      startupError('let ship = new Actor("hero"); ship.angle_to([1, 1]);'),
+    ).toBe(
+      "TypeError: actor.angle_to doesn't exist. Did you mean actor.angleTo?",
+    );
+    expect(startupError("music.set_volume(0.5);")).toBe(
+      "TypeError: music.set_volume doesn't exist. Did you mean music.setVolume?",
+    );
+    expect(startupError("keys.space;")).toBe(
+      "TypeError: keys.space doesn't exist. Did you mean keys.SPACE?",
+    );
+
+    // A snake_case hook is never called, and the diagnostic says so.
+    const { handle, diagnostics, target } = start(`
+let clicked = null;
+function on_mouse_down(pos) { clicked = pos; }
+function draw() {}
+`);
+    target.dispatchEvent(mouseEvent("mousedown"));
+    expect(getGameInspector(handle)?.read("clicked")).toBeNull();
+    expect(
+      diagnostics.find((diagnostic) => diagnostic.code === "hook-typo"),
+    ).toMatchObject({
+      name: "on_mouse_down",
+      suggestion: "onMouseDown",
+      message:
+        "on_mouse_down is never called. Hooks are named in camelCase, so rename it to onMouseDown.",
+    });
     await handle.dispose();
   });
 
@@ -2021,7 +2067,7 @@ function draw() {
     await handle.dispose();
   });
 
-  test("a capitalised class name, or a camelCase helper, names what was written in its errors", async () => {
+  test("a capitalised class name, or a helper, names what was written in its errors", async () => {
     const { handle } = start(`const made = new Clock();
 const kind = typeof Screen;
 function draw() {
@@ -2039,15 +2085,15 @@ function draw() {
     expect(startupError("Clock.scheduleInterval(() => {}, 1);")).toContain(
       "Clock.scheduleInterval doesn't exist. Did you mean clock.scheduleInterval?",
     );
+    expect(startupError("Clock.schedule_interval(() => {}, 1);")).toContain(
+      "Clock.schedule_interval doesn't exist. Did you mean clock.scheduleInterval?",
+    );
     expect(startupError('Storage.get("best");')).toContain(
       "Storage.get doesn't exist. Did you mean storage.get?",
     );
-    // camelCase helpers name the spelling written in their errors.
+    // Helpers name themselves in their errors.
     expect(startupError("randomInt(400, 0);")).toContain(
       "randomInt(400, 0) has no whole numbers to pick from",
-    );
-    expect(startupError("random_int(400, 0);")).toContain(
-      "random_int(400, 0) has no whole numbers to pick from",
     );
     expect(startupError("randomChoice([]);")).toContain(
       "randomChoice needs a list with at least one item.",
@@ -2055,12 +2101,11 @@ function draw() {
     await handle.dispose();
   });
 
-  test("game files get random_int, random_choice, clamp and a live mouse, down while held", async () => {
+  test("game files get randomInt, randomChoice, clamp and a live mouse, down while held", async () => {
     const { handle, target } = start(`WIDTH = 320;
 HEIGHT = 180;
-const roll = random_int(1, 6);
-const camelRoll = randomInt(1, 6);
-const pick = random_choice(["a", "b"]);
+const roll = randomInt(1, 6);
+const pick = randomChoice(["a", "b"]);
 const kept = clamp(500, 0, WIDTH);
 let start = mouse.pos;
 let seen = null;
@@ -2076,7 +2121,6 @@ function draw() {}
     const inspector = getGameInspector(handle);
     expect(inspector?.read("roll")).toBeGreaterThanOrEqual(1);
     expect(inspector?.read("roll")).toBeLessThanOrEqual(6);
-    expect(inspector?.read("camelRoll")).toBeGreaterThanOrEqual(1);
     expect(["a", "b"]).toContain(inspector?.read("pick") as string);
     expect(inspector?.read("kept")).toBe(320);
     expect(inspector?.read("start")).toEqual([160, 90]);

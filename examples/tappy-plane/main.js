@@ -32,7 +32,7 @@ plane.vy = 0; // Actor doesn't know about velocity, so we track our own.
 plane.crashed = false;
 
 let score = 0;
-storage.setdefault("highscore", 0);
+storage.setDefault("highscore", 0);
 
 // The rocks are drawn hanging from the ceiling and standing on the floor,
 // anchored at the point closest to the gap so their pointy tips line up.
@@ -42,7 +42,7 @@ rockTop.hitbox = TOP_MOUNTAIN_HITBOX;
 rockBottom.hitbox = BOTTOM_MOUNTAIN_HITBOX;
 
 function resetMountains() {
-  const gapCenter = random_int(150, HEIGHT - 150);
+  const gapCenter = randomInt(150, HEIGHT - 150);
   rockTop.pos = [WIDTH + 40, gapCenter - GAP / 2];
   rockBottom.pos = [WIDTH + 40, gapCenter + GAP / 2];
 }
@@ -66,11 +66,11 @@ function flap() {
   sounds.flap.play();
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   flap();
 }
 
-function on_key_down(key) {
+function onKeyDown(key) {
   if (key === keys.SPACE) flap();
 }
 
@@ -158,13 +158,13 @@ function draw() {
   plane.draw();
 
   screen.draw.text(`${score}`, {
-    midtop: [WIDTH / 2, 16],
+    midTop: [WIDTH / 2, 16],
     size: 56,
     color: "white",
     shadow: 2,
   });
   screen.draw.text(`Best: ${storage.highscore}`, {
-    midtop: [WIDTH / 2, 84],
+    midTop: [WIDTH / 2, 84],
     size: 24,
     color: "#facc15",
     shadow: 1,

@@ -24,8 +24,8 @@ const LEVEL = [
 const START_CELL = { column: 1, rowIndex: 7 };
 // Purely cosmetic - trees that stand on the ground but never affect play.
 const DECORATIONS = [
-  new Actor("tree", { midbottom: cellTop({ column: 0, rowIndex: 7 }) }),
-  new Actor("tree", { midbottom: cellTop({ column: 15, rowIndex: 6 }) }),
+  new Actor("tree", { midBottom: cellTop({ column: 0, rowIndex: 7 }) }),
+  new Actor("tree", { midBottom: cellTop({ column: 15, rowIndex: 6 }) }),
 ];
 
 // Change these to tune how the game feels.
@@ -37,7 +37,7 @@ const COYOTE_TIME = 0.12; // grace period to jump just after walking off a ledge
 const MAX_PHYSICS_STEP = 1 / 120; // keep fast motion from skipping a tile
 
 const player = new Actor("player", {
-  midbottom: cellTop(START_CELL),
+  midBottom: cellTop(START_CELL),
   width: TILE_SIZE,
 });
 let onGround;
@@ -96,7 +96,7 @@ function resetGame() {
 function respawn() {
   // A gentler reset than resetGame(): keep the score and collected gems,
   // just send the player back to the start after a fall.
-  player.midbottom = cellTop(START_CELL);
+  player.midBottom = cellTop(START_CELL);
   player.vx = 0;
   player.vy = 0;
   // The spawn is on solid ground, so a jump works before the first frame.
@@ -105,13 +105,13 @@ function respawn() {
 }
 resetGame();
 
-function on_key_down(key, repeat) {
+function onKeyDown(key, repeat) {
   if (repeat) return; // holding jump must not trigger another jump on landing
   if (key === keys.UP || key === keys.W || key === keys.SPACE) tryJump();
   if (state !== "playing" && key === keys.SPACE) resetGame();
 }
 
-function on_mouse_down() {
+function onMouseDown() {
   if (state !== "playing") resetGame();
 }
 

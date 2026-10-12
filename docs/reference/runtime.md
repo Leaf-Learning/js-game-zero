@@ -44,9 +44,9 @@ run(
 );
 ```
 
-The camelCase input hooks in a defined game receive one typed event object.
-Existing zero-boilerplate and raw import hooks keep their Pygame Zero-style
-parameter-name dispatch unchanged.
+The input hooks in a defined game receive one typed event object.
+Zero-boilerplate and raw import hooks keep their Pygame Zero-style
+parameter-name dispatch.
 
 Package-level `screen`, `clock`, `keyboard`, `images`, `sounds`, `music`, and
 `storage` remain available for learner compatibility. They are convenience
@@ -68,7 +68,7 @@ run({
     /* ... */
   },
   onKeyDown(key) {
-    /* camelCase aliases work here */
+    /* hooks receive values by parameter name */
   },
 });
 ```
@@ -96,13 +96,17 @@ Browser APIs a game can't reach say what to use instead — for example,
 `localStorage` at `storage`. Standard JavaScript built-ins such as `Math`,
 `JSON`, `isNaN`, `Map` and `console` are available as usual.
 
-Library names are snake_case, following Pygame Zero, but every one also
-answers to its camelCase spelling: `screen.draw.filledCircle`,
-`actor.angleTo`, `rect.collidePoint`, `clock.scheduleInterval`. In a
+Every library name has one spelling, in camelCase: `screen.draw.filledCircle`,
+`actor.angleTo`, `rect.collidePoint`, `clock.scheduleInterval`, `onKeyDown`.
+Constants stay upper case (`WIDTH`, `keys.SPACE`, `mouse.LEFT`). Another
+spelling of a member, such as Pygame Zero's `actor.angle_to` or
+`rect.colliderect`, throws where it's read, naming the real one
+(`actor.angle_to doesn't exist. Did you mean actor.angleTo?`). In a
 global-mode game, `screen`, `clock`, `music`, `tone`, `keys`, `keymods` and
-`mouse` also ignore capitalization (`keys.space`), and reading a member they
-don't have throws with a suggestion
-(`screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`).
+`mouse` also throw with a suggestion for any member they don't have
+(`screen.draw.cirlce doesn't exist. Did you mean screen.draw.circle?`), and
+an undefined global suggests the real one
+(`random_int is not defined. Did you mean randomInt?`).
 The classes behind them (`Screen`, `Clock`, `Storage`) are globals too, so a
 capital letter by mistake, as in `Screen.fill("navy")`, points at the service
 instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
@@ -250,16 +254,16 @@ mixing it up with `update(dt)` is a very common typo).
 
 Everything else is a warning:
 
-| `code`                                      | Meaning                                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `hook-typo`                                 | A top-level function is named nearly like a hook (e.g. `on_key_dwon`).              |
-| `constant-typo`                             | A top-level assignment is named nearly like a setting, such as `WIDTH` or `TITLE`.  |
-| `duplicate-config` / `duplicate-hook-alias` | The same setting or hook was given two ways.                                        |
-| `hook-arity`                                | `update` declares more than one parameter.                                          |
-| `hook-parameter`                            | An input hook parameter isn't one of its documented names; says what it receives.   |
-| `invalid-config`                            | `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`ICON` isn't usable.                               |
-| `asset-name`                                | A quoted string that looks like an asset filename doesn't match the naming grammar. |
-| `runtime-error`                             | An uncaught error, or a failure loading/saving storage.                             |
+| `code`             | Meaning                                                                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hook-typo`        | A top-level function is named nearly like a hook (e.g. `onKeyDwon`), or is a hook spelled another way (`on_key_down`), which is never called. |
+| `constant-typo`    | A top-level assignment is named nearly like a setting, such as `WIDTH` or `TITLE`.                                                            |
+| `duplicate-config` | The same setting was given both on the module and in the run options.                                                                         |
+| `hook-arity`       | `update` declares more than one parameter.                                                                                                    |
+| `hook-parameter`   | An input hook parameter isn't one of its documented names; says what it receives.                                                             |
+| `invalid-config`   | `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`ICON` isn't usable.                                                                                         |
+| `asset-name`       | A quoted string that looks like an asset filename doesn't match the naming grammar.                                                           |
+| `runtime-error`    | An uncaught error, or a failure loading/saving storage.                                                                                       |
 
 The two typo checks only look at names the script _defines_ at top level
 (`function drow()`, `const udpate = () => {}`, `WIDHT = 800`), never at names

@@ -286,6 +286,19 @@ describe("Screen canvas drawing", () => {
     expect(() =>
       screen.draw.textbox("hi", [0, 0, 40, 20], { width: 30 } as never),
     ).toThrow("screen.draw.textbox has no option called width.");
+    // Pygame Zero spellings name the camelCase option or anchor.
+    expect(() => screen.draw.text("hi", { topleft: [0, 0] } as never)).toThrow(
+      "screen.draw.text has no option called topleft. Did you mean topLeft?",
+    );
+    expect(() =>
+      screen.draw.text("hi", [0, 0], { outline_color: "red" } as never),
+    ).toThrow("Did you mean outlineColor?");
+    expect(() =>
+      screen.draw.textbox("hi", [0, 0, 40, 20], { min_fontsize: 8 } as never),
+    ).toThrow("Did you mean minFontsize?");
+    expect(() =>
+      screen.draw.text("hi", [0, 0], { anchor: "midbottom" } as never),
+    ).toThrow("Unknown text anchor: midbottom. Did you mean midBottom?");
   });
 
   test("draw.image draws an image like blit", () => {
@@ -308,7 +321,7 @@ describe("Screen canvas drawing", () => {
     const { screen, context } = mockScreen();
     screen.draw.line([1, 2], [10, 20], "red", 3);
     screen.draw.circle([20, 20], 5, "blue", 2);
-    screen.draw.filled_circle([30, 30], 6, "green");
+    screen.draw.filledCircle([30, 30], 6, "green");
     screen.draw.polygon(
       [
         [0, 0],
@@ -317,7 +330,7 @@ describe("Screen canvas drawing", () => {
       ],
       "white",
     );
-    screen.draw.filled_polygon(
+    screen.draw.filledPolygon(
       [
         [0, 0],
         [5, 0],
@@ -326,7 +339,7 @@ describe("Screen canvas drawing", () => {
       "yellow",
     );
     screen.draw.rect([1, 2, 3, 4], "purple", 4);
-    screen.draw.filled_rect({ left: 5, top: 6, width: 7, height: 8 }, "orange");
+    screen.draw.filledRect({ left: 5, top: 6, width: 7, height: 8 }, "orange");
 
     expect(context.operations.map((op) => op.name)).toContain("lineTo");
     expect(context.operations.filter((op) => op.name === "arc")).toHaveLength(
@@ -347,7 +360,7 @@ describe("Screen canvas drawing", () => {
       TypeError,
     );
     expect(() => screen.draw.circle([0, 0], 0, "red")).toThrow(TypeError);
-    expect(() => screen.draw.filled_circle([0, 0], -1, "red")).toThrow(
+    expect(() => screen.draw.filledCircle([0, 0], -1, "red")).toThrow(
       TypeError,
     );
     expect(() =>
@@ -360,7 +373,7 @@ describe("Screen canvas drawing", () => {
       ),
     ).toThrow(TypeError);
     expect(() =>
-      screen.draw.filled_polygon(
+      screen.draw.filledPolygon(
         [
           [0, 0],
           [1, 1],
@@ -369,7 +382,7 @@ describe("Screen canvas drawing", () => {
       ),
     ).toThrow(TypeError);
     expect(() => screen.draw.rect([1, 2] as never, "red")).toThrow(TypeError);
-    expect(() => screen.draw.filled_rect([1, 2] as never, "red")).toThrow(
+    expect(() => screen.draw.filledRect([1, 2] as never, "red")).toThrow(
       TypeError,
     );
   });
@@ -431,16 +444,16 @@ function drawn(draw: (screen: Screen) => void) {
 describe("Screen short forms", () => {
   test("draw exactly what the screen.draw long forms draw", () => {
     expect(drawn((screen) => screen.circle(200, 150, 25, "gold"))).toEqual(
-      drawn((screen) => screen.draw.filled_circle([200, 150], 25, "gold")),
+      drawn((screen) => screen.draw.filledCircle([200, 150], 25, "gold")),
     );
     expect(drawn((screen) => screen.rect(10, 20, 30, 40, "red"))).toEqual(
-      drawn((screen) => screen.draw.filled_rect([10, 20, 30, 40], "red")),
+      drawn((screen) => screen.draw.filledRect([10, 20, 30, 40], "red")),
     );
     expect(
       drawn((screen) => screen.triangle(160, 40, 120, 120, 200, 120, "lime")),
     ).toEqual(
       drawn((screen) =>
-        screen.draw.filled_polygon(
+        screen.draw.filledPolygon(
           [
             [160, 40],
             [120, 120],
@@ -518,17 +531,17 @@ describe("Screen short forms", () => {
   test("a list where numbers belong points to the screen.draw method for lists", () => {
     const screen = mockScreen().screen as unknown as Loose;
     expect(() => screen.circle!([200, 150], 25)).toThrow(
-      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filled_circle([x, y], radius, color).',
+      'screen.circle takes x, y as two numbers, like screen.circle(200, 150, 25, "gold"). For an [x, y] list, use screen.draw.filledCircle([x, y], radius, color).',
     );
     expect(() => screen.circle!([200, 150], 25)).toThrow(TypeError);
     expect(() => screen.rect!([10, 20, 30, 40], "red")).toThrow(
-      "For a list or a Rect, use screen.draw.filled_rect([x, y, width, height], color).",
+      "For a list or a Rect, use screen.draw.filledRect([x, y, width, height], color).",
     );
     expect(() =>
       screen.rect!({ left: 0, top: 0, width: 4, height: 4 }),
     ).toThrow("screen.rect takes x, y, width, height as four numbers");
     expect(() => screen.triangle!([0, 0], [10, 0], [5, 8])).toThrow(
-      "use screen.draw.filled_polygon([[x1, y1], [x2, y2], [x3, y3]], color)",
+      "use screen.draw.filledPolygon([[x1, y1], [x2, y2], [x3, y3]], color)",
     );
     expect(() => screen.line!([0, 0], [10, 10], "red")).toThrow(
       "use screen.draw.line([x1, y1], [x2, y2], color, width)",
