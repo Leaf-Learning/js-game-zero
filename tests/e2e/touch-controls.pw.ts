@@ -368,6 +368,122 @@ test.describe("mobile touch input", () => {
     expect(await snapshot(page)).toMatchObject({ actions: 1, pressed: [] });
   });
 
+  test("a host's --jgz-* properties style the keys, and the D-pad is one cross with drawn arrows", async ({
+    page,
+  }) => {
+    const { pageErrors } = collectPageErrors(page);
+    await startGame(page);
+    await page.evaluate(() => {
+      const style = document.documentElement.style;
+      for (const [name, value] of Object.entries({
+        "--jgz-key-size": "56px",
+        "--jgz-key-fill": "rgb(255, 255, 255)",
+        "--jgz-key-ink": "rgb(31, 42, 68)",
+        "--jgz-key-line": "rgb(31, 42, 68)",
+        "--jgz-key-pressed-fill": "rgb(255, 228, 92)",
+        "--jgz-key-pressed-line": "rgb(31, 42, 68)",
+        "--jgz-key-shadow-x": "2px",
+        "--jgz-key-shadow-y": "3px",
+        "--jgz-key-shadow-color": "rgb(31, 42, 68)",
+        "--jgz-system-height": "44px",
+        "--jgz-dock-gap": "16px",
+      }))
+        style.setProperty(name, value);
+    });
+    const controls = page.locator("[data-jgz-touch-controls]");
+    const key = (name: string) =>
+      controls.getByRole("button", { name, exact: true });
+    const box = async (name: string) => (await key(name).boundingBox())!;
+    await expect.poll(async () => (await box("Up")).width).toBe(56);
+    // The arms meet in the middle: each reaches one line's width past its own cell, under
+    // its neighbours' outlines, so the cross's outline has no gaps at its inner corners.
+    const up = await box("Up");
+    const down = await box("Down");
+    const left = await box("Left");
+    const right = await box("Right");
+    expect(up.x).toBe(left.x + 56);
+    expect(up.y + up.height).toBe(left.y + 2);
+    expect(down.y).toBe(left.y + left.height - 2);
+    expect(right.x).toBe(left.x + 2 * 56 - 2);
+    expect(left.width).toBe(58);
+    await expect(controls.locator(".jgz-dpad-center")).toHaveCount(1);
+    await expect(controls.locator(".jgz-dpad svg")).toHaveCount(4);
+    const a = key("A");
+    // Polled: the keys ease into new colours.
+    await expect
+      .poll(() =>
+        a.evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.backgroundColor, style.color, style.boxShadow];
+        }),
+      )
+      .toEqual([
+        "rgb(255, 255, 255)",
+        "rgb(31, 42, 68)",
+        "rgb(31, 42, 68) 2px 3px 0px 0px",
+      ]);
+    expect((await box("Start")).height).toBe(44);
+    // A press pushes the key in by its shadow, in the pressed fill.
+    const session = await page.context().newCDPSession(page);
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ ...(await center(a)), id: 1 }],
+    });
+    await expect(a).toHaveAttribute("aria-pressed", "true");
+    await expect
+      .poll(() =>
+        a.evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.backgroundColor, style.transform];
+        }),
+      )
+      .toEqual(["rgb(255, 228, 92)", "matrix(1, 0, 0, 1, 2, 3)"]);
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+    const canvas = (await page.locator("canvas").boundingBox())!;
+    const dock = (await controls.boundingBox())!;
+    expect(dock.y - (canvas.y + canvas.height)).toBeGreaterThanOrEqual(15);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("left and right alone stay two keys, three directions join, and Start sits beside the D-pad without A or B", async ({
+    page,
+  }) => {
+    await startGame(
+      page,
+      "{ left: keys.LEFT, right: keys.RIGHT, start: keys.RETURN }",
+    );
+    const controls = page.locator("[data-jgz-touch-controls]");
+    const box = async (name: string) =>
+      (await controls
+        .getByRole("button", { name, exact: true })
+        .boundingBox())!;
+    await expect(controls.locator(".jgz-dpad-center")).toHaveCount(0);
+    const left = await box("Left");
+    const right = await box("Right");
+    const start = await box("Start");
+    expect(right.y).toBe(left.y);
+    expect(right.x - (left.x + left.width)).toBe(12);
+    expect(start.x).toBeGreaterThan(right.x + right.width);
+    expect(
+      Math.abs(start.y + start.height / 2 - (left.y + left.height / 2)),
+    ).toBeLessThanOrEqual(1);
+    await startGame(
+      page,
+      "{ left: keys.LEFT, right: keys.RIGHT, up: keys.UP }",
+    );
+    const center = page.locator(".jgz-dpad-center");
+    await expect(center).toHaveCount(1);
+    expect(
+      await center.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.borderTopWidth, style.borderBottomWidth];
+      }),
+    ).toEqual(["0px", "2px"]);
+  });
+
   test("the platformer example supports touch movement and jumping", async ({
     page,
   }) => {

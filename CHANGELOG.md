@@ -4,6 +4,18 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Touch controls you can style
+
+- The D-pad is one joined cross with drawn arrows when a game uses three or
+  four directions; left and right alone (or up and down) are two separate
+  keys. A held key moves onto its shadow when it has one.
+- In portrait, a game with no A or B puts Start/Select on the right of the
+  D-pad instead of beneath it.
+- A host page styles the dock with `--jgz-*` CSS custom properties: key
+  size, fill, ink, outline, held colors, shadow, corners, fonts, Start/Select
+  size and the least gap above the dock. Without them the dock looks as it
+  did, in the new shapes.
+
 ### Assets without a server
 
 - `run()` takes `assetUrls`, a map from each asset's path

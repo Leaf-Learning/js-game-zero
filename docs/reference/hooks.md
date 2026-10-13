@@ -117,13 +117,16 @@ TOUCH_CONTROLS = {
 ```
 
 In portrait mode, the dock places the D-pad on the left and the action
-buttons on the right, with Start/Select beneath them. A sits above and to
-the right of B in a Game Boy-style diagonal arrangement. The dock stays
-below the canvas in both portrait and landscape layouts, near the bottom
-of the game's viewport. In portrait, the canvas is centered vertically with
-at least 48px above the control dock. On shorter screens it moves upward as
-needed to keep the game and controls visible. Landscape keeps a 16px gap.
-Bottom padding keeps buttons clear of the device's home indicator.
+buttons on the right, with Start/Select beneath them; a game with no A or B
+puts Start/Select on the right instead. A sits above and to the right of B
+in a Game Boy-style diagonal arrangement. Three or four directions join into
+one cross; left and right alone (or up and down) stay two separate keys. The
+dock stays below the canvas in both portrait and landscape layouts, near the
+bottom of the game's viewport. In portrait, the canvas is centered
+vertically with at least 48px above the control dock. On shorter screens it
+moves upward as needed to keep the game and controls visible. Landscape
+keeps a 16px gap. Bottom padding keeps buttons clear of the device's home
+indicator.
 
 Only the buttons you list appear. Supported names are `up`, `down`, `left`,
 `right`, `a`, `b`, `start`, and `select`. Each value must be a numeric
@@ -155,6 +158,25 @@ until every touch button and physical key holding it has
 been released. Cancellation, loss of pointer capture, leaving the window,
 and hiding the page clear held inputs. Stopping or reloading a game removes
 its controls and listeners.
+
+A page that hosts a game can restyle the dock by setting these CSS custom
+properties on any element around the canvas, such as `:root`:
+
+| Property                                           | What it sets                                                         | Default                                 |
+| -------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| `--jgz-key-size`                                   | A key's size; the cross is three keys across                         | `clamp(40px, 10vw, 52px)`               |
+| `--jgz-key-fill`, `--jgz-key-ink`                  | A key's fill, and its label and arrow color                          | `#263244`, `#fff`                       |
+| `--jgz-key-line`, `--jgz-key-line-width`           | A key's outline                                                      | `#718096`, `2px`                        |
+| `--jgz-key-pressed-fill`, `--jgz-key-pressed-line` | A held key's fill and outline                                        | `#4267a0`, `#b9d5ff`                    |
+| `--jgz-key-shadow-x`, `-y`, `-color`               | A hard shadow under each key and the cross; a held key moves onto it | `0px`, `0px`, `transparent`             |
+| `--jgz-key-radius`                                 | Separate keys' corners (any `border-radius`)                         | `12px`                                  |
+| `--jgz-dpad-radius`                                | The cross's outer corners                                            | `10px`                                  |
+| `--jgz-dpad-dot`                                   | The dot in the middle of the cross                                   | `rgba(255, 255, 255, 0.16)`             |
+| `--jgz-key-font`, `--jgz-action-font`              | Start/Select labels, and A/B labels (a `font` shorthand)             | `bold 13px` and `bold 18px` `system-ui` |
+| `--jgz-action-line-width`                          | A and B's outline                                                    | `--jgz-key-line-width`                  |
+| `--jgz-system-height`, `--jgz-system-radius`       | Start and Select's height and corners                                | `40px`, `12px`                          |
+| `--jgz-focus-ring`                                 | The keyboard focus outline                                           | `#facc15`                               |
+| `--jgz-dock-gap`                                   | The least space between the canvas and the dock                      | `48px` portrait, `16px` landscape       |
 
 In import mode, put `TOUCH_CONTROLS` on the module returned by `defineGame`,
 on a raw game module, or in the options passed to `run`. TypeScript exports
