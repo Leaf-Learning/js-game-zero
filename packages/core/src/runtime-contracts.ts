@@ -101,10 +101,25 @@ export type RunOptions = Partial<GameModule> & {
   readonly container?: HTMLElement;
   readonly diagnostics?: (diagnostic: RuntimeDiagnostic) => void;
   readonly keyboardTarget?: EventTarget;
+  /**
+   * Where mouse releases (`mouseup`) are heard. Defaults to `window`, so a
+   * drag released outside the canvas still ends; a host running a game it
+   * drives itself passes the canvas, so its synthetic releases reach no
+   * other game on the page.
+   */
+  readonly mouseReleaseTarget?: EventTarget;
   readonly preload?: readonly string[];
   readonly preloadedAssets?: PreloadedAssets;
   readonly projectId?: string;
   readonly scheduler?: RuntimeScheduler;
+  /**
+   * Makes the game's randomness repeatable: `Math.random` as a zero-boilerplate
+   * game sees it, and `randomInt` and `randomChoice`, follow one sequence for
+   * this seed, the same one `jgz test --seed` uses. Only this game's: the
+   * page's `Math.random` and other games are untouched. Up to nine plain
+   * digits are the number they spell; anything else is hashed.
+   */
+  readonly seed?: string | number;
   readonly storage?: Storage | StorageAdapter;
   /** Context-owned loader overrides for embedding hosts and deterministic tests. */
   readonly loaders?: Partial<AssetLoaders>;

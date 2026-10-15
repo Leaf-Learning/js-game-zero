@@ -1,7 +1,10 @@
 /**
  * Small helpers for the things almost every game hand-writes: a random
  * whole number, a random pick from a list, and keeping a value in range.
+ * The random ones read the running game's random source, so a seeded run
+ * (`run(source, { seed })`) repeats them too.
  */
+import { random } from "./random";
 
 /**
  * A random whole number from `min` to `max`, including both ends:
@@ -26,7 +29,7 @@ function pickInt(min: number, max: number, name: string): number {
       `${name}(${min}, ${max}) has no whole numbers to pick from: put the smaller number first.`,
     );
   }
-  return low + Math.floor(Math.random() * (high - low + 1));
+  return low + Math.floor(random() * (high - low + 1));
 }
 
 function pickFrom<T>(items: readonly T[], name: string): T {
@@ -36,7 +39,7 @@ function pickFrom<T>(items: readonly T[], name: string): T {
   if (items.length === 0) {
     throw new RangeError(`${name} needs a list with at least one item.`);
   }
-  return items[Math.floor(Math.random() * items.length)] as T;
+  return items[Math.floor(random() * items.length)] as T;
 }
 
 /**

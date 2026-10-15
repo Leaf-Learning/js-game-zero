@@ -86,7 +86,13 @@ const legacyHostValues = [
 ] as const;
 
 const approvedCoreValues = [...learnerValues, ...legacyHostValues] as const;
-const approvedHostValues = [...legacyHostValues, "getGameInspector"] as const;
+const approvedHostValues = [
+  ...legacyHostValues,
+  "createSeededRandom",
+  "getGameInspector",
+  "parseStatePath",
+  "serializeGameValue",
+] as const;
 
 test("core public entry points expose only their approved runtime values", () => {
   expect(Object.keys(core).sort()).toEqual([...approvedCoreValues].sort());

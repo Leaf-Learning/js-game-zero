@@ -84,6 +84,35 @@ function audioFixturePage(
 </html>`;
 }
 
+/** A host page with nothing but js-game-zero's script-tag build loaded. */
+const browserHostFixturePage = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>js-game-zero Browser Host Fixture</title>
+  </head>
+  <body>
+    <main data-jgz-host></main>
+    <script type="module" src="/test-fixtures/jgz-browser.js"></script>
+  </body>
+</html>`;
+
+async function browserBuildBundle(): Promise<Response> {
+  try {
+    const build = await cachedBrowserBuild(
+      "test-fixtures-jgz-browser",
+      join(REPO_ROOT, "packages/browser-runtime/src/browser.ts"),
+    );
+    return new Response(build.text, {
+      headers: { "content-type": build.contentType },
+    });
+  } catch {
+    return new Response("Failed to build the browser runtime", {
+      status: 500,
+    });
+  }
+}
+
 async function testFixtureRuntimeBundle(): Promise<Response> {
   try {
     const build = await cachedBrowserBuild(
@@ -134,6 +163,14 @@ export async function testFixtureRouteResponse(
 ): Promise<Response | null> {
   if (url.pathname === "/test-fixtures/runtime.js") {
     return testFixtureRuntimeBundle();
+  }
+  if (url.pathname === "/test-fixtures/jgz-browser.js") {
+    return browserBuildBundle();
+  }
+  if (url.pathname === "/fixtures/browser-host") {
+    return new Response(browserHostFixturePage, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   }
   if (url.pathname === "/fixtures/core-semantics") {
     return new Response(coreSemanticsFixturePage, {

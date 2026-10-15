@@ -55,6 +55,7 @@ type DriverWindow = Window & {
     call(binding: string): unknown;
     screenshot(): { dataUrl: string; pixels: PixelSummary };
   };
+  __jgzSeed?: string;
 };
 
 export class GameSession {
@@ -109,8 +110,12 @@ export class GameSession {
         viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 1,
       });
+      // The driver passes the seed to run(), the same seeding a host page
+      // gets from run(source, { seed }).
       if (options.seed !== undefined) {
-        await context.addInitScript(seedRandom, hashSeed(options.seed));
+        await context.addInitScript((seed: string) => {
+          (window as DriverWindow).__jgzSeed = seed;
+        }, options.seed);
       }
       const page = await context.newPage();
       page.setDefaultTimeout(options.timeout);
@@ -514,27 +519,4 @@ function requireResult<T>(value: T | undefined): T {
 function pushBounded<T>(values: T[], value: T): void {
   values.push(value);
   if (values.length > 100) values.shift();
-}
-
-/** A plain integer seed is used as-is, so a seed chosen for one harness
- * reproduces the same Math.random sequence here; other strings are hashed. */
-function hashSeed(value: string): number {
-  if (/^\d{1,9}$/.test(value)) return Number(value) >>> 0;
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function seedRandom(seed: number): void {
-  let state = seed || 0x6d2b79f5;
-  Math.random = () => {
-    state += 0x6d2b79f5;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
 }

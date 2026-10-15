@@ -1,10 +1,21 @@
-import { Actor, Rect, ZRect } from "@js-game-zero/core";
+/**
+ * Reading a running game's state from outside it: the paths a host names
+ * (`player.x`, `fish[0].y`), and the JSON-safe form every value is reported
+ * in. The CLI's `inspect` and a host page's `getGameInspector` share these,
+ * so one game reads the same through both.
+ */
+import { Actor } from "./actor";
+import { Rect, ZRect } from "./geometry";
+import type { GameHandle } from "./runtime";
+import { getSourceInspector } from "./runtime";
+import type { SourceInspector } from "./runtime-source";
 
 const MAX_DEPTH = 6;
 const MAX_COLLECTION_SIZE = 100;
 const MAX_STRING_LENGTH = 10_000;
 
-type JsonSafe =
+/** A value as inspection reports it: JSON, with `$type` tags for the rest. */
+export type JsonSafe =
   | null
   | boolean
   | number
@@ -12,6 +23,13 @@ type JsonSafe =
   | JsonSafe[]
   | { readonly [key: string]: JsonSafe };
 
+/**
+ * A game value as JSON: numbers, strings, booleans, arrays and plain objects
+ * as they are (objects with sorted keys); anything else tagged with `$type`,
+ * such as `{ $type: "Actor", x, y, … }`, `{ $type: "Undefined" }` or
+ * `{ $type: "Number", value: "NaN" }`. Deep, long or circular values are cut
+ * short with `{ $type: "Truncated" }` or `{ $type: "Circular" }`.
+ */
 export function serializeGameValue(value: unknown): JsonSafe {
   return serialize(value, 0, new WeakSet<object>());
 }
@@ -244,4 +262,127 @@ function tagged(
   fields: Record<string, JsonSafe | number | string> = {},
 ): { readonly [key: string]: JsonSafe } {
   return { $type: type, ...fields } as { readonly [key: string]: JsonSafe };
+}
+
+/** A binding and the property names and indexes under it: `fish[0].y`. */
+export type StatePath = {
+  readonly source: string;
+  readonly binding: string;
+  readonly segments: readonly (string | number)[];
+};
+
+const identifier = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*/u;
+const unsafeProperties = new Set(["__proto__", "prototype", "constructor"]);
+
+/**
+ * Reads a state path: a top-level binding, then `.name` for a property and
+ * `[n]` for an index, as in `player.x` or `fish[0].y`. Throws a TypeError for
+ * anything else, and for `__proto__`, `prototype` and `constructor`.
+ */
+export function parseStatePath(source: string): StatePath {
+  const invalid = (): never => {
+    throw new TypeError(
+      `Invalid state path: ${JSON.stringify(source)}. Use a binding with .name and [index] after it, such as player.x or fish[0].y.`,
+    );
+  };
+  if (typeof source !== "string") invalid();
+  const bindingMatch = identifier.exec(source);
+  if (!bindingMatch) invalid();
+  const binding = bindingMatch![0];
+  const segments: (string | number)[] = [];
+  let cursor = binding.length;
+  while (cursor < source.length) {
+    if (source[cursor] === ".") {
+      const match = identifier.exec(source.slice(cursor + 1));
+      if (!match) invalid();
+      if (unsafeProperties.has(match![0])) invalid();
+      segments.push(match![0]);
+      cursor += match![0].length + 1;
+      continue;
+    }
+    if (source[cursor] === "[") {
+      const end = source.indexOf("]", cursor + 1);
+      if (end === -1) invalid();
+      const raw = source.slice(cursor + 1, end);
+      if (!/^\d+$/.test(raw)) invalid();
+      const index = Number(raw);
+      if (!Number.isSafeInteger(index)) invalid();
+      segments.push(index);
+      cursor = end + 1;
+      continue;
+    }
+    invalid();
+  }
+  if (unsafeProperties.has(binding)) invalid();
+  return { source, binding, segments };
+}
+
+/** Host access to a zero-boilerplate game's live top-level bindings. */
+export type GameInspector = {
+  /** Non-function top-level declarations and assignments, in source order. */
+  bindings(): readonly string[];
+  /** Top-level function declarations and function-valued bindings. */
+  functions(): readonly string[];
+  /** The live value at a binding or a path (`score`, `fish[0].y`), as it is. */
+  read(path: string | StatePath): unknown;
+  /**
+   * The value at a path as JSON (`serializeGameValue`), as the CLI's `inspect`
+   * reports it; with no path, every binding's value by name.
+   */
+  inspect(path?: string | StatePath): JsonSafe;
+};
+
+/** The host inspector over a game's source bindings. */
+export function createGameInspector(source: SourceInspector): GameInspector {
+  const read = (path: string | StatePath): unknown => {
+    const parsed = typeof path === "string" ? parseStatePath(path) : path;
+    let value = source.read(parsed.binding);
+    for (const segment of parsed.segments) {
+      if (
+        value === null ||
+        (typeof value !== "object" && typeof value !== "function")
+      ) {
+        throw new TypeError(
+          `Cannot read ${parsed.source}: ${String(segment)} has no parent value.`,
+        );
+      }
+      value = Reflect.get(value, segment);
+    }
+    return value;
+  };
+  return {
+    bindings: () => source.bindings(),
+    functions: () => source.functions(),
+    read,
+    inspect(path) {
+      if (path !== undefined) return serializeGameValue(read(path));
+      const snapshot: Record<string, JsonSafe> = {};
+      for (const binding of source.bindings()) {
+        try {
+          snapshot[binding] = serializeGameValue(source.read(binding));
+        } catch (error) {
+          snapshot[binding] = serializeGameValue(error);
+        }
+      }
+      return snapshot;
+    },
+  };
+}
+
+const hostInspectors = new WeakMap<SourceInspector, GameInspector>();
+
+/**
+ * A live inspector for a running zero-boilerplate game, or null for an
+ * import-mode game and a stopped one (a failed game keeps its inspector, so a
+ * host can read the state at the crash).
+ */
+export function getGameInspector(handle: GameHandle): GameInspector | null {
+  const source = getSourceInspector(handle);
+  if (!source) return null;
+  let inspector = hostInspectors.get(source);
+  if (!inspector) {
+    inspector = createGameInspector(source);
+    hostInspectors.set(source, inspector);
+  }
+  return inspector;
 }

@@ -156,8 +156,11 @@ Games start with automatic animation frames disabled. The CLI waits for storage
 and render assets, calls one `step(0)` to draw the initial screen, and advances
 only in response to `step`. The default step is one sixtieth of a second.
 
-`--seed <value>` replaces `Math.random` with the same repeatable sequence after
-each restart. Without it, Chromium's normal randomness is used. Manual steps
+`--seed <value>` gives the game the same repeatable sequence after each
+restart: `Math.random`, `randomInt` and `randomChoice` follow it. It is
+`run()`'s [`seed`](reference/runtime.md#seeded-runs), so a host page that runs
+the game with the same seed sees the same values. Without it, Chromium's normal
+randomness is used. Manual steps
 control the js-game-zero clock and `update`/`draw` cycle; they do not virtualize
 `Date`, timers, network requests, or audio playback time.
 

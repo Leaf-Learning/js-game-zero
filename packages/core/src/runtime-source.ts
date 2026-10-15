@@ -14,6 +14,7 @@ import {
   keys,
   type MouseState,
 } from "./input";
+import { mathWithRandom, type RandomSource } from "./random";
 import { Screen } from "./rendering";
 import {
   diagnoseSource,
@@ -35,6 +36,8 @@ export type SourceEvaluationContext = {
   readonly music: MusicPlayer;
   readonly storage: Storage;
   readonly tone: ToneGenerator;
+  /** The run's seeded random source, or null to leave `Math` as it is. */
+  readonly random: RandomSource | null;
   stop: (() => void) | null;
 };
 
@@ -285,6 +288,9 @@ export function executeZeroBoilerplateSource(
     rgb,
     run: runFunction,
     exit: () => context.stop?.(),
+    // A seeded run gives the game a Math of its own, so its sequence is
+    // repeatable and no other game or page script can draw from it.
+    ...(context.random ? { Math: mathWithRandom(context.random) } : {}),
   };
   const scopeTarget: Record<string, unknown> = { ...globals };
   function configuredSize(name: "WIDTH" | "HEIGHT", fallback: number): number {

@@ -4,6 +4,25 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Driving a game from a host page
+
+- `run()` takes `seed`, a string or number that makes a game's randomness
+  repeatable: a zero-boilerplate game's `Math.random`, and `randomInt` and
+  `randomChoice`, follow one sequence, the one `jgz test --seed` gives. It is
+  the game's own: the page's `Math.random` and other games on the page keep
+  theirs. The CLI now seeds through this option instead of replacing the
+  page's `Math.random`, so the CLI and a host page agree by construction.
+- The script-tag build (`window.JGZ`) carries `getGameInspector`,
+  `serializeGameValue`, `parseStatePath` and `createSeededRandom`, so a page
+  can step a game, send it input and read its state the way the CLI does.
+- A game inspector's `read(path)` takes state paths (`fish[0].y`), and its new
+  `inspect(path?)` returns values exactly as `jgz`'s `inspect` reports them.
+  The value serialiser and the path reader moved from the CLI into
+  `@js-game-zero/core/host`, so both share one implementation.
+- `run()` takes `mouseReleaseTarget`, where `mouseup` is heard (default
+  `window`), so a game a host drives off-screen gets releases no other game
+  hears.
+
 ### Touch controls you can style
 
 - The D-pad is one joined cross with drawn arrows when a game uses three or

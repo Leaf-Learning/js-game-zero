@@ -2,7 +2,9 @@
 import * as assets from "./assets";
 import * as audio from "./audio";
 import * as events from "./events";
+import * as inspection from "./inspection";
 import * as rendering from "./rendering";
+import * as random from "./random";
 import * as runtime from "./runtime";
 import * as storage from "./storage";
 import * as tone from "./tone";
@@ -21,6 +23,7 @@ export const createFontLoader = assets.createFontLoader;
 export const createImageLoader = assets.createImageLoader;
 export const createInputDispatcher = events.createInputDispatcher;
 export const createLocalStorageAdapter = storage.createLocalStorageAdapter;
+export const createSeededRandom = random.createSeededRandom;
 export const createMusicLoader = assets.createMusicLoader;
 export const createMusicPlayer = audio.createMusicPlayer;
 export const createSoundLoader = assets.createSoundLoader;
@@ -29,7 +32,7 @@ export const createToneGenerator = tone.createToneGenerator;
 export const dispatchHook = events.dispatchHook;
 export const fitTextboxFontSize = rendering.fitTextboxFontSize;
 export const getParameterNames = events.getParameterNames;
-export const getGameInspector = runtime.getGameInspector;
+export const getGameInspector = inspection.getGameInspector;
 export const getScreen = rendering.getScreen;
 export const layoutText = rendering.layoutText;
 export const mapBrowserKeyEvent = events.mapBrowserKeyEvent;
@@ -38,8 +41,10 @@ export const mapBrowserMouseEvent = events.mapBrowserMouseEvent;
 export const mapBrowserWheelEvent = events.mapBrowserWheelEvent;
 export const normalizeColor = rendering.normalizeColor;
 export const normalizeWaveform = tone.normalizeWaveform;
+export const parseStatePath = inspection.parseStatePath;
 export const noteToFrequency = tone.noteToFrequency;
 export const parseToneFrequency = tone.parseToneFrequency;
+export const serializeGameValue = inspection.serializeGameValue;
 export const setScreen = rendering.setScreen;
 export const validateAssetName = assets.validateAssetName;
 
@@ -69,9 +74,10 @@ export type {
   MappedKeyboardEvent,
   MappedMouseEvent,
 } from "./events";
+export type { GameInspector, JsonSafe, StatePath } from "./inspection";
+export type { RandomSeed, RandomSource } from "./random";
 export type { CanvasLike, TextLayout } from "./rendering";
 export type {
-  GameInspector,
   PreloadedAssets,
   RuntimeCanvas,
   RuntimeDiagnostic,

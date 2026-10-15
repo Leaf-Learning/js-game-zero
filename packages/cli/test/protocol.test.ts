@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { parseStatePath as parseHostStatePath } from "@js-game-zero/core/host";
 import { parseCliOptions } from "../src/cli";
 import {
   decodeJsonLine,
@@ -99,6 +100,39 @@ describe("read-only state paths", () => {
       "player.__proto__.x",
     ]) {
       expect(() => parseStatePath(path)).toThrow(ProtocolError);
+    }
+  });
+
+  test("reads every path exactly as a host page's inspector does", () => {
+    for (const path of [
+      "score",
+      "fish[0].y",
+      "snake[12].position.x",
+      "$state._x9",
+      "",
+      "1x",
+      "a.",
+      "a[x]",
+      "a[0",
+      "a..b",
+      "a.__proto__",
+      "constructor",
+      "resetGame()",
+      'player["x"]',
+    ]) {
+      let host: unknown;
+      let cli: unknown;
+      try {
+        host = parseHostStatePath(path);
+      } catch {
+        host = "invalid";
+      }
+      try {
+        cli = parseStatePath(path);
+      } catch {
+        cli = "invalid";
+      }
+      expect(cli).toEqual(host);
     }
   });
 });

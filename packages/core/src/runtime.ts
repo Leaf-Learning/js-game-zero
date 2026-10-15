@@ -33,6 +33,11 @@ import {
   setActiveMusicPlayer,
 } from "./audio";
 import { devicePixelRatioOf, resolvePixelDensity } from "./pixel-density";
+import {
+  createSeededRandom,
+  setActiveRandom,
+  type RandomSource,
+} from "./random";
 import { resizeScreen, Screen, setScreen, syncScreen } from "./rendering";
 import {
   attachAutosave,
@@ -170,14 +175,15 @@ export type GameHandle = {
   reload(source?: GameModule | string | DefinedGame): GameHandle;
 };
 
-/** Host-only access to live top-level bindings in zero-boilerplate games. */
-export type GameInspector = SourceInspector;
-
 const activeHandles: GameHandle[] = [];
-const gameInspectors = new WeakMap<GameHandle, GameInspector>();
+const gameInspectors = new WeakMap<GameHandle, SourceInspector>();
 
-/** Returns an inspector only for a live zero-boilerplate source handle. */
-export function getGameInspector(handle: GameHandle): GameInspector | null {
+/**
+ * The source bindings of a live zero-boilerplate game, or null. Hosts use
+ * `getGameInspector` from `@js-game-zero/core/host`, which reads paths and
+ * serialises values on top of this.
+ */
+export function getSourceInspector(handle: GameHandle): SourceInspector | null {
   return gameInspectors.get(handle) ?? null;
 }
 
@@ -191,7 +197,7 @@ export function run(
     typeof moduleOrSource === "string" ? "global" : "import";
 
   let module!: GameModule;
-  let inspector: GameInspector | null = null;
+  let inspector: SourceInspector | null = null;
   let context!: RuntimeContext;
   let game!: GameModule;
   let touchControls: TouchControlsSettings | null = null;
@@ -461,6 +467,8 @@ type RuntimeContext = {
    * belong to this run. Such loads are adopted into this run's preload gate.
    */
   readonly adoptsDefaultLoaders: boolean;
+  /** The run's seeded random source (`seed`), or null for `Math.random`. */
+  readonly random: RandomSource | null;
   stop: (() => void) | null;
   /** The one active late image/font completion boundary, if any. */
   assetGate: Promise<void> | null;
@@ -474,6 +482,9 @@ function createRuntimeContext(
   emit: (diagnostic: RuntimeDiagnostic) => void,
   module: GameModule | undefined,
 ): RuntimeContext {
+  // Checked before a canvas exists, so a bad seed leaves nothing behind.
+  const random =
+    options.seed === undefined ? null : createSeededRandom(options.seed);
   const ownsCanvas = options.canvas === undefined;
   const canvas = options.canvas ?? createCanvas(options.container);
   // Captured before this run's handle is registered: if no other run is
@@ -556,6 +567,7 @@ function createRuntimeContext(
       autosave,
       emit,
       adoptsDefaultLoaders,
+      random,
       assetGate: null,
       audioAssetGate: null,
       stop: null,
@@ -1024,8 +1036,12 @@ function attachDispatcher(
   // the release (e.g. it's an unrelated, unfocused element). window covers
   // both in-canvas and out-of-canvas releases; fall back to canvas plus
   // keyboardTarget (deduped) only when window isn't available at all.
+  // A host that runs a game on its own (say, an off-screen copy beside a
+  // visible game) names where releases are heard, so they reach no other game.
   const mouseReleaseTargets = new Set<EventTarget>();
-  if (
+  if (options.mouseReleaseTarget) {
+    mouseReleaseTargets.add(options.mouseReleaseTarget);
+  } else if (
     typeof window !== "undefined" &&
     typeof window.addEventListener === "function"
   ) {
@@ -1082,9 +1098,11 @@ function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
   const previousStorage = setActiveStorage(context.storage);
   const previousScreen = setScreen(context.screen);
   const previousDiagnosticEmit = setActiveDiagnosticEmit(context.emit);
+  const previousRandom = setActiveRandom(context.random);
   try {
     return withAnimationClock(context.clock, callback);
   } finally {
+    setActiveRandom(previousRandom);
     setActiveDiagnosticEmit(previousDiagnosticEmit);
     setScreen(previousScreen);
     setActiveStorage(previousStorage);

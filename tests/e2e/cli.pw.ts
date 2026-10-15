@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createSeededRandom } from "@js-game-zero/core/host";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -134,6 +135,8 @@ test("drives a game through JSONL, inspects it, and reloads edits", async () => 
       sprite: { $type: "Actor", image: "hero", width: 10, height: 10 },
     });
     const firstRandom = (initial.result as { randomValue: number }).randomValue;
+    // --seed is run()'s seed, so a host page with the same seed sees the same value.
+    expect(firstRandom).toBe(createSeededRandom("repeatable")());
 
     await client.request({ command: "key", action: "down", key: "right" });
     const stepped = await client.request({

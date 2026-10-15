@@ -5,8 +5,7 @@ import {
   type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
-import { getGameInspector } from "@js-game-zero/core/host";
-import { serializeGameValue } from "./serialize";
+import { getGameInspector, serializeGameValue } from "@js-game-zero/core/host";
 
 type DriverEvent = {
   readonly event: "ready" | "diagnostic" | "runtime-error";
@@ -57,6 +56,8 @@ type JgzDriver = {
 declare global {
   interface Window {
     __jgzDriver?: JgzDriver;
+    /** `jgz test --seed`, set by the CLI before the page loads. */
+    __jgzSeed?: string;
     __jgzEmit?: (event: DriverEvent) => Promise<void> | void;
   }
 }
@@ -93,30 +94,7 @@ const driver: JgzDriver = {
     const active = requireHandle();
     const inspector = getGameInspector(active);
     if (!inspector) throw new Error("Game state inspection is unavailable.");
-    if (!path) {
-      const snapshot: Record<string, unknown> = {};
-      for (const binding of inspector.bindings()) {
-        try {
-          snapshot[binding] = serializeGameValue(inspector.read(binding));
-        } catch (error) {
-          snapshot[binding] = serializeGameValue(error);
-        }
-      }
-      return snapshot;
-    }
-    let value = inspector.read(path.binding);
-    for (const segment of path.segments) {
-      if (
-        value === null ||
-        (typeof value !== "object" && typeof value !== "function")
-      ) {
-        throw new Error(
-          `Cannot read ${path.source}: ${String(segment)} has no parent value.`,
-        );
-      }
-      value = Reflect.get(value, segment);
-    }
-    return serializeGameValue(value);
+    return inspector.inspect(path);
   },
   call(binding) {
     const active = requireHandle();
@@ -162,6 +140,7 @@ async function boot(): Promise<void> {
       assetBaseUrl: `/${encodeURIComponent(token)}`,
       preload,
       preloadedAssets: { images },
+      ...(window.__jgzSeed === undefined ? {} : { seed: window.__jgzSeed }),
       diagnostics(diagnostic) {
         diagnostics.push(diagnostic);
         emit({ event: "diagnostic", diagnostic });
