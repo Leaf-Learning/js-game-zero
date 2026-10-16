@@ -4,6 +4,15 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### What a frame drew
+
+- A game inspector reads `$drawn`: what the game's last `draw()` drew, in
+  order, each thing with its kind (`fill`, `image`, `actor`, `circle`,
+  `rect`, `polygon`, `line`, `text`, `clear`) and what it is and where. The
+  CLI's `inspect` reads it too, so a check that something is on the screen
+  can read what the game drew instead of adding state of its own or reading
+  the canvas.
+
 ### Error lines in Safari
 
 - A game's error names its line in Safari and other JavaScriptCore browsers,

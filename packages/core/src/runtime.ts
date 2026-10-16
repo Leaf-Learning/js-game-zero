@@ -38,7 +38,13 @@ import {
   setActiveRandom,
   type RandomSource,
 } from "./random";
-import { resizeScreen, Screen, setScreen, syncScreen } from "./rendering";
+import {
+  beginDrawn,
+  resizeScreen,
+  Screen,
+  setScreen,
+  syncScreen,
+} from "./rendering";
 import {
   attachAutosave,
   primeStorage,
@@ -741,6 +747,8 @@ function runFrame(
         return;
       }
       try {
+        // What this frame draws, for a host's `$drawn`.
+        beginDrawn(context.screen);
         module.draw?.();
       } catch (error) {
         onFailure("draw", error);

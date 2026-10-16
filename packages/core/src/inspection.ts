@@ -7,6 +7,7 @@
 import { Actor } from "./actor";
 import { Rect, ZRect } from "./geometry";
 import type { GameHandle } from "./runtime";
+import { drawnOn, type Screen } from "./rendering";
 import { getSourceInspector } from "./runtime";
 import type { SourceInspector } from "./runtime-source";
 
@@ -332,11 +333,27 @@ export type GameInspector = {
   inspect(path?: string | StatePath): JsonSafe;
 };
 
-/** The host inspector over a game's source bindings. */
-export function createGameInspector(source: SourceInspector): GameInspector {
+/**
+ * The name a path starts with to read what the game's last `draw()` drew,
+ * rather than one of its bindings: `$drawn`, a list of things, each with its
+ * `kind` and what it is and where (`{ kind: "actor", image: "robot", x, y }`).
+ */
+export const DRAWN = "$drawn";
+
+/**
+ * The host inspector over a game's source bindings, and, given its screen,
+ * what it drew (`$drawn`).
+ */
+export function createGameInspector(
+  source: SourceInspector,
+  screen?: Screen,
+): GameInspector {
   const read = (path: string | StatePath): unknown => {
     const parsed = typeof path === "string" ? parseStatePath(path) : path;
-    let value = source.read(parsed.binding);
+    let value =
+      parsed.binding === DRAWN && screen
+        ? drawnOn(screen)
+        : source.read(parsed.binding);
     for (const segment of parsed.segments) {
       if (
         value === null ||
@@ -381,7 +398,7 @@ export function getGameInspector(handle: GameHandle): GameInspector | null {
   if (!source) return null;
   let inspector = hostInspectors.get(source);
   if (!inspector) {
-    inspector = createGameInspector(source);
+    inspector = createGameInspector(source, handle.screen);
     hostInspectors.set(source, inspector);
   }
   return inspector;

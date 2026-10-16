@@ -419,6 +419,40 @@ function copyCanvas(canvas: SizableCanvas): CanvasImageSource | null {
   }
 }
 
+/** A value a drawn thing reports, as JSON. */
+type DrawnValue = string | number | boolean | readonly number[];
+/**
+ * One thing a frame drew, as a host reads it through the inspector's
+ * `$drawn`: its kind (`fill`, `image`, `actor`, `circle`, `rect`, `polygon`,
+ * `line`, `text`, `clear`), and what it is and where, as the game gave them.
+ */
+export type DrawnThing = {
+  readonly kind: string;
+  readonly [key: string]: DrawnValue;
+};
+/** A frame's things drawn are kept to this many. */
+const MAX_DRAWN = 200;
+const drawnThings = new WeakMap<Screen, DrawnThing[]>();
+
+/** Starts recording what `screen` draws, afresh: the runtime calls it before each `draw()`. */
+export function beginDrawn(screen: Screen): void {
+  drawnThings.set(screen, []);
+}
+
+/** What `screen`'s last `draw()` drew, in order; empty before its first. */
+export function drawnOn(screen: Screen): readonly DrawnThing[] {
+  return drawnThings.get(screen) ?? [];
+}
+
+/** Records one thing drawn, when the screen is recording. */
+export function recordDrawn(screen: Screen, thing: DrawnThing): void {
+  const list = drawnThings.get(screen);
+  if (list && list.length < MAX_DRAWN) list.push(thing);
+}
+
+const colorOf = (color: Color): DrawnValue =>
+  typeof color === "string" ? color : [...color];
+
 export class Screen {
   readonly canvas: CanvasLike;
   readonly context: CanvasRenderingContext2D;
@@ -491,6 +525,7 @@ export class Screen {
   }
 
   clear(): void {
+    recordDrawn(this, { kind: "clear" });
     withSavedCanvasState(this.context, () => {
       this.context.globalAlpha = 1;
       this.context.fillStyle = "black";
@@ -499,6 +534,11 @@ export class Screen {
   }
 
   fill(color: Color, gcolor?: Color): void {
+    recordDrawn(this, {
+      kind: "fill",
+      color: colorOf(color),
+      ...(gcolor === undefined ? {} : { to: colorOf(gcolor) }),
+    });
     const style =
       gcolor === undefined
         ? normalizeColor(color)
@@ -511,6 +551,13 @@ export class Screen {
     image: string | SurfaceLike,
     pos: Point | RectLike,
   ): Promise<void> | void {
+    const at = rectFromBlitTarget(pos);
+    recordDrawn(this, {
+      kind: "image",
+      image: typeof image === "string" ? image : "",
+      x: Array.isArray(at) ? at[0] : at.left,
+      y: Array.isArray(at) ? at[1] : at.top,
+    });
     if (typeof image === "string") {
       const cached = this.imageLoader.get(image);
       if (cached) {
@@ -617,6 +664,14 @@ export class Screen {
   ): void {
     const [startX, startY] = requirePoint(start, "start");
     const [endX, endY] = requirePoint(end, "end");
+    recordDrawn(this, {
+      kind: "line",
+      x: startX,
+      y: startY,
+      x2: endX,
+      y2: endY,
+      color: colorOf(color),
+    });
     withSavedCanvasState(this.context, () => {
       this.context.strokeStyle = normalizeColor(color);
       this.context.lineWidth = requirePositiveNumber(width, "width");
@@ -636,6 +691,14 @@ export class Screen {
   ): void {
     const [x, y] = requirePoint(pos, "pos");
     const parsedRadius = requirePositiveNumber(radius, "radius");
+    recordDrawn(this, {
+      kind: "circle",
+      x,
+      y,
+      radius: parsedRadius,
+      color: colorOf(color),
+      filled,
+    });
     withSavedCanvasState(this.context, () => {
       this.context.beginPath();
       this.context.arc(x, y, parsedRadius, 0, Math.PI * 2);
@@ -664,6 +727,14 @@ export class Screen {
     );
     const first = parsed[0];
     if (!first) throw new TypeError("polygon requires at least three points.");
+    recordDrawn(this, {
+      kind: "polygon",
+      x: first[0],
+      y: first[1],
+      points: parsed.length,
+      color: colorOf(color),
+      filled,
+    });
     withSavedCanvasState(this.context, () => {
       this.context.beginPath();
       this.context.moveTo(first[0], first[1]);
@@ -687,6 +758,15 @@ export class Screen {
     filled = false,
   ): void {
     const rect = new Rect(rectLike);
+    recordDrawn(this, {
+      kind: "rect",
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      color: colorOf(color),
+      filled,
+    });
     withSavedCanvasState(this.context, () => {
       if (filled) {
         this.context.fillStyle = normalizeColor(color);
@@ -720,6 +800,12 @@ export class Screen {
     rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
     const options = canonicalTextOptions(given, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
+    recordDrawn(this, {
+      kind: "text",
+      text: String(text),
+      ...(pos ? { x: pos[0], y: pos[1] } : {}),
+      ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
+    });
     renderTextLayout(this.context, layout, options);
   }
 
@@ -735,6 +821,13 @@ export class Screen {
     );
     const options = canonicalTextOptions(givenOptions, "screen.draw.textbox");
     const rect = new Rect(rectLike);
+    recordDrawn(this, {
+      kind: "text",
+      text: String(text),
+      x: rect.left,
+      y: rect.top,
+      ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
+    });
     const fit = fitTextboxFontSize(this.context, text, rect, options);
     // pgzero's drawbox anchors the text on the rect at the anchor fraction
     // (default 0.5, 0.5 -> centered both ways): the position point is

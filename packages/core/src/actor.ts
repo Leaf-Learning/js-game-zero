@@ -18,7 +18,7 @@ import {
   requirePoint,
   verticalAnchorOffset,
 } from "./util";
-import { getScreen, type Screen } from "./rendering";
+import { getScreen, recordDrawn, type Screen } from "./rendering";
 import {
   describeRuntimeError,
   getActiveDiagnosticEmit,
@@ -530,6 +530,12 @@ export class Actor {
     }
     if (!this._surface) return;
     const target = screen ?? this.screen ?? getScreen();
+    recordDrawn(target, {
+      kind: "actor",
+      image: this.image,
+      x: this.x,
+      y: this.y,
+    });
     const [anchorX, anchorY] = this.anchorOffset();
     target.context.save();
     try {

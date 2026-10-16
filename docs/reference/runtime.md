@@ -264,6 +264,30 @@ index: `score`, `player.x`, `fish[0].y`. `parseStatePath("fish[0].y")` returns
 `TypeError` for anything else, including `__proto__`, `prototype` and
 `constructor`. `jgz`'s `inspect` takes the same paths.
 
+### What a frame drew
+
+A path that starts with `$drawn` reads what the game's last `draw()` drew,
+in order, rather than one of its bindings, through `read`, `inspect` and
+`jgz`'s `inspect` alike. Each thing drawn has its `kind` and what it is and
+where, as the game gave them:
+
+| `kind`    | Fields                                                  | From                                                      |
+| --------- | ------------------------------------------------------- | --------------------------------------------------------- |
+| `fill`    | `color`, and `to` for a gradient                        | `screen.fill`                                             |
+| `clear`   |                                                         | `screen.clear`                                            |
+| `image`   | `image` (its name), `x`, `y` (its top-left)             | `screen.blit`, `screen.draw.image`                        |
+| `actor`   | `image`, `x`, `y`                                       | an Actor's `draw()`                                       |
+| `circle`  | `x`, `y`, `radius`, `color`, `filled`                   | `screen.circle`, `screen.draw.circle`, `filledCircle`     |
+| `rect`    | `x`, `y`, `width`, `height`, `color`, `filled`          | `screen.rect`, `screen.draw.rect`, `filledRect`           |
+| `polygon` | `x`, `y` (its first point), `points`, `color`, `filled` | `screen.triangle`, `screen.draw.polygon`, `filledPolygon` |
+| `line`    | `x`, `y`, `x2`, `y2`, `color`                           | `screen.line`, `screen.draw.line`                         |
+| `text`    | `text`, and `x`, `y`, `color` when it has them          | `screen.text`, `screen.draw.text`, `screen.draw.textbox`  |
+
+`$drawn[0].kind`, `$drawn[2].image` and the like read single things. A frame
+keeps its first 200 things; before the first frame `$drawn` is empty. So a
+check that something is on the screen reads what the game drew rather than
+its pixels: `{ kind: "actor", image: "robot.svg" }` is in `$drawn`.
+
 ### Inspected values
 
 `serializeGameValue` turns a value into JSON: numbers, strings, booleans,
