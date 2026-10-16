@@ -19,6 +19,9 @@ All notable changes to `js-game-zero` are recorded here.
   which give no position for compiled game code. It's the first line whose
   part of the source fails the same way: a missing `)` is placed on the line
   it's missing from, and a block left open on the line it opens on.
+- A name the game never defined names its line in Safari too, where the error,
+  thrown in the game's scope, has no game frame: it's the one line that reads
+  the name, when only one does.
 
 ### Error lines in Safari
 

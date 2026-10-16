@@ -413,7 +413,9 @@ game source where the error was thrown, when the engine's stack trace names it.
 A syntax error carries one too: where the engine gives no position (V8 gives
 none for compiled game code), it's the first line whose part of the source
 fails the same way, so a missing `)` is placed on the line it's missing from,
-and a block left open on the line it opens on. `handle.failure.line` is the
+and a block left open on the line it opens on. A name the game never defined
+is placed the same way where the engine gives no position (JavaScriptCore): on
+the one line that reads it, when only one does. `handle.failure.line` is the
 same number. Errors thrown inside the library have no `line`.
 
 The sandbox surfaces these in its Problems panel; import-mode hosts can pass

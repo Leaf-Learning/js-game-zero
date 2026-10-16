@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   lineWith,
+  onlyLineOf,
   readCalibration,
   syntaxErrorLine,
 } from "../src/runtime-source";
@@ -108,5 +109,30 @@ describe("a syntax error's line, for engines that give none", () => {
 
   test("an error the prefixes never give is left without a line", () => {
     expect(syntaxErrorLine("let x = 5;", "Something else")).toBeUndefined();
+  });
+});
+
+describe("an undefined name's line, where the engine gives none", () => {
+  test("the one line that reads it", () => {
+    expect(
+      onlyLineOf(
+        "O",
+        'let fish = new Actor("fish", [180, 0]);\nfunction update() {\n  fish.y = O;\n}',
+      ),
+    ).toBe(3);
+  });
+
+  test("not in strings, comments or after a dot", () => {
+    expect(
+      onlyLineOf(
+        "scren",
+        '// scren is my typo\nlet note = "scren";\nlet a = {}; a.scren = 1;\nscren.fill("red");',
+      ),
+    ).toBe(4);
+  });
+
+  test("none when it's on no line or on more than one", () => {
+    expect(onlyLineOf("x", "let y = 1;")).toBeUndefined();
+    expect(onlyLineOf("playr", "playr.x = 1;\nplayr.y = 2;")).toBeUndefined();
   });
 });

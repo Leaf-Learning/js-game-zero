@@ -396,9 +396,31 @@ function undefinedNameError(
     ...Object.keys(builtinGlobals),
     ...sourceNames,
   ]);
-  return new ReferenceError(
+  const error = new ReferenceError(
     `${name} is not defined.${didYouMean(name, candidates)}`,
   );
+  const line = onlyLineOf(name, source);
+  if (line !== undefined) nameLines.set(error, line);
+  return error;
+}
+
+/**
+ * The one line of `source` that reads `name` (outside strings and comments,
+ * and not as a property after a dot), or undefined when it's on none or on
+ * more than one.
+ */
+export function onlyLineOf(name: string, source: string): number | undefined {
+  const escaped = name.replace(/[$]/g, "\\$");
+  const read = new RegExp(`(^|[^\\w$.])${escaped}(?![\\w$])`);
+  const lines = source
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, '""')
+        .replace(/\/\/.*$/, ""),
+    );
+  const found = lines.flatMap((line, i) => (read.test(line) ? [i + 1] : []));
+  return found.length === 1 ? found[0] : undefined;
 }
 
 /**
@@ -526,6 +548,11 @@ export function lineWith(
 
 /** Syntax errors in game source, with the line `syntaxErrorLine` found for each. */
 const syntaxLines = new WeakMap<object, number>();
+/**
+ * Undefined names, with the one line that reads each: their line where the
+ * engine gives none (JavaScriptCore, since the error is thrown in the scope).
+ */
+const nameLines = new WeakMap<object, number>();
 
 /** A syntax error's message that means the source ended inside something still open. */
 const AT_END = /end of (input|script)/i;
@@ -571,5 +598,9 @@ export function sourceLineOf(error: unknown): number | undefined {
     typeof error === "object" && error ? syntaxLines.get(error) : undefined;
   if (known !== undefined) return known;
   calibration ??= calibrateFrames();
-  return calibration ? lineWith(calibration, error) : undefined;
+  const line = calibration ? lineWith(calibration, error) : undefined;
+  return (
+    line ??
+    (typeof error === "object" && error ? nameLines.get(error) : undefined)
+  );
 }
