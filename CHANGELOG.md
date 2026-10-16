@@ -4,6 +4,13 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### Error lines in Safari
+
+- A game's error names its line in Safari and other JavaScriptCore browsers,
+  as it does in Chrome and Firefox. JavaScriptCore gives no place in the stack
+  for `new Function` code, so the line comes from the error's own `line`,
+  calibrated the same way, and only for errors thrown in the game's code.
+
 ### Driving a game from a host page
 
 - `run()` takes `seed`, a string or number that makes a game's randomness

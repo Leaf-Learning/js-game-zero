@@ -414,7 +414,19 @@ function wrapSource(
     })();`;
 }
 
-type FrameCalibration = { readonly marker: string; readonly offset: number };
+/**
+ * How this engine numbers lines in `new Function` code: from the file token of
+ * a stack frame (V8, SpiderMonkey), or, where a frame there has no location
+ * (JavaScriptCore), from the error's own `line`.
+ */
+export type FrameCalibration =
+  | { readonly kind: "stack"; readonly marker: string; readonly offset: number }
+  | {
+      readonly kind: "line";
+      readonly offset: number;
+      /** The `sourceURL` errors from game code carry: none, on JavaScriptCore. */
+      readonly url: string | undefined;
+    };
 let calibration: FrameCalibration | null | undefined;
 
 /** `file:line:col` at the end of a stack frame, with or without a closing paren. */
@@ -429,11 +441,44 @@ function frames(stack: string): { file: string; line: number }[] {
   return out;
 }
 
+/** JavaScriptCore's own position for an error: where it was thrown, and in what script. */
+const ownLine = (error: Error) => {
+  const { line, sourceURL } = error as Error & {
+    line?: unknown;
+    sourceURL?: unknown;
+  };
+  return {
+    line: typeof line === "number" ? line : undefined,
+    url: typeof sourceURL === "string" ? sourceURL : undefined,
+  };
+};
+
+/**
+ * The calibration a throw from the first line of game source gives. The
+ * throwing frame is the stack's first frame, after V8's `Error: message` line:
+ * when it has a location, its file token marks game frames; when it has none
+ * (JavaScriptCore's `anonymous@`), the error's own `line` is used instead.
+ */
+export function readCalibration(error: unknown): FrameCalibration | null {
+  if (!(error instanceof Error) || !error.stack) return null;
+  const lines = error.stack.split("\n");
+  const throwing = lines[0]?.startsWith(String(error)) ? lines[1] : lines[0];
+  const match = throwing ? FRAME_RE.exec(throwing) : null;
+  if (match) {
+    const line = Number(match[2]);
+    return line >= 1
+      ? { kind: "stack", marker: match[1]!, offset: line - 1 }
+      : null;
+  }
+  const own = ownLine(error);
+  return own.line !== undefined && own.line >= 1
+    ? { kind: "line", offset: own.line - 1, url: own.url }
+    : null;
+}
+
 /**
  * Learns how this engine numbers lines inside `new Function` code by throwing
- * from a one-line source through the real wrapper: the frame's file token
- * (`<anonymous>` on V8) identifies game frames, and its line number minus one
- * is the wrapper's offset.
+ * from a one-line source through the real wrapper.
  */
 function calibrateFrames(): FrameCalibration | null {
   try {
@@ -443,29 +488,38 @@ function calibrateFrames(): FrameCalibration | null {
     );
     factory({});
   } catch (error) {
-    const first =
-      error instanceof Error && error.stack
-        ? frames(error.stack)[0]
-        : undefined;
-    if (first && first.line >= 1)
-      return { marker: first.file, offset: first.line - 1 };
+    return readCalibration(error);
   }
   return null;
 }
 
+/** The game source's line for `error` under `calibration`, or undefined when it wasn't thrown there. */
+export function lineWith(
+  calibration: FrameCalibration,
+  error: unknown,
+): number | undefined {
+  if (!(error instanceof Error) || !error.stack) return undefined;
+  let line: number | undefined;
+  if (calibration.kind === "stack") {
+    const frame = frames(error.stack).find(
+      (candidate) => candidate.file === calibration.marker,
+    );
+    line = frame && frame.line - calibration.offset;
+  } else {
+    // Thrown in game code: its own position is in the same script as the calibration's.
+    const own = ownLine(error);
+    if (own.line !== undefined && own.url === calibration.url)
+      line = own.line - calibration.offset;
+  }
+  return line !== undefined && line >= 1 ? line : undefined;
+}
+
 /**
  * The 1-based line in the game source where `error` was thrown, or undefined
- * when the stack has no game frame (the error came from the library, or the
- * engine gives no usable stack).
+ * when it wasn't thrown in game code (the error came from the library, or the
+ * engine gives no usable position).
  */
 export function sourceLineOf(error: unknown): number | undefined {
-  const stack = error instanceof Error ? error.stack : undefined;
-  if (!stack) return undefined;
   calibration ??= calibrateFrames();
-  if (!calibration) return undefined;
-  const { marker, offset } = calibration;
-  const frame = frames(stack).find((candidate) => candidate.file === marker);
-  if (!frame) return undefined;
-  const line = frame.line - offset;
-  return line >= 1 ? line : undefined;
+  return calibration ? lineWith(calibration, error) : undefined;
 }
