@@ -13,6 +13,13 @@ All notable changes to `js-game-zero` are recorded here.
   can read what the game drew instead of adding state of its own or reading
   the canvas.
 
+### Syntax error lines
+
+- A syntax error in a game names its line in Chrome and other V8 browsers,
+  which give no position for compiled game code. It's the first line whose
+  part of the source fails the same way: a missing `)` is placed on the line
+  it's missing from, and a block left open on the line it opens on.
+
 ### Error lines in Safari
 
 - A game's error names its line in Safari and other JavaScriptCore browsers,

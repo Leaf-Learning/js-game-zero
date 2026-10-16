@@ -354,6 +354,49 @@ function draw() { throw new Error("draw exploded"); }
   }
 });
 
+test("a syntax error is placed on its line, where V8 gives none", async () => {
+  test.setTimeout(30_000);
+  const root = await mkdtemp(join(tmpdir(), "jgz-cli-syntax-"));
+  const project = join(root, "game");
+  await mkdir(project);
+  await writeFile(
+    join(project, "main.js"),
+    `WIDTH = 360;
+let sky = "navy";
+
+let cat = new Actor("cat", [180, 520]
+
+function draw() {
+  screen.fill(sky);
+}
+`,
+    "utf8",
+  );
+  const cliEnvironment = { ...process.env };
+  delete cliEnvironment.FORCE_COLOR;
+  const client = new JsonlClient(
+    spawn(cliBinary, ["test", project, "--json"], {
+      cwd: repoRoot,
+      env: cliEnvironment,
+    }),
+  );
+
+  try {
+    // The line the bracket is missing from, not the next one, where the parser noticed.
+    const reported = await client.waitFor(
+      (record) => record.type === "event" && record.event === "diagnostic",
+    );
+    expect(reported).toMatchObject({
+      diagnostic: { code: "runtime-error", phase: "startup", line: 4 },
+    });
+    await client.request({ command: "quit" });
+    expect(await client.exited()).toBe(0);
+  } finally {
+    client.stop();
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
 test("a Pygame Zero spelling is reported with its camelCase name", async () => {
   test.setTimeout(30_000);
   const root = await mkdtemp(join(tmpdir(), "jgz-cli-spelling-"));

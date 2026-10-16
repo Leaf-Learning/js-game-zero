@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { lineWith, readCalibration } from "../src/runtime-source";
+import {
+  lineWith,
+  readCalibration,
+  syntaxErrorLine,
+} from "../src/runtime-source";
 
 /**
  * An error as an engine reports it: its stack, and JavaScriptCore's own position. Made without
@@ -75,5 +79,34 @@ describe("an error's line in the game source", () => {
       readCalibration(thrown("@\nanonymous@", {}, "calibrate")),
     ).toBeNull();
     expect(readCalibration("not an error")).toBeNull();
+  });
+});
+
+/** The syntax error this engine gives for `source`. */
+const syntaxError = (source: string): string => {
+  try {
+    new Function("scope", source);
+  } catch (error) {
+    if (error instanceof SyntaxError) return error.message;
+  }
+  throw new Error("It compiled");
+};
+
+// A missing bracket, which V8 reports where the parser noticed, is in the CLI test (Chromium).
+describe("a syntax error's line, for engines that give none", () => {
+  const at = (source: string) => syntaxErrorLine(source, syntaxError(source));
+
+  test("an unexpected token: its line", () => {
+    expect(at("let x = 5;\nfunction draw() {\n  if (x > 3 {\n  }\n}")).toBe(3);
+  });
+
+  test("a block left open at the end: the line it opens on", () => {
+    expect(
+      at('let x = 5;\n\nfunction draw() {\n  screen.fill("navy");\n'),
+    ).toBe(3);
+  });
+
+  test("an error the prefixes never give is left without a line", () => {
+    expect(syntaxErrorLine("let x = 5;", "Something else")).toBeUndefined();
   });
 });

@@ -326,13 +326,23 @@ export function executeZeroBoilerplateSource(
     },
   });
 
-  const factory = new Function(
-    "scope",
-    wrapSource(source, String(sourceResultFields), [
-      ...bindingNames,
-      ...callableNames,
-    ]),
-  );
+  let factory: (scope: unknown) => unknown;
+  try {
+    factory = new Function(
+      "scope",
+      wrapSource(source, String(sourceResultFields), [
+        ...bindingNames,
+        ...callableNames,
+      ]),
+    ) as (scope: unknown) => unknown;
+  } catch (error) {
+    // V8 places no syntax error in `new Function` code, so find its line here.
+    if (error instanceof SyntaxError && sourceLineOf(error) === undefined) {
+      const line = syntaxErrorLine(source, error.message);
+      if (line !== undefined) syntaxLines.set(error, line);
+    }
+    throw error;
+  }
   const evaluated = factory(scope) as EvaluatedSource;
   const bindings = Object.freeze([...bindingNames]);
   const callables = Object.freeze(callableNames);
@@ -514,12 +524,52 @@ export function lineWith(
   return line !== undefined && line >= 1 ? line : undefined;
 }
 
+/** Syntax errors in game source, with the line `syntaxErrorLine` found for each. */
+const syntaxLines = new WeakMap<object, number>();
+
+/** A syntax error's message that means the source ended inside something still open. */
+const AT_END = /end of (input|script)/i;
+
+/** The syntax error compiling `source` gives, or undefined when it compiles. */
+function compileProblem(source: string): string | undefined {
+  try {
+    new Function("scope", source);
+    return undefined;
+  } catch (error) {
+    return error instanceof SyntaxError ? error.message : undefined;
+  }
+}
+
+/**
+ * The 1-based line of the syntax error `message` in `source`, for engines that
+ * give none: the first line whose prefix of the source fails with the same
+ * message. An error at the end of the source (something left open) is placed
+ * on the line after the last prefix that compiles, where the open part starts.
+ */
+export function syntaxErrorLine(
+  source: string,
+  message: string,
+): number | undefined {
+  const lines = source.split("\n");
+  const atEnd = AT_END.test(message);
+  let compiles = 0;
+  for (let k = 1; k <= lines.length; k += 1) {
+    const problem = compileProblem(lines.slice(0, k).join("\n"));
+    if (problem === undefined) compiles = k;
+    else if (!atEnd && problem === message) return k;
+  }
+  return atEnd && compiles < lines.length ? compiles + 1 : undefined;
+}
+
 /**
  * The 1-based line in the game source where `error` was thrown, or undefined
  * when it wasn't thrown in game code (the error came from the library, or the
  * engine gives no usable position).
  */
 export function sourceLineOf(error: unknown): number | undefined {
+  const known =
+    typeof error === "object" && error ? syntaxLines.get(error) : undefined;
+  if (known !== undefined) return known;
   calibration ??= calibrateFrames();
   return calibration ? lineWith(calibration, error) : undefined;
 }

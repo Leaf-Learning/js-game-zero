@@ -410,8 +410,11 @@ name is also defined. Short names get one edit of slack and longer ones two.
 A `runtime-error` raised by the game's own code (a hook that threw, or a
 top-level statement at startup) also carries `line`: the 1-based line in the
 game source where the error was thrown, when the engine's stack trace names it.
-`handle.failure.line` is the same number. Errors thrown inside the library have
-no `line`.
+A syntax error carries one too: where the engine gives no position (V8 gives
+none for compiled game code), it's the first line whose part of the source
+fails the same way, so a missing `)` is placed on the line it's missing from,
+and a block left open on the line it opens on. `handle.failure.line` is the
+same number. Errors thrown inside the library have no `line`.
 
 The sandbox surfaces these in its Problems panel; import-mode hosts can pass
 a `diagnostics` callback to log or display them however they like.
