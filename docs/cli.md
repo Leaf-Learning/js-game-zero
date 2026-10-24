@@ -178,7 +178,10 @@ inspectable in this first version. Screenshots and input still work normally.
 
 Games start with automatic animation frames disabled. The CLI waits for storage
 and render assets, calls one `step(0)` to draw the initial screen, and advances
-only in response to `step`. The default step is one sixtieth of a second.
+only in response to `step`. The default step is one sixtieth of a second. A
+`step` runs `count` frames (a whole number from 1 to 100,000) of `dt` seconds
+each (0 or more), so `{"command": "step", "dt": 0}` runs one frame without
+moving time on, and a `count` of 0 is refused.
 
 `--seed <value>` gives the game the same repeatable sequence after each
 restart: `Math.random`, `randomInt` and `randomChoice` follow it. It is

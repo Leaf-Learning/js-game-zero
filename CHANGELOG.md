@@ -55,6 +55,8 @@ All notable changes to `js-game-zero` are recorded here.
   Flip-book Actors also showed the engine's own `_images`, `_fps`, `_loop`,
   `animationStart` and `clockSource`, the last as a whole clock. The CLI and
   runtime references now name `properties`.
+- `docs/cli.md` gives a `step`'s limits: a `count` from 1 to 100,000 and a
+  `dt` of 0 or more.
 
 ## 0.2.0 — 2026-10-24
 
