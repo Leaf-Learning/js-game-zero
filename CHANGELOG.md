@@ -21,6 +21,13 @@ All notable changes to `js-game-zero` are recorded here.
   text. Most bundlers and minifiers keep such comments, so a page or an app
   that bundles js-game-zero carries its notice without doing anything.
 
+### The API reference in core
+
+- `@js-game-zero/core/reference` exports `reference`, every page of the API
+  reference as Markdown by its file name (`reference["actor.md"]`), and each
+  page is also a file at `@js-game-zero/core/reference/<page>.md`, for a host
+  that hands the docs to a learner, a tool or a model.
+
 ### What a frame drew
 
 - A game inspector reads `$drawn`: what the game's last `draw()` drew, in

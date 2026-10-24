@@ -25,7 +25,14 @@
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js",
       "default": "./dist/node.js"
-    }
+    },
+    "./reference": {
+      "types": "./dist/reference/index.d.ts",
+      "import": "./dist/reference/index.js",
+      "default": "./dist/reference/index.js"
+    },
+    "./reference/*.md": "./dist/reference/*.md",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "bun ../../scripts/build.ts core",

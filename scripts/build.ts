@@ -1,5 +1,6 @@
 import {
   chmod,
+  mkdir,
   readdir,
   readFile,
   rm,
@@ -63,6 +64,30 @@ async function buildCore(): Promise<void> {
   });
   await emitDeclarations("packages/core/tsconfig.build.json");
   await normalizeDeclarationSpecifiers("packages/core/dist");
+  await buildReference(banner);
+}
+
+/** Ships the API reference with core, for a host that hands it to a
+ * learner, a tool or a model: each page as Markdown in dist/reference/, and
+ * dist/reference/index.js exporting every page by its file name. */
+async function buildReference(banner: string): Promise<void> {
+  const from = "docs/reference";
+  const to = "packages/core/dist/reference";
+  await mkdir(to, { recursive: true });
+  const pages: Record<string, string> = {};
+  for (const name of (await readdir(from)).sort()) {
+    if (!name.endsWith(".md")) continue;
+    pages[name] = await readFile(join(from, name), "utf8");
+    await writeFile(join(to, name), pages[name]);
+  }
+  await writeFile(
+    join(to, "index.js"),
+    `${banner}\nexport const reference = Object.freeze(${JSON.stringify(pages, null, 2)});\n`,
+  );
+  await writeFile(
+    join(to, "index.d.ts"),
+    `/** js-game-zero's API reference: every page's Markdown by its file name, such as "actor.md". */\nexport declare const reference: Readonly<Record<string, string>>;\n`,
+  );
 }
 
 async function buildBrowserRuntime(): Promise<void> {

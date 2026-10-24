@@ -9,6 +9,7 @@ const artifacts = {
   core: resolve(repoRoot, "packages/core/dist/index.js"),
   host: resolve(repoRoot, "packages/core/dist/host.js"),
   node: resolve(repoRoot, "packages/core/dist/node.js"),
+  reference: resolve(repoRoot, "packages/core/dist/reference/index.js"),
   runtime: resolve(repoRoot, "packages/browser-runtime/dist/index.js"),
   iife: resolve(repoRoot, "packages/browser-runtime/dist/browser/browser.js"),
   cli: resolve(repoRoot, "packages/cli/dist/cli.js"),
@@ -80,6 +81,7 @@ async function checkLicenseBanners(): Promise<void> {
     [artifacts.core, core],
     [artifacts.host, core],
     [artifacts.node, core],
+    [artifacts.reference, core],
     [artifacts.iife, runtime],
     [artifacts.cli, cli],
     [artifacts.cliDriver, cli],
@@ -116,6 +118,12 @@ async function checkPackedConsumer(): Promise<void> {
     await assertLicenseInTarball(coreTarball, "packages/core");
     await assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
     await assertLicenseInTarball(cliTarball, "packages/cli");
+    const referencePages = (await readdir(resolve(repoRoot, "docs/reference")))
+      .filter((name) => name.endsWith(".md"))
+      .sort();
+    for (const file of ["index.js", "index.d.ts", ...referencePages]) {
+      await assertFileInTarball(coreTarball, `package/dist/reference/${file}`);
+    }
     await assertFileInTarball(cliTarball, "package/dist/cli.js");
     await assertFileInTarball(cliTarball, "package/dist/browser/driver.js");
 
@@ -177,7 +185,11 @@ async function checkPackedConsumer(): Promise<void> {
       `import { Actor, defineGame, run, type RuntimeDiagnostic } from "@js-game-zero/core";
 import { createAssetLoaders } from "@js-game-zero/core/host";
 import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
+import { reference } from "@js-game-zero/core/reference";
 import { Actor as RuntimeActor } from "@js-game-zero/browser-runtime/browser";
+
+const actorPage: string | undefined = reference["actor.md"];
+void actorPage;
 
 const diagnostics: RuntimeDiagnostic[] = [];
 void diagnostics;
@@ -224,6 +236,27 @@ if (typeof createAssetLoaders !== "function") throw new Error("host export missi
 if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node export missing");
 `,
     );
+    // The reference is every page of docs/reference, as an export and as
+    // Markdown files at their own subpaths.
+    await Bun.write(
+      join(consumerDir, "reference.mjs"),
+      `import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { reference } from "@js-game-zero/core/reference";
+
+const pages = ${JSON.stringify(referencePages)};
+if (JSON.stringify(Object.keys(reference)) !== JSON.stringify(pages)) {
+  throw new Error("reference export doesn't hold every page");
+}
+for (const page of pages) {
+  const file = fileURLToPath(import.meta.resolve(\`@js-game-zero/core/reference/\${page}\`));
+  if (readFileSync(file, "utf8") !== reference[page]) {
+    throw new Error(\`reference \${page} differs from its Markdown file\`);
+  }
+}
+import.meta.resolve("@js-game-zero/core/package.json");
+`,
+    );
 
     // npm resolves the local tarballs as a publish-style consumer would,
     // including browser-runtime's packed dependency on core and the CLI bin.
@@ -245,6 +278,9 @@ if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node
       consumerDir,
     );
     await runCommand([process.execPath, "consumer.mjs"], consumerDir);
+    await runCommand([process.execPath, "reference.mjs"], consumerDir);
+    // Node resolves the export map itself, apart from Bun.
+    await runCommand(["node", "reference.mjs"], consumerDir);
   } finally {
     await rm(root, { force: true, recursive: true });
   }

@@ -246,6 +246,11 @@ handles (a failed game keeps its inspector, so a host can read the state at the
 crash). This is the inspection seam the browser-backed `jgz` verification CLI
 uses; it does not add globals or learner-facing runtime methods.
 
+This reference ships with core, for a host that hands it to a learner, a tool
+or a model. `@js-game-zero/core/reference` exports `reference`, every page's
+Markdown by its file name (`reference["actor.md"]`), and each page is also a
+file at `@js-game-zero/core/reference/<page>.md`.
+
 | Member           | Purpose                                                                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `bindings()`     | The captured non-function top-level identifiers, in source order.                                                                         |

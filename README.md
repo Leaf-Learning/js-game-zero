@@ -95,7 +95,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development workflow.
 ## Packages
 
 - `packages/core` — rendering, actors, geometry, input, animation, audio,
-  and storage: the framework itself.
+  and storage: the framework itself, with its API reference
+  (`@js-game-zero/core/reference`).
 - `packages/browser-runtime` — the zero-boilerplate wrapper that injects
   globals and runs learner code.
 - `packages/cli` — the browser-backed `jgz` verification and automation CLI.
