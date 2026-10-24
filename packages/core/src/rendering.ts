@@ -798,10 +798,14 @@ export class Screen {
     rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
     const options = canonicalTextOptions(given, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
+    // Where its box is, however it was placed (a point, center, an anchor).
     recordDrawn(this, {
       kind: "text",
       text: String(text),
-      ...(pos ? { x: pos[0], y: pos[1] } : {}),
+      x: layout.topLeft[0],
+      y: layout.topLeft[1],
+      width: layout.boxWidth,
+      height: layout.boxHeight,
       ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
     });
     renderTextLayout(this.context, layout, options);
@@ -824,6 +828,8 @@ export class Screen {
       text: String(text),
       x: rect.left,
       y: rect.top,
+      width: rect.width,
+      height: rect.height,
       ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
     });
     const fit = fitTextboxFontSize(this.context, text, rect, options);

@@ -42,6 +42,13 @@ All notable changes to `js-game-zero` are recorded here.
   digits and F-keys. F13 to F15, which Playwright can't press, are refused
   up front instead of failing in the browser. `docs/cli.md` lists the names.
 
+### Where text is drawn
+
+- A `$drawn` text entry gives its box, `x`, `y`, `width` and `height`,
+  however the text was placed. Text placed by `center`, `midTop` or another
+  named point had no position at all, and text at a point with an `anchor`
+  gave the anchor point, so a check couldn't tell where a centred title was.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm
