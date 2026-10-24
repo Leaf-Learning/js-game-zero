@@ -255,16 +255,30 @@ async function checkBuildMetadata(): Promise<void> {
 async function checkLicenseBoundary(): Promise<void> {
   const licenseText = await Bun.file("LICENSE").text();
   if (
-    !licenseText.includes("GNU LESSER GENERAL PUBLIC LICENSE") ||
-    !licenseText.includes("Version 3, 29 June 2007")
+    !licenseText.startsWith("MIT License\n") ||
+    !licenseText.includes("Copyright (c) 2026 Taha Rafiq") ||
+    // The tweens' curves are Penner's, under MIT on his terms.
+    !licenseText.includes("Easing equations copyright (c) 2001 Robert Penner")
   ) {
-    fail("LICENSE must be GNU LGPL version 3.");
+    fail("LICENSE must be the MIT License with both copyright notices.");
   }
 
   for (const packagePath of packageManifests) {
     const manifest = await readPackageJson(packagePath);
-    if (manifest.license !== "LGPL-3.0-only") {
-      fail(`${packagePath} must declare LGPL-3.0-only license.`);
+    if (manifest.license !== "MIT") {
+      fail(`${packagePath} must declare the MIT license.`);
+    }
+  }
+
+  // Each published package ships its own copy of LICENSE.
+  for (const packageDir of [
+    "packages/core",
+    "packages/browser-runtime",
+    "packages/cli",
+  ]) {
+    const copy = Bun.file(`${packageDir}/LICENSE`);
+    if (!(await copy.exists()) || (await copy.text()) !== licenseText) {
+      fail(`${packageDir}/LICENSE must be a copy of LICENSE.`);
     }
   }
 }

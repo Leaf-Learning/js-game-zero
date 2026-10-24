@@ -2,14 +2,13 @@
   "name": "@js-game-zero/cli",
   "version": "0.1.3",
   "type": "module",
-  "license": "LGPL-3.0-only",
+  "license": "MIT",
   "bin": {
     "jgz": "./dist/cli.js"
   },
   "files": [
     "dist",
-    "LICENSE",
-    "COPYING"
+    "LICENSE"
   ],
   "dependencies": {
     "playwright": "^1.57.0"

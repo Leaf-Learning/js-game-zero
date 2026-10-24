@@ -53,7 +53,7 @@ describe("tweens", () => {
     ).toThrow("did you mean bounceEnd?");
   });
 
-  test("golden values match the reference pgzero easing formulas at n=0,0.25,0.5,0.75,1", () => {
+  test("golden values match Penner's easing equations at n=0,0.25,0.5,0.75,1", () => {
     const samples = [0, 0.25, 0.5, 0.75, 1];
     const linear = [0, 0.25, 0.5, 0.75, 1];
     const accelerate = [0, 0.0625, 0.25, 0.5625, 1];

@@ -104,13 +104,15 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development workflow.
 
 ## License and credits
 
-`js-game-zero` is licensed under the GNU Lesser General Public License
-version 3 only (`LGPL-3.0-only`) — see [`LICENSE`](LICENSE). It is a
-reimplementation inspired by and derived in part from
-[Pygame Zero](https://github.com/lordmauve/pgzero), which is itself
-LGPL-3.0; this project's naming, API shape, and beginner-friendly model
-follow Pygame Zero closely on purpose, credited here rather than claimed as
-independent invention.
+`js-game-zero` is released under the MIT License — see [`LICENSE`](LICENSE).
+It is written from scratch, but its naming, API shape, and behavior follow
+[Pygame Zero](https://github.com/lordmauve/pgzero)'s beginner-friendly model
+closely on purpose, credited here rather than claimed as our own invention.
+It contains no Pygame Zero code. The tweens' easing curves are
+[Robert Penner's easing equations](http://robertpenner.com/easing/), used
+under his MIT terms, and text wrapping is ported from Christopher Night's
+[pygame-text](https://github.com/cosmologicon/pygame-text), which is in the
+public domain (CC0).
 
 Example games use free [CC0-licensed assets from kenney.nl](https://kenney.nl/),
 which requires no attribution but is credited here out of respect for the

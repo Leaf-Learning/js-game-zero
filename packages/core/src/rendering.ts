@@ -1059,7 +1059,8 @@ function renderTextLayout(
 }
 
 /**
- * Ports ptext.py's `wrap()` (lines ~81-143): splits on newlines (tabs are
+ * Ports `wrap()` from Christopher Night's pygame-text (ptext.py, CC0 1.0,
+ * public domain), which Pygame Zero bundles: splits on newlines (tabs are
  * expanded to four spaces first, matching upstream), then greedily wraps
  * each line by measured width, preserving leading indentation and
  * hard-breaking only when a single word alone exceeds the width.

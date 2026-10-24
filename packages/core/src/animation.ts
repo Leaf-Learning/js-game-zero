@@ -1,6 +1,7 @@
-// The tween easing curves below are ported from Pygame Zero's animation
-// module (LGPL-3.0), which in turn credits: "Easing Functions ported from
-// the Clutter Project via kivy.org".
+// The tweens' curves are Robert Penner's easing equations (MIT License,
+// copyright 2001 Robert Penner; see LICENSE), each with a start of 0, a
+// change of 1 and a duration of 1, so it maps progress from 0 to 1 onto
+// eased progress. The tween names are Pygame Zero's for those curves.
 import { Clock, clock } from "./clock";
 import { guardedMember, guardSpellings } from "./friendly-names";
 import { didYouMean, levenshtein, looseName } from "./util";
@@ -28,62 +29,31 @@ export const tweens = Object.freeze({
     return n;
   },
   accelerate(n: number): number {
-    return n * n;
+    return easeInQuad(n);
   },
   decelerate(n: number): number {
-    return -n * (n - 2);
+    return easeOutQuad(n);
   },
   accelDecel(n: number): number {
-    const p = n * 2;
-    if (p < 1) return 0.5 * p * p;
-    const q = p - 1;
-    return -0.5 * (q * (q - 2) - 1);
+    return easeInOutQuad(n);
   },
   inElastic(n: number): number {
-    const period = 0.3;
-    const shift = period / 4;
-    if (n === 0 || n === 1) return n;
-    const q = n - 1;
-    return -(2 ** (10 * q) * Math.sin(((q - shift) * (2 * Math.PI)) / period));
+    return easeInElastic(n);
   },
   outElastic(n: number): number {
-    const period = 0.3;
-    const shift = period / 4;
-    if (n === 0 || n === 1) return n;
-    return (
-      2 ** (-10 * n) * Math.sin(((n - shift) * (2 * Math.PI)) / period) + 1
-    );
+    return easeOutElastic(n);
   },
   inOutElastic(n: number): number {
-    const period = 0.45;
-    const shift = period / 4;
-    const p = n * 2;
-    if (p === 0) return 0;
-    if (p === 2) return 1;
-    if (p < 1) {
-      const q = p - 1;
-      return (
-        -0.5 *
-        (2 ** (10 * q) * Math.sin(((q - shift) * (2 * Math.PI)) / period))
-      );
-    }
-    const q = p - 1;
-    return (
-      0.5 *
-        (2 ** (-10 * q) * Math.sin(((q - shift) * (2 * Math.PI)) / period)) +
-      1
-    );
+    return easeInOutElastic(n);
   },
   bounceEnd(n: number): number {
-    return outBounce(n);
+    return easeOutBounce(n);
   },
   bounceStart(n: number): number {
-    return 1 - outBounce(1 - n);
+    return easeInBounce(n);
   },
   bounceStartEnd(n: number): number {
-    const p = n * 2;
-    if (p < 1) return (1 - outBounce(1 - p)) * 0.5;
-    return outBounce(p - 1) * 0.5 + 0.5;
+    return easeInOutBounce(n);
   },
   endElastic(n: number): number {
     return tweens.inElastic(n);
@@ -377,16 +347,70 @@ function interpolateValue(
   throw new TypeError("Cannot interpolate mismatched values.");
 }
 
-function outBounce(n: number): number {
-  if (n < 1 / 2.75) return 7.5625 * n * n;
-  if (n < 2 / 2.75) {
-    const p = n - 1.5 / 2.75;
-    return 7.5625 * p * p + 0.75;
+// Penner's easing equations, by his names, for t from 0 to 1.
+
+const TAU = 2 * Math.PI;
+
+function easeInQuad(t: number): number {
+  return t * t;
+}
+
+function easeOutQuad(t: number): number {
+  return -t * (t - 2);
+}
+
+function easeInOutQuad(t: number): number {
+  const half = t * 2;
+  if (half < 1) return 0.5 * half * half;
+  const u = half - 1;
+  return -0.5 * (u * (u - 2) - 1);
+}
+
+// The elastics swing with amplitude 1 and Penner's default period: 0.3 of
+// the duration, or 0.45 in and out. Both ends are pinned exactly, where the
+// sine alone would leave one of them a hair off.
+function easeInElastic(t: number): number {
+  if (t === 0 || t === 1) return t;
+  const period = 0.3;
+  const u = t - 1;
+  return -(2 ** (10 * u) * Math.sin(((u - period / 4) * TAU) / period));
+}
+
+function easeOutElastic(t: number): number {
+  if (t === 0 || t === 1) return t;
+  const period = 0.3;
+  return 2 ** (-10 * t) * Math.sin(((t - period / 4) * TAU) / period) + 1;
+}
+
+function easeInOutElastic(t: number): number {
+  if (t === 0 || t === 1) return t;
+  const period = 0.45;
+  const u = t * 2 - 1;
+  const wave = Math.sin(((u - period / 4) * TAU) / period);
+  if (u < 0) return -0.5 * (2 ** (10 * u) * wave);
+  return 0.5 * (2 ** (-10 * u) * wave) + 1;
+}
+
+// Four parabolic arcs, each bounce lower than the last.
+function easeOutBounce(t: number): number {
+  if (t < 1 / 2.75) return 7.5625 * t * t;
+  if (t < 2 / 2.75) {
+    const u = t - 1.5 / 2.75;
+    return 7.5625 * u * u + 0.75;
   }
-  if (n < 2.5 / 2.75) {
-    const p = n - 2.25 / 2.75;
-    return 7.5625 * p * p + 0.9375;
+  if (t < 2.5 / 2.75) {
+    const u = t - 2.25 / 2.75;
+    return 7.5625 * u * u + 0.9375;
   }
-  const p = n - 2.625 / 2.75;
-  return 7.5625 * p * p + 0.984375;
+  const u = t - 2.625 / 2.75;
+  return 7.5625 * u * u + 0.984375;
+}
+
+function easeInBounce(t: number): number {
+  return 1 - easeOutBounce(1 - t);
+}
+
+function easeInOutBounce(t: number): number {
+  if (t < 0.5) return easeInBounce(t * 2) * 0.5;
+  return easeOutBounce(t * 2 - 1) * 0.5 + 0.5;
 }

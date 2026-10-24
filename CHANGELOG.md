@@ -4,6 +4,19 @@ All notable changes to `js-game-zero` are recorded here.
 
 ## Unreleased
 
+### MIT license
+
+- `js-game-zero` is now released under the MIT License instead of
+  `LGPL-3.0-only`, so a game, an app or a page can bundle it with nothing
+  more than its license notice. Packages ship `LICENSE` alone; `COPYING` is
+  gone.
+- The tweens' easing curves are written from Robert Penner's easing
+  equations, credited in `LICENSE`, in place of the version ported from
+  Pygame Zero. Every tween gives exactly the values it did.
+- The README credits pygame-text (CC0), which text wrapping is ported from,
+  and Tappy Plane credits Pygame Zero's Flappy Bird example, whose idea and
+  shape it follows.
+
 ### What a frame drew
 
 - A game inspector reads `$drawn`: what the game's last `draw()` drew, in

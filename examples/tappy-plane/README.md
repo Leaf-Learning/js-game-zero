@@ -39,6 +39,12 @@ Try changing `GAP` or `MOUNTAIN_SPEED` first. If you replace the art, update
 the hitbox points to fit its painted silhouette; these are hand-tuned
 shapes for the shipped sprites, rather than automatic pixel collision.
 
+## Credits
+
+The game follows the idea and shape of Pygame Zero's Flappy Bird example
+(by Max00355, ported to Pygame Zero by Daniel Pope), written anew for
+js-game-zero.
+
 ## Assets
 
 Assets by Kenney (kenney.nl), licensed CC0.

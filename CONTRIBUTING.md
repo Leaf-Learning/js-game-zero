@@ -91,11 +91,12 @@ over the documentation, not just a link checker:
 - The CI workflow includes the expected steps, in order.
 - User-facing docs don't reintroduce internal "Verification Criteria"
   language, and nothing claims this project is a "clean-room"
-  implementation — this project is LGPL-3.0-only and behavior-compatible
-  with Pygame Zero by design, inspired by and derived in part from it, not
-  an independent from-scratch reimplementation, so "clean-room" would
-  misstate its license lineage.
-- Every package that should declare `LGPL-3.0-only` does.
+  implementation — its behavior is matched against Pygame Zero's docs and
+  source by design, so it is an independent implementation but not a
+  clean-room one.
+- `LICENSE` is the MIT License with both copyright notices (this
+  project's, and Robert Penner's for the easing equations), each package's
+  `LICENSE` is a copy of it, and every package declares `MIT`.
 
 If you add a new doc file that should be part of the required set, add it
 to `requiredDocs` in `scripts/check-docs.ts`.
@@ -112,3 +113,11 @@ to `requiredDocs` in `scripts/check-docs.ts`.
   treated as incomplete work, not a follow-up.
 - Describe what you tested manually, if anything, beyond the automated
   suite (e.g. "played through the sandbox tutorial flow by hand").
+
+## Licensing of contributions
+
+`js-game-zero` is MIT licensed, and contributions are accepted under the
+same license. Matching Pygame Zero's names, defaults and behavior is
+welcome, and reading its docs and source to get them right is fine; copying
+its code or documentation text is not, because Pygame Zero is LGPL-3.0.
+Write the code and the docs in your own words.

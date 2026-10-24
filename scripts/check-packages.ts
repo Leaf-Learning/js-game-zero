@@ -82,9 +82,9 @@ async function checkPackedConsumer(): Promise<void> {
       packDir,
     );
 
-    assertLicenseInTarball(coreTarball, "packages/core");
-    assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
-    assertLicenseInTarball(cliTarball, "packages/cli");
+    await assertLicenseInTarball(coreTarball, "packages/core");
+    await assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
+    await assertLicenseInTarball(cliTarball, "packages/cli");
     await assertFileInTarball(cliTarball, "package/dist/cli.js");
     await assertFileInTarball(cliTarball, "package/dist/browser/driver.js");
 
@@ -255,10 +255,8 @@ async function assertLicenseInTarball(
       .map((line) => line.trim())
       .filter(Boolean),
   );
-  for (const expected of ["package/LICENSE", "package/COPYING"]) {
-    if (!files.has(expected)) {
-      throw new Error(`${packageLabel} tarball must include ${expected}.`);
-    }
+  if (!files.has("package/LICENSE")) {
+    throw new Error(`${packageLabel} tarball must include package/LICENSE.`);
   }
 }
 
