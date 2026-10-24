@@ -158,7 +158,8 @@ strictly observational: calls, assignments, quoted indexes, and prototype
 access are rejected.
 
 Actors are represented by stable summaries containing their image, position,
-size, angle, opacity, anchor, rectangle, and learner-added properties. Other
+size, angle, opacity, anchor and rectangle, and under `properties` the fields
+the game gave them: `bug.speed = 40` is `properties.speed`. Other
 framework objects, sets, maps, undefined or special numeric values, circular
 references, and truncated collections use explicit `$type` tags so the output
 always remains valid JSON.

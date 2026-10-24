@@ -307,13 +307,15 @@ with `$type`:
 
 ```js
 serializeGameValue(new Actor("cat", [40, 60]));
-// { $type: "Actor", image: "cat", x: 40, y: 60, width, height, angle, … }
+// { $type: "Actor", image: "cat", x: 40, y: 60, width, height, angle, …, properties: {} }
 serializeGameValue(new Rect(1, 2, 3, 4));
 // { $type: "Rect", left: 1, top: 2, right: 4, bottom: 6, width: 3, height: 4, center: [2.5, 4] }
 serializeGameValue({ missing: undefined, big: Infinity });
 // { big: { $type: "Number", value: "Infinity" }, missing: { $type: "Undefined" } }
 ```
 
+An Actor's `properties` are the fields the game gave it (`cat.speed = 40` is
+`properties.speed`); a `read` gives the Actor itself, so `cat.speed` there.
 Sets, maps, dates and errors are tagged too; values deeper than six levels,
 lists past 100 items and circular references come back as `Truncated` or
 `Circular`.

@@ -125,6 +125,8 @@ function serialize(
   }
 }
 
+/** The fields Actor keeps for itself, never shown as an Actor's properties
+ * (a test fails if one is missing here). */
 const actorInternalKeys = new Set([
   "loader",
   "screen",
@@ -139,6 +141,11 @@ const actorInternalKeys = new Set([
   "sizeSource",
   "positionSource",
   "imageLoadPromise",
+  "_images",
+  "_fps",
+  "_loop",
+  "animationStart",
+  "clockSource",
 ]);
 
 function serializeActor(

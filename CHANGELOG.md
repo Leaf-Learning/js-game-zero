@@ -49,6 +49,13 @@ All notable changes to `js-game-zero` are recorded here.
   named point had no position at all, and text at a point with an `anchor`
   gave the anchor point, so a check couldn't tell where a centred title was.
 
+### Inspecting Actors
+
+- An inspected Actor's `properties` are only the fields the game gave it.
+  Flip-book Actors also showed the engine's own `_images`, `_fps`, `_loop`,
+  `animationStart` and `clockSource`, the last as a whole clock. The CLI and
+  runtime references now name `properties`.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm
