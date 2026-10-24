@@ -38,7 +38,10 @@
       "bin": {
         "jgz": "./dist/cli.js",
       },
-      "dependencies": {
+      "devDependencies": {
+        "playwright": "^1.57.0",
+      },
+      "peerDependencies": {
         "playwright": "^1.57.0",
       },
     },

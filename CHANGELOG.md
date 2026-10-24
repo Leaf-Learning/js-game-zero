@@ -21,6 +21,14 @@ All notable changes to `js-game-zero` are recorded here.
   text. Most bundlers and minifiers keep such comments, so a page or an app
   that bundles js-game-zero carries its notice without doing anything.
 
+### The CLI's Playwright
+
+- `@js-game-zero/cli` takes Playwright (1.57 or later) as a peer dependency
+  instead of its own. Bun and npm still install it with the CLI, but a
+  project that already has Playwright, pinned to the version whose Chromium
+  it installs, keeps that one, so one Chromium serves both.
+- It declares the Bun it runs on: `"engines": { "bun": ">=1.3" }`.
+
 ### The API reference in core
 
 - `@js-game-zero/core/reference` exports `reference`, every page of the API

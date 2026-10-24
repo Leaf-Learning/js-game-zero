@@ -7,12 +7,18 @@ live top-level state, and save the current canvas as a PNG.
 
 ## Install
 
-Install the CLI and its Chromium browser once:
+The CLI runs on [Bun](https://bun.sh) 1.3 or later. Install it and the Chromium
+it drives once:
 
 ```sh
 bun add --global @js-game-zero/cli
 bunx playwright install chromium
 ```
+
+Playwright is a peer dependency: installing the CLI installs it too, unless the
+project already has a version the CLI accepts (1.57 or later), which it then
+uses. Install Chromium with that same Playwright, since each version drives its
+own build.
 
 From a js-game-zero source checkout, you can instead use the root script without
 installing the package globally:
