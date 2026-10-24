@@ -12,7 +12,7 @@ import {
 import { GameSession, HELP_COMMANDS, type SessionEvent } from "./session";
 import { watchProject, type ProjectWatcher } from "./watcher";
 
-export const VERSION = "0.1.3";
+export const VERSION = "0.2.0";
 
 export type CliOptions = {
   readonly mode: "help" | "version" | "test";

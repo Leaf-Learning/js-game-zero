@@ -1,8 +1,30 @@
 {
   "name": "@js-game-zero/browser-runtime",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
+  "description": "Run zero-boilerplate js-game-zero games: set WIDTH and HEIGHT, write draw(), and the runtime does the rest. Includes a script-tag build.",
+  "keywords": [
+    "game",
+    "gamedev",
+    "canvas",
+    "education",
+    "beginner",
+    "pygame-zero"
+  ],
+  "author": "Taha Rafiq",
+  "homepage": "https://github.com/Leaf-Learning/js-game-zero#readme",
+  "bugs": {
+    "url": "https://github.com/Leaf-Learning/js-game-zero/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leaf-Learning/js-game-zero.git",
+    "directory": "packages/browser-runtime"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [

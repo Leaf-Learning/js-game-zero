@@ -1,6 +1,6 @@
 # js-game-zero
 
-[![CI](https://github.com/taharafiq/js-game-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/taharafiq/js-game-zero/actions/workflows/ci.yml)
+[![CI](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml)
 
 `js-game-zero` teaches kids and other beginners how to build browser games
 in JavaScript, with as little boilerplate as possible. Declare `WIDTH` and
@@ -41,7 +41,7 @@ taps and drags work with the existing mouse hooks too.
 ## Quickstart
 
 ```sh
-git clone https://github.com/taharafiq/js-game-zero.git
+git clone https://github.com/Leaf-Learning/js-game-zero.git
 cd js-game-zero
 bun install
 bun run dev:sandbox

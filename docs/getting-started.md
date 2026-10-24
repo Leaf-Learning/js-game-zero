@@ -17,7 +17,7 @@ install it from [bun.sh](https://bun.sh), then re-open your terminal.
 ## Install
 
 ```sh
-git clone https://github.com/taharafiq/js-game-zero.git
+git clone https://github.com/Leaf-Learning/js-game-zero.git
 cd js-game-zero
 bun install
 ```

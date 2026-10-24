@@ -2,7 +2,12 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
+## 0.2.0 — 2026-10-24
+
+### Ready for npm
+
+- Each package carries its description, repository, author, homepage and
+  issue tracker, publishes as public, and has its own README.
 
 ### MIT license
 
