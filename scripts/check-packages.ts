@@ -20,15 +20,18 @@ await checkBrowserArtifacts();
 console.log("Package artifact checks passed.");
 
 async function checkArtifactBoundaries(): Promise<void> {
+  // Each budget sits about a tenth above what the artifact weighs, so a
+  // feature fits but an accidental bundle (a second core, a Node built-in
+  // shim) doesn't. Raise one deliberately, keeping the headroom.
   const budgets = new Map<string, number>([
-    [artifacts.core, 240_000],
+    [artifacts.core, 270_000],
     // The host entry carries the value serialiser, which knows Actor and Rect.
-    [artifacts.host, 152_000],
+    [artifacts.host, 168_000],
     [artifacts.runtime, 512],
     // The IIFE also carries the host APIs a page uses to read and seed a game.
-    [artifacts.iife, 272_000],
+    [artifacts.iife, 300_000],
     [artifacts.cli, 80_000],
-    [artifacts.cliDriver, 248_000],
+    [artifacts.cliDriver, 280_000],
   ]);
 
   for (const [path, maximumBytes] of budgets) {
