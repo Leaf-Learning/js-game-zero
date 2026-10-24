@@ -2,6 +2,21 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Images ready before a game starts
+
+- `loadImages(assetUrls)`, in `@js-game-zero/core/host` and on `window.JGZ`,
+  decodes every image in an asset map for `preloadedAssets`. `run()` starts
+  a game's code at once, so an image the run loads itself has no size while
+  the top level runs: `player.width` read 0 there, and an Actor placed by
+  `midBottom` and then moved landed as if it were 0×0, sunk by half its
+  height. Images handed over decoded are ready from the first line, as they
+  already were in `jgz` and the sandbox preview, which now use `loadImages`
+  themselves.
+- The Actor reference no longer suggests `await player.ready()` at a game's
+  top level, which a zero-boilerplate game can't do.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm

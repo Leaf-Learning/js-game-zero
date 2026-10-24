@@ -214,6 +214,33 @@ export function createImageLoader(
   });
 }
 
+/**
+ * Decodes every image in an asset map, by name under `images/`, for
+ * `RunOptions.preloadedAssets`. `run()` starts a game's code at once, so an
+ * image the run loads itself has no size yet while the top level runs: an
+ * Actor placed by `midBottom` and then moved lands as if it were 0×0.
+ * Images handed over decoded are ready from the first line, as Pygame
+ * Zero's are. One that fails to decode is left out, so the run loads it
+ * itself and reports the failure only if the game uses it.
+ */
+export async function loadImages(
+  assetUrls: AssetUrls,
+): Promise<Record<string, SurfaceLike>> {
+  const loader = createImageLoader({ assetUrls });
+  const names = Object.keys(assetUrls)
+    .filter((path) => path.startsWith("images/"))
+    .map((path) => path.slice("images/".length));
+  const loaded = await Promise.all(
+    names.map((name) =>
+      loader.load(name).then(
+        (surface) => [name, surface] as const,
+        () => null,
+      ),
+    ),
+  );
+  return Object.fromEntries(loaded.filter((entry) => entry !== null));
+}
+
 export function createSoundLoader(
   options: AssetLoaderOptions<SoundAsset> = {},
 ): AssetLoader<SoundAsset> {

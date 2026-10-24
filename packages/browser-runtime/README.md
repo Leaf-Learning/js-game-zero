@@ -50,9 +50,9 @@ so import-mode games and `defineGame()` work from here too.
 
 `@js-game-zero/browser-runtime/iife` (the file `dist/browser/browser.js`) is one
 self-contained script for pages with no bundler. It puts the whole API on
-`window.JGZ`, with the host APIs a page needs to drive and read a game it runs:
-`getGameInspector`, `serializeGameValue`, `parseStatePath` and
-`createSeededRandom`.
+`window.JGZ`, with the host APIs a page needs to start, drive and read a game
+it runs: `loadImages`, `getGameInspector`, `serializeGameValue`,
+`parseStatePath` and `createSeededRandom`.
 
 ```html
 <script src="browser.js"></script>

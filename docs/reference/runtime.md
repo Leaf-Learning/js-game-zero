@@ -122,7 +122,7 @@ instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 | `assetBaseUrl`       | Where asset URLs are rooted (default `/assets`).                                                                                                                                                                                                               |
 | `assetUrls`          | The game's assets by path, each with its URL: `{ "images/cat.svg": "data:image/svg+xml;base64,…" }`. When set, assets load only from here, never from `assetBaseUrl`. See [assets without a server](loaders.md#assets-without-a-server).                       |
 | `preload`            | An array of asset paths (e.g. `["images/player.svg"]`) to start loading immediately, before any is referenced by code.                                                                                                                                         |
-| `preloadedAssets`    | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes (e.g. the sandbox preview).                                                                                                |
+| `preloadedAssets`    | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes. `loadImages(assetUrls)` makes the `images` map; see [assets without a server](loaders.md#assets-without-a-server).        |
 | `storage`            | A `Storage` instance or a raw `StorageAdapter` (`{ path, load(), save(text) }`) to use instead of the default `localStorage`-backed one.                                                                                                                       |
 | `loaders`            | Override one or more of the `images`/`sounds`/`music`/`fonts` loader instances.                                                                                                                                                                                |
 | `keyboardTarget`     | The `EventTarget` that receives keyboard events (default `window`).                                                                                                                                                                                            |
@@ -258,8 +258,9 @@ file at `@js-game-zero/core/reference/<page>.md`.
 | `read(path)`     | The live value at a binding or a [state path](#state-paths), as it is.                                                                    |
 | `inspect(path?)` | The value at a path as JSON, exactly as `jgz`'s `inspect` reports it (`serializeGameValue`); with no path, every binding's value by name. |
 
-The same module exports `serializeGameValue(value)`, `parseStatePath(source)`
-and `createSeededRandom(seed)`.
+The same module exports `serializeGameValue(value)`, `parseStatePath(source)`,
+`createSeededRandom(seed)` and `loadImages(assetUrls)` (see
+[assets without a server](loaders.md#assets-without-a-server)).
 
 ### State paths
 
@@ -332,7 +333,7 @@ predict. A seed that isn't a string or a finite number fails at startup.
 
 ### Driving a game from a host page
 
-The script-tag build (`window.JGZ`) carries `getGameInspector`,
+The script-tag build (`window.JGZ`) carries `loadImages`, `getGameInspector`,
 `serializeGameValue`, `parseStatePath` and `createSeededRandom` beside the
 learner-facing API, so a page can run a game it drives itself, the way the CLI
 does, without a bundler:

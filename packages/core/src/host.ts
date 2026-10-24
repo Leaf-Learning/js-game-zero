@@ -35,6 +35,7 @@ export const getParameterNames = events.getParameterNames;
 export const getGameInspector = inspection.getGameInspector;
 export const getScreen = rendering.getScreen;
 export const layoutText = rendering.layoutText;
+export const loadImages = assets.loadImages;
 export const mapBrowserKeyEvent = events.mapBrowserKeyEvent;
 export const mapBrowserMouseButton = events.mapBrowserMouseButton;
 export const mapBrowserMouseEvent = events.mapBrowserMouseEvent;

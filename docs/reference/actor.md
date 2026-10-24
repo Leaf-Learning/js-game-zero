@@ -18,12 +18,16 @@ function draw() {
 ```
 
 `image` is an asset name resolved under `images/` (see
-[`docs/reference/loaders.md`](loaders.md)). Loading starts immediately;
-`draw()` is a no-op until the image is ready, and the runtime holds the first
-frame until images touched while your script starts up have finished
-loading, so in practice you rarely have to think about the delay. If you do
-need to wait explicitly (e.g. before reading `player.width`), `await
-player.ready()`.
+[`docs/reference/loaders.md`](loaders.md)). In `jgz`, the sandbox, and a page
+that decodes its images first with
+[`loadImages`](loaders.md#assets-without-a-server), the image is ready
+before your code runs, so `player.width` and an edge position like
+`midBottom` are right from the first line. Anywhere else, loading starts
+when the Actor is made: until it finishes, the Actor has no size and `draw()`
+is a no-op, and the runtime holds the first frame until images touched while
+your script starts up have loaded. `player.ready()` returns a promise for
+the image; the top level of a zero-boilerplate game can't `await`, so use
+`player.ready().then(() => …)` there.
 
 ## Positioning
 

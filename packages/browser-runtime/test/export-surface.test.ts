@@ -90,6 +90,7 @@ const approvedHostValues = [
   ...legacyHostValues,
   "createSeededRandom",
   "getGameInspector",
+  "loadImages",
   "parseStatePath",
   "serializeGameValue",
 ] as const;

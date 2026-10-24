@@ -1,11 +1,14 @@
 import {
-  ImageSurface,
   run,
   type GameHandle,
   type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
-import { getGameInspector, serializeGameValue } from "@js-game-zero/core/host";
+import {
+  getGameInspector,
+  loadImages,
+  serializeGameValue,
+} from "@js-game-zero/core/host";
 
 type DriverEvent = {
   readonly event: "ready" | "diagnostic" | "runtime-error";
@@ -266,27 +269,19 @@ function decodeManifest(value: unknown): string[] {
   return value.files;
 }
 
+/** Every image decoded before the game's code runs (see `loadImages`);
+ * sounds, music and fonts start loading beside it. */
 async function preloadAssets(
   files: readonly string[],
 ): Promise<{ images: Record<string, SurfaceLike>; preload: string[] }> {
-  const images: Record<string, SurfaceLike> = {};
-  const imagePaths = files.filter((path) => path.startsWith("images/"));
-  const loaded = await Promise.all(
-    imagePaths.map(async (path) => {
-      try {
-        return [path, await loadImageSurface(path)] as const;
-      } catch {
-        return null;
-      }
-    }),
+  const version = Date.now();
+  const imageUrls = Object.fromEntries(
+    files
+      .filter((path) => path.startsWith("images/"))
+      .map((path) => [path, `${projectUrl(`assets/${path}`)}?v=${version}`]),
   );
-  for (const entry of loaded) {
-    if (!entry) continue;
-    const [path, surface] = entry;
-    images[path.slice("images/".length)] = surface;
-  }
   return {
-    images,
+    images: await loadImages(imageUrls),
     preload: files.filter(
       (path) =>
         path.startsWith("sounds/") ||
@@ -294,21 +289,6 @@ async function preloadAssets(
         path.startsWith("fonts/"),
     ),
   };
-}
-
-function loadImageSurface(path: string): Promise<SurfaceLike> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.addEventListener("load", () => resolve(new ImageSurface(image)), {
-      once: true,
-    });
-    image.addEventListener(
-      "error",
-      () => reject(new Error(`Failed to preload ${path}`)),
-      { once: true },
-    );
-    image.src = `${projectUrl(`assets/${path}`)}?v=${Date.now()}`;
-  });
 }
 
 function messageOf(error: unknown): string {

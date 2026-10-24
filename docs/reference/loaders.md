@@ -98,7 +98,24 @@ Games name assets as usual: `new Actor("cat")`, `images.cat` and
 `sounds.pop` find `images/cat.svg` and `sounds/pop.wav` in the map, trying
 each supported extension as they would on a server. With a map, assets come
 only from it: one it doesn't list is a `MissingAssetError`, and nothing is
-requested from `assetBaseUrl`. Sounds, music and fonts given as data URLs
+requested from `assetBaseUrl`.
+
+`run()` starts a game's code straight away, and an image the run loads
+itself is still decoding while the top level runs, so it has no size yet:
+`player.width` reads 0 there, and an Actor placed by `midBottom` and then
+moved lands as if it were 0×0. A page can decode the images first with
+`loadImages` from `@js-game-zero/core/host` (`JGZ.loadImages` in the
+script-tag build), as `jgz` and the sandbox do. The game then finds them
+ready from its first line, as a Pygame Zero game would:
+
+```js
+const images = await loadImages(assetUrls);
+run(source, { assetUrls, preloadedAssets: { images } });
+```
+
+`loadImages` decodes every `images/` entry of the map, by its name under
+`images/`. One that fails is left out, so the run loads it itself and
+reports the failure only if the game uses it. Sounds, music and fonts given as data URLs
 are decoded in the page rather than fetched, so a page whose content
 security policy allows no connections (no `connect-src`) still plays them;
 images need `img-src data:` (or `blob:`), and sounds `media-src` to match.
