@@ -35,6 +35,12 @@ All notable changes to `js-game-zero` are recorded here.
   with Shift is `"&"`). It used to send `"A"` with no Shift, which no
   keyboard sends, so a typing game behaved differently under `jgz` than in a
   browser.
+- `jgz` presses every key the engine knows: Backspace, Tab, Delete, Home,
+  End, Page Up and Down, the lock keys, punctuation (`,` or `Comma`), the
+  number pad, left and right modifiers, and any key by its `code`. It
+  pressed only the arrows, Space, Enter, Escape, the modifiers, letters,
+  digits and F-keys. F13 to F15, which Playwright can't press, are refused
+  up front instead of failing in the browser. `docs/cli.md` lists the names.
 
 ## 0.2.0 — 2026-10-24
 

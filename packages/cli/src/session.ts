@@ -476,15 +476,24 @@ const keyAliases: Record<string, string> = {
   right: "ArrowRight",
   up: "ArrowUp",
   down: "ArrowDown",
-  arrowleft: "ArrowLeft",
-  arrowright: "ArrowRight",
-  arrowup: "ArrowUp",
-  arrowdown: "ArrowDown",
   space: "Space",
   enter: "Enter",
   return: "Enter",
   escape: "Escape",
   esc: "Escape",
+  backspace: "Backspace",
+  tab: "Tab",
+  delete: "Delete",
+  insert: "Insert",
+  home: "Home",
+  end: "End",
+  pageup: "PageUp",
+  pagedown: "PageDown",
+  capslock: "CapsLock",
+  numlock: "NumLock",
+  scrolllock: "ScrollLock",
+  pause: "Pause",
+  printscreen: "PrintScreen",
   shift: "Shift",
   control: "Control",
   ctrl: "Control",
@@ -492,16 +501,71 @@ const keyAliases: Record<string, string> = {
   meta: "Meta",
 };
 
+/** Each punctuation mark by the key it's on, unshifted. */
+const punctuationKeys: Record<string, string> = {
+  "-": "Minus",
+  "=": "Equal",
+  "[": "BracketLeft",
+  "]": "BracketRight",
+  "\\": "Backslash",
+  ";": "Semicolon",
+  "'": "Quote",
+  "`": "Backquote",
+  ",": "Comma",
+  ".": "Period",
+  "/": "Slash",
+};
+
+/**
+ * Every other key the engine maps, by its keyboard event `code`, except the
+ * few Playwright can't press (Clear, NumpadEqual, F13 to F15).
+ */
+const keyCodes = new Map(
+  [
+    ...Object.values(keyAliases),
+    ...Object.values(punctuationKeys),
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "ShiftLeft",
+    "ShiftRight",
+    "ControlLeft",
+    "ControlRight",
+    "AltLeft",
+    "AltRight",
+    "MetaLeft",
+    "MetaRight",
+    "ContextMenu",
+    "NumpadEnter",
+    "NumpadDecimal",
+    "NumpadDivide",
+    "NumpadMultiply",
+    "NumpadSubtract",
+    "NumpadAdd",
+    ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => `Key${letter}`),
+    ...[...Array(10).keys()].flatMap((digit) => [
+      `Digit${digit}`,
+      `Numpad${digit}`,
+    ]),
+    ...[...Array(12).keys()].map((index) => `F${index + 1}`),
+  ].map((code) => [code.toLowerCase(), code]),
+);
+
 export function normalizeKey(input: string): string {
   const lower = input.toLowerCase();
-  const alias = keyAliases[lower];
-  if (alias) return alias;
+  const named = keyAliases[lower] ?? keyCodes.get(lower);
+  if (named) return named;
   // By the physical key, so it arrives as a keyboard sends it: "a", or "A"
   // only while Shift is held.
   if (/^[a-z]$/i.test(input)) return `Key${input.toUpperCase()}`;
   if (/^[0-9]$/.test(input)) return `Digit${input}`;
-  if (/^f(?:[1-9]|1[0-5])$/i.test(input)) return input.toUpperCase();
-  throw new ProtocolError("invalid_request", `Unsupported key: ${input}`);
+  const punctuation = punctuationKeys[input];
+  if (punctuation) return punctuation;
+  throw new ProtocolError(
+    "invalid_request",
+    `Unsupported key: ${input}. Give a key's name (backspace, home), what it types unshifted (a, 7, ","), or its code (KeyA, Numpad1, ShiftLeft).`,
+  );
 }
 
 /** Playwright prefixes evaluate errors with "evaluate:" and appends the

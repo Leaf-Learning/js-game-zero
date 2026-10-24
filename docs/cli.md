@@ -70,9 +70,22 @@ inspect player.pos
 screenshot
 ```
 
-A letter or digit is pressed by its key, as a keyboard sends it: `key tap a`
-reaches `onKeyDown` with `unicode` `"a"`, and with `shift` held down it's
-`"A"` (and `7` is `"&"`). Key names ignore case.
+`<key>` names a key in any case, in one of three ways:
+
+- By name: `left`, `right`, `up`, `down`, `space`, `enter` (or `return`),
+  `escape` (or `esc`), `backspace`, `tab`, `delete`, `insert`, `home`, `end`,
+  `pageup`, `pagedown`, `capslock`, `numlock`, `scrolllock`, `pause`,
+  `printscreen`, `shift`, `ctrl` (or `control`), `alt`, `meta`, and `F1` to
+  `F12`.
+- By what it types unshifted: a letter, a digit, or one of `-` `=` `[` `]`
+  `\` `;` `'` `` ` `` `,` `.` `/`.
+- By its keyboard event `code`, for any other key the engine knows:
+  `Numpad1`, `NumpadEnter`, `ShiftLeft`, `ContextMenu`, and the codes of the
+  keys above (`KeyA`, `Digit1`, `Comma`).
+
+A key is pressed as a keyboard sends it: `key tap a` reaches `onKeyDown` with
+`unicode` `"a"`, and with `shift` held down it's `"A"` (`7` is `"&"`, `,` is
+`"<"`). The number pad presses with NumLock off, so it types nothing.
 
 Use `--headed` when you also want a visible game window. `--watch` reloads the
 game after source or asset edits; without it, `restart` is the only operation

@@ -508,7 +508,13 @@ function draw() { screen.fill("black"); }
     await key("down", "shift");
     await key("tap", "a");
     await key("tap", "7");
+    await key("tap", ",");
     await key("up", "shift");
+    await key("tap", ",");
+    await key("tap", "backspace");
+    await key("tap", "Numpad1");
+    await key("tap", "home");
+    await key("tap", "tab");
     expect(
       (await client.request({ command: "inspect", path: "pressed" })).result,
     ).toEqual([
@@ -520,6 +526,14 @@ function draw() { screen.fill("black"); }
       [keys.LSHIFT, keymods.SHIFT, ""],
       [keys.A, keymods.SHIFT, "A"],
       [keys.K_7, keymods.SHIFT, "&"],
+      [keys.COMMA, keymods.SHIFT, "<"],
+      // Every other key the engine knows, by name, mark or code.
+      [keys.COMMA, 0, ","],
+      [keys.BACKSPACE, 0, ""],
+      // The number pad presses with NumLock off, so it types nothing.
+      [keys.KP1, 0, ""],
+      [keys.HOME, 0, ""],
+      [keys.TAB, 0, ""],
     ]);
     await client.request({ command: "quit" });
     expect(await client.exited()).toBe(0);
