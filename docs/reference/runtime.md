@@ -175,9 +175,14 @@ directly to end itself.
 ## Preload gate
 
 Each run tracks its own required image and font loads (Actor constructions,
-`images.player` touches, and `preload` entries) and holds drawing until those
-loads and storage initialization settle. A required image/font failure rejects
-`handle.ready`, fails the handle, and performs cleanup. Sound and music loads
+`images.player` touches, and `preload` entries) and holds frames, with no
+`update` and no `draw`, until those loads and storage initialization settle.
+An image or font first asked for later, in a hook (a new `actor.image`, a first
+`screen.blit`), holds the frames after it the same way until it has loaded,
+and `handle.step()` does nothing meanwhile. So a host that steps a game in a
+synchronous loop should hand it its images decoded, with
+[`loadImages`](loaders.md#assets-without-a-server). A required image/font
+failure rejects `handle.ready`, fails the handle, and performs cleanup. Sound and music loads
 are recoverable: they report a warning but never freeze another run or stop
 rendering. `handle.ready` lets hosts await startup explicitly instead of
 polling.

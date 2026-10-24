@@ -552,23 +552,21 @@ export class Screen {
     pos: Point | RectLike,
   ): Promise<void> | void {
     const at = rectFromBlitTarget(pos);
+    const surface =
+      typeof image === "string" ? this.imageLoader.get(image) : image;
+    if (!surface) {
+      // Not loaded yet, so this frame draws nothing here: drawing it once it
+      // arrived would paint over whatever the frame drew after it. The
+      // runtime holds the frames that follow until it has loaded.
+      return this.imageLoader.load(image as string).then(() => undefined);
+    }
     recordDrawn(this, {
       kind: "image",
       image: typeof image === "string" ? image : "",
       x: Array.isArray(at) ? at[0] : at.left,
       y: Array.isArray(at) ? at[1] : at.top,
     });
-    if (typeof image === "string") {
-      const cached = this.imageLoader.get(image);
-      if (cached) {
-        this.drawSurface(cached, pos);
-        return;
-      }
-      return this.imageLoader.load(image).then((surface) => {
-        this.drawSurface(surface, pos);
-      });
-    }
-    this.drawSurface(image, pos);
+    this.drawSurface(surface, pos);
   }
 
   /**

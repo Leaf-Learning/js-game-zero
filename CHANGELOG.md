@@ -17,6 +17,17 @@ All notable changes to `js-game-zero` are recorded here.
 - The Actor reference no longer suggests `await player.ready()` at a game's
   top level, which a zero-boilerplate game can't do.
 
+### Late images
+
+- `screen.blit` and `screen.draw.image` draw nothing for an image that
+  hasn't loaded, and their `Promise` resolves once it has. They used to draw
+  it when it arrived, outside any frame and on top of whatever the frame drew
+  after it, while `$drawn` already listed it. The runtime holds the frames
+  that follow until it loads, so it shows from the next one, as before.
+- The reference says what a late image or font holds: whole frames, `update`
+  as well as `draw`, while `handle.step()` does nothing. It said only drawing
+  waited.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm

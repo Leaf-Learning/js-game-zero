@@ -143,6 +143,6 @@ loaders import `createAssetLoaders()` or the individual factories from
 
 Why a frame never shows a half-loaded sprite: each runtime tracks its own image
 and font loads started while the script's top level runs (and any started
-afterward) and holds drawing until they settle. Audio loads remain recoverable
+afterward) and holds frames until they settle. Audio loads remain recoverable
 and do not gate frames — see the
 "preload gate" section of [`docs/reference/runtime.md`](runtime.md).

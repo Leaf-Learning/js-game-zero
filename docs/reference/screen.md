@@ -115,10 +115,11 @@ scale the image to the rect's size).
 screen.draw.image("player.svg", [40, 40]);
 ```
 
-If the named image hasn't finished loading yet, it returns a `Promise`
-that resolves once it has drawn; most games don't need to await it because
-the runtime already holds the first frame until images touched at startup
-have loaded (see [`docs/reference/runtime.md`](runtime.md#preload-gate)).
+If the named image hasn't finished loading yet, nothing is drawn: it returns
+a `Promise` that resolves once the image has loaded, and the runtime holds
+the frames that follow until then, so the image shows from the next one.
+Images touched while the script starts up load before the first frame (see
+[`docs/reference/runtime.md`](runtime.md#preload-gate)).
 Prefer `Actor` for anything that moves or needs collision — drawing an image
 directly is for background art and tiles.
 
