@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { licenseBanner } from "./license-banner";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 process.chdir(repoRoot);
@@ -38,23 +39,27 @@ console.log(
 
 async function buildCore(): Promise<void> {
   await rm("packages/core/dist", { force: true, recursive: true });
+  const banner = await licenseBanner(repoRoot, "packages/core");
   await runBuild({
     entrypoints: ["packages/core/src/index.ts"],
     outdir: "packages/core/dist",
     target: "browser",
     format: "esm",
+    banner,
   });
   await runBuild({
     entrypoints: ["packages/core/src/host.ts"],
     outdir: "packages/core/dist",
     target: "browser",
     format: "esm",
+    banner,
   });
   await runBuild({
     entrypoints: ["packages/core/src/node.ts"],
     outdir: "packages/core/dist",
     target: "node",
     format: "esm",
+    banner,
   });
   await emitDeclarations("packages/core/tsconfig.build.json");
   await normalizeDeclarationSpecifiers("packages/core/dist");
@@ -65,6 +70,7 @@ async function buildBrowserRuntime(): Promise<void> {
 
   // The ESM facade remains a tiny external re-export. Package managers can
   // deduplicate core normally instead of receiving a second bundled copy.
+  // It holds none of the library's code, so it has no license banner.
   await runBuild({
     entrypoints: ["packages/browser-runtime/src/index.ts"],
     outdir: "packages/browser-runtime/dist",
@@ -80,6 +86,7 @@ async function buildBrowserRuntime(): Promise<void> {
     outdir: "packages/browser-runtime/dist/browser",
     target: "browser",
     format: "iife",
+    banner: await licenseBanner(repoRoot, "packages/browser-runtime"),
   });
   await emitDeclarations("packages/browser-runtime/tsconfig.build.json");
   await normalizeDeclarationSpecifiers("packages/browser-runtime/dist");
@@ -87,18 +94,21 @@ async function buildBrowserRuntime(): Promise<void> {
 
 async function buildCli(): Promise<void> {
   await rm("packages/cli/dist", { force: true, recursive: true });
+  const banner = await licenseBanner(repoRoot, "packages/cli");
   await runBuild({
     entrypoints: ["packages/cli/src/cli.ts"],
     outdir: "packages/cli/dist",
     target: "bun",
     format: "esm",
     external: ["playwright"],
+    banner,
   });
   await runBuild({
     entrypoints: ["packages/cli/browser/driver.ts"],
     outdir: "packages/cli/dist/browser",
     target: "browser",
     format: "esm",
+    banner,
   });
   await chmod("packages/cli/dist/cli.js", 0o755);
 }

@@ -2,11 +2,13 @@ import { chromium } from "@playwright/test";
 import { mkdtemp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { licenseBanner } from "./license-banner";
 
 const repoRoot = resolve(import.meta.dir, "..");
 const artifacts = {
   core: resolve(repoRoot, "packages/core/dist/index.js"),
   host: resolve(repoRoot, "packages/core/dist/host.js"),
+  node: resolve(repoRoot, "packages/core/dist/node.js"),
   runtime: resolve(repoRoot, "packages/browser-runtime/dist/index.js"),
   iife: resolve(repoRoot, "packages/browser-runtime/dist/browser/browser.js"),
   cli: resolve(repoRoot, "packages/cli/dist/cli.js"),
@@ -14,6 +16,7 @@ const artifacts = {
 } as const;
 
 await checkArtifactBoundaries();
+await checkLicenseBanners();
 await checkPackedConsumer();
 await checkBrowserArtifacts();
 
@@ -64,6 +67,31 @@ async function checkArtifactBoundaries(): Promise<void> {
     throw new Error(
       "browser-runtime ESM must remain an external @js-game-zero/core re-export.",
     );
+  }
+}
+
+/** Every artifact with the library's code opens with its license, after any
+ * hashbang and Bun's marker. The browser-runtime facade only re-exports core. */
+async function checkLicenseBanners(): Promise<void> {
+  const core = await licenseBanner(repoRoot, "packages/core");
+  const runtime = await licenseBanner(repoRoot, "packages/browser-runtime");
+  const cli = await licenseBanner(repoRoot, "packages/cli");
+  for (const [path, banner] of [
+    [artifacts.core, core],
+    [artifacts.host, core],
+    [artifacts.node, core],
+    [artifacts.iife, runtime],
+    [artifacts.cli, cli],
+    [artifacts.cliDriver, cli],
+  ] as const) {
+    const source = await readFile(path, "utf8");
+    const at = source.indexOf(banner);
+    if (
+      at === -1 ||
+      !/^(#![^\n]*\n)?(\/\/ @bun[^\n]*\n)?$/.test(source.slice(0, at))
+    ) {
+      throw new Error(`${path} must open with its license banner.`);
+    }
   }
 }
 

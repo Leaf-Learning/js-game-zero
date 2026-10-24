@@ -16,6 +16,10 @@ All notable changes to `js-game-zero` are recorded here.
 - The README credits pygame-text (CC0), which text wrapping is ported from,
   and Tappy Plane credits Pygame Zero's Flappy Bird example, whose idea and
   shape it follows.
+- Every built file with the library's code opens with its license: a
+  `/*! … */` comment holding the package, its version and the whole MIT
+  text. Most bundlers and minifiers keep such comments, so a page or an app
+  that bundles js-game-zero carries its notice without doing anything.
 
 ### What a frame drew
 
