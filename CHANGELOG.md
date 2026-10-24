@@ -28,6 +28,14 @@ All notable changes to `js-game-zero` are recorded here.
   as well as `draw`, while `handle.step()` does nothing. It said only drawing
   waited.
 
+### The CLI's keys
+
+- `jgz` presses a letter or digit by its key, as a keyboard does: `a` and `A`
+  both arrive with `unicode` `"a"`, and as `"A"` while Shift is held (`7`
+  with Shift is `"&"`). It used to send `"A"` with no Shift, which no
+  keyboard sends, so a typing game behaved differently under `jgz` than in a
+  browser.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm

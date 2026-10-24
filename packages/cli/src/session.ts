@@ -496,7 +496,10 @@ export function normalizeKey(input: string): string {
   const lower = input.toLowerCase();
   const alias = keyAliases[lower];
   if (alias) return alias;
-  if (/^[a-z0-9]$/i.test(input)) return input.toUpperCase();
+  // By the physical key, so it arrives as a keyboard sends it: "a", or "A"
+  // only while Shift is held.
+  if (/^[a-z]$/i.test(input)) return `Key${input.toUpperCase()}`;
+  if (/^[0-9]$/.test(input)) return `Digit${input}`;
   if (/^f(?:[1-9]|1[0-5])$/i.test(input)) return input.toUpperCase();
   throw new ProtocolError("invalid_request", `Unsupported key: ${input}`);
 }

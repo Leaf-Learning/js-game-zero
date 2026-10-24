@@ -139,7 +139,9 @@ describe("read-only state paths", () => {
 
 test("normalizes documented key aliases", () => {
   expect(normalizeKey("left")).toBe("ArrowLeft");
-  expect(normalizeKey("a")).toBe("A");
+  expect(normalizeKey("a")).toBe("KeyA");
+  expect(normalizeKey("A")).toBe("KeyA");
+  expect(normalizeKey("7")).toBe("Digit7");
   expect(normalizeKey("F12")).toBe("F12");
   expect(() => normalizeKey("Hyper")).toThrow("Unsupported key");
 });

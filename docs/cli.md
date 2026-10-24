@@ -70,6 +70,10 @@ inspect player.pos
 screenshot
 ```
 
+A letter or digit is pressed by its key, as a keyboard sends it: `key tap a`
+reaches `onKeyDown` with `unicode` `"a"`, and with `shift` held down it's
+`"A"` (and `7` is `"&"`). Key names ignore case.
+
 Use `--headed` when you also want a visible game window. `--watch` reloads the
 game after source or asset edits; without it, `restart` is the only operation
 that rereads files. Browser storage survives either kind of restart for the

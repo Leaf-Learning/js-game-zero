@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { keymods, keys } from "@js-game-zero/core";
 import { createSeededRandom } from "@js-game-zero/core/host";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -463,6 +464,63 @@ function draw() { screen.fill("black"); }
         line: 5,
       },
     });
+    await client.request({ command: "quit" });
+    expect(await client.exited()).toBe(0);
+    expect(client.stderr).toBe("");
+  } finally {
+    client.stop();
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test("keys reach a game as a keyboard sends them", async () => {
+  test.setTimeout(30_000);
+  const root = await mkdtemp(join(tmpdir(), "jgz-cli-keys-"));
+  const project = join(root, "game");
+  await mkdir(project);
+  await writeFile(
+    join(project, "main.js"),
+    `WIDTH = 40;
+HEIGHT = 30;
+let pressed = [];
+function onKeyDown(key, mod, unicode) { pressed.push([key, mod, unicode]); }
+function draw() { screen.fill("black"); }
+`,
+    "utf8",
+  );
+  const cliEnvironment = { ...process.env };
+  delete cliEnvironment.FORCE_COLOR;
+  const client = new JsonlClient(
+    spawn(cliBinary, ["test", project, "--json"], {
+      cwd: repoRoot,
+      env: cliEnvironment,
+    }),
+  );
+  try {
+    await client.waitFor(
+      (record) => record.type === "event" && record.event === "ready",
+    );
+    const key = (action: "down" | "up" | "tap", name: string) =>
+      client.request({ command: "key", action, key: name });
+    await key("tap", "a");
+    await key("tap", "A");
+    await key("tap", "7");
+    await key("down", "shift");
+    await key("tap", "a");
+    await key("tap", "7");
+    await key("up", "shift");
+    expect(
+      (await client.request({ command: "inspect", path: "pressed" })).result,
+    ).toEqual([
+      // A letter is unshifted, whichever case it's named in...
+      [keys.A, 0, "a"],
+      [keys.A, 0, "a"],
+      [keys.K_7, 0, "7"],
+      // ...and Shift changes it, as on a keyboard.
+      [keys.LSHIFT, keymods.SHIFT, ""],
+      [keys.A, keymods.SHIFT, "A"],
+      [keys.K_7, keymods.SHIFT, "&"],
+    ]);
     await client.request({ command: "quit" });
     expect(await client.exited()).toBe(0);
     expect(client.stderr).toBe("");
