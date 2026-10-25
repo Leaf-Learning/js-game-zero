@@ -1,4 +1,4 @@
-import { Storage } from "./storage";
+import { hasUnsavedChanges, Storage } from "./storage";
 
 const AUTOSAVE_DEBOUNCE_MS = 250;
 
@@ -13,7 +13,10 @@ type PersistenceDiagnostic = {
 type PersistenceDiagnosticEmitter = (diagnostic: PersistenceDiagnostic) => void;
 
 export type Autosave = {
-  /** Cancels any pending debounce timer and saves immediately, if dirty. */
+  /**
+   * Cancels any pending debounce timer and saves immediately, if anything
+   * changed since the last save or load, inside stored objects and lists too.
+   */
   flush(): Promise<void>;
   /** Unsubscribes from storage changes and browser lifecycle events. */
   detach(): void;
@@ -43,15 +46,13 @@ export function attachAutosave(
     }
     if (writing) return writing;
     writing = (async () => {
-      while (dirty) {
+      // Compares the JSON instead of trusting `dirty` alone, which only a
+      // top-level set/delete/clear raises, so `storage.highScores.push(...)`
+      // is saved too. A failed save leaves the JSON changed for the next try.
+      do {
         dirty = false;
-        try {
-          await storage.save();
-        } catch (error) {
-          dirty = true;
-          throw error;
-        }
-      }
+        if (hasUnsavedChanges(storage)) await storage.save();
+      } while (dirty);
     })().finally(() => {
       writing = null;
     });

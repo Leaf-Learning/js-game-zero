@@ -48,6 +48,17 @@ The input hooks in a defined game receive one typed event object.
 Zero-boilerplate and raw import hooks keep their Pygame Zero-style
 parameter-name dispatch.
 
+| Event                                                        | Fields                                                                                                                                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GameKeyEvent` (`onKeyDown`, `onKeyUp`)                      | `key`, `mod`, `unicode` and `repeat`, as [`hooks.md`](hooks.md#onkeydownkey-mod-unicode-repeat--onkeyupkey-mod-unicode-repeat) describes them.                                                                      |
+| `GameMouseEvent` (`onMouseDown`, `onMouseUp`, `onMouseMove`) | `pos`, `button` (the button pressed or released, or `null` for one with no `mouse` constant; `onMouseMove` reads `buttons` instead), `buttons` (a `Set` of held buttons) and `rel` (movement since the last event). |
+
+The function given to `defineGame()` receives the run's own services:
+`screen`, `clock`, `keyboard`, `mouse`, `images`, `sounds`, `music`, `fonts`,
+`storage`, `tone`, `animate` and `exit`, the constants `keys` and `keymods`,
+and the classes `Actor`, `Animation`, `Rect`, `ZRect`, `Screen` and
+`Storage`. An `Actor` or `Animation` made from them belongs to that run.
+
 Package-level `screen`, `clock`, `keyboard`, `images`, `sounds`, `music`, and
 `storage` remain available for learner compatibility. They are convenience
 proxies for a single active runtime; applications that can run more than one
@@ -251,11 +262,6 @@ handles (a failed game keeps its inspector, so a host can read the state at the
 crash). This is the inspection seam the browser-backed `jgz` verification CLI
 uses; it does not add globals or learner-facing runtime methods.
 
-This reference ships with core, for a host that hands it to a learner, a tool
-or a model. `@js-game-zero/core/reference` exports `reference`, every page's
-Markdown by its file name (`reference["actor.md"]`), and each page is also a
-file at `@js-game-zero/core/reference/<page>.md`.
-
 | Member           | Purpose                                                                                                                                   |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `bindings()`     | The captured non-function top-level identifiers, in source order.                                                                         |
@@ -266,6 +272,27 @@ file at `@js-game-zero/core/reference/<page>.md`.
 The same module exports `serializeGameValue(value)`, `parseStatePath(source)`,
 `createSeededRandom(seed)` and `loadImages(assetUrls)` (see
 [assets without a server](loaders.md#assets-without-a-server)).
+
+The rest of `@js-game-zero/core/host` is for building a host:
+
+| Export                                                                                                     | What it's for                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `createImageLoader`, `createSoundLoader`, `createMusicLoader`, `createFontLoader` and `createAssetLoaders` | Loaders for `RunOptions.loaders`, each taking a `projectId` and an `assetBaseUrl` or `assetUrls`.              |
+| `createStorage({ adapter?, projectId?, path? })` and `createLocalStorageAdapter({ projectId?, path? })`    | A `Storage`, or the `localStorage` adapter behind the default one, for `RunOptions.storage`.                   |
+| `collectRuntimeDiagnostics(game, options?)`                                                                | The static [diagnostics](#diagnostics) `run()` would report for a game's source or module, without running it. |
+| `layoutText(context, text, pos, options?)` and `fitTextboxFontSize(context, text, rect, options?)`         | Where `screen.draw.text` and `screen.draw.textbox` would put text, and at what size.                           |
+
+Its other exports (the input dispatcher, the `map…Event` functions,
+`dispatchHook`, the audio and tone classes, `getScreen`/`setScreen`) are the
+runtime's own parts, exported for tools and tests, and may change.
+`@js-game-zero/core/node` exports `createSandboxFileStorageAdapter({
+projectRoot, path? })`, a `StorageAdapter` that keeps a project's storage in
+a JSON file under `projectRoot` (`storage.json` by default).
+
+This reference ships with core, for a host that hands it to a learner, a tool
+or a model. `@js-game-zero/core/reference` exports `reference`, every page's
+Markdown by its file name (`reference["actor.md"]`), and each page is also a
+file at `@js-game-zero/core/reference/<page>.md`.
 
 ### State paths
 
@@ -282,17 +309,17 @@ in order, rather than one of its bindings, through `read`, `inspect` and
 `jgz`'s `inspect` alike. Each thing drawn has its `kind` and what it is and
 where, as the game gave them:
 
-| `kind`    | Fields                                                                     | From                                                      |
-| --------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `fill`    | `color`, and `to` for a gradient                                           | `screen.fill`                                             |
-| `clear`   |                                                                            | `screen.clear`                                            |
-| `image`   | `image` (its name), `x`, `y` (its top-left)                                | `screen.blit`, `screen.draw.image`                        |
-| `actor`   | `image`, `x`, `y`                                                          | an Actor's `draw()`                                       |
-| `circle`  | `x`, `y`, `radius`, `color`, `filled`                                      | `screen.circle`, `screen.draw.circle`, `filledCircle`     |
-| `rect`    | `x`, `y`, `width`, `height`, `color`, `filled`                             | `screen.rect`, `screen.draw.rect`, `filledRect`           |
-| `polygon` | `x`, `y` (its first point), `points`, `color`, `filled`                    | `screen.triangle`, `screen.draw.polygon`, `filledPolygon` |
-| `line`    | `x`, `y`, `x2`, `y2`, `color`                                              | `screen.line`, `screen.draw.line`                         |
-| `text`    | `text`, `x`, `y`, `width`, `height` (its box), and `color` when it has one | `screen.text`, `screen.draw.text`, `screen.draw.textbox`  |
+| `kind`    | Fields                                                                        | From                                                      |
+| --------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `fill`    | `color`, and `to` for a gradient                                              | `screen.fill`                                             |
+| `clear`   |                                                                               | `screen.clear`                                            |
+| `image`   | `image` (its name), `x`, `y` (its top-left)                                   | `screen.blit`, `screen.draw.image`                        |
+| `actor`   | `image`, `x`, `y` (its `pos`: its center, unless its `anchor` says otherwise) | an Actor's `draw()`                                       |
+| `circle`  | `x`, `y`, `radius`, `color`, `filled`                                         | `screen.circle`, `screen.draw.circle`, `filledCircle`     |
+| `rect`    | `x`, `y`, `width`, `height`, `color`, `filled`                                | `screen.rect`, `screen.draw.rect`, `filledRect`           |
+| `polygon` | `x`, `y` (its first point), `points` (how many), `color`, `filled`            | `screen.triangle`, `screen.draw.polygon`, `filledPolygon` |
+| `line`    | `x`, `y`, `x2`, `y2`, `color`                                                 | `screen.line`, `screen.draw.line`                         |
+| `text`    | `text`, `x`, `y`, `width`, `height` (its box), and `color` when it has one    | `screen.text`, `screen.draw.text`, `screen.draw.textbox`  |
 
 `$drawn[0].kind`, `$drawn[2].image` and the like read single things. A frame
 keeps its first 200 things; before the first frame `$drawn` is empty. So a
@@ -398,9 +425,13 @@ JGZ.getGameInspector(handle).inspect("player.x");
 
 `run()` performs lightweight static checks and reports them through the
 `diagnostics` option (and collects them on `handle.diagnostics`) rather than
-failing outright, except for one case that's a hard error: **`draw()` must
-not declare any parameters** (`run()` throws a `TypeError` if it does, since
-mixing it up with `update(dt)` is a very common typo).
+failing outright. A few mistakes stop the game before it starts instead:
+`run()` reports a `runtime-error` in the `startup` phase and throws. The
+main one is that **`draw()` must not declare any parameters** (a
+`TypeError`, since mixing it up with `update(dt)` is a very common typo).
+The others are a `TOUCH_CONTROLS` that isn't a valid mapping, a `seed` that
+isn't a string or a finite number, an invalid `projectId` or `assetUrls`, and
+a top-level statement that throws.
 
 Everything else is a warning:
 

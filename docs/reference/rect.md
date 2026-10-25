@@ -71,8 +71,8 @@ let [left, top, width, height] = hitbox;
 
 ## Set operations
 
-Each has a mutating `*_ip` counterpart that applies the result back onto the
-rectangle itself instead of returning a new one:
+Each but `fit` has a mutating `…Ip` counterpart that applies the result back
+onto the rectangle itself instead of returning a new one:
 
 - `clamp(other)` / `clampIp(other)` — moves (without resizing) to fit
   entirely inside `other`, centering on whichever axis doesn't fit.
@@ -125,4 +125,5 @@ if (hit) console.log(`hit the ${hit[0]}`);
 
 `angleTo(from, to)` and `distanceTo(from, to)` are exported functions (used
 internally by `Actor.angleTo`/`distanceTo`) if you need the same math on
-plain points without an `Actor`.
+plain points without an `Actor`. They aren't globals in a game file; import
+them from `@js-game-zero/core`.

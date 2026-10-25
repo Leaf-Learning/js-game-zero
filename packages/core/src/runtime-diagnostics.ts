@@ -4,6 +4,7 @@ import {
   HOOK_PARAMETERS,
   INPUT_HOOK_NAMES,
   resolveHookParameters,
+  takesWholeEvent,
   type Hook,
 } from "./events";
 import type {
@@ -251,8 +252,8 @@ function warnHookParameters(
   for (const name of INPUT_HOOK_NAMES) {
     const hook = module[name];
     if (typeof hook !== "function") continue;
+    if (takesWholeEvent(hook)) continue;
     const declared = getParameterNames(hook);
-    if (declared.length === 1 && declared[0] === "event") continue;
     const known = HOOK_PARAMETERS[name];
     const resolved = resolveHookParameters(declared, known);
     declared.forEach((parameter, index) => {

@@ -69,7 +69,9 @@ new Actor("player.svg", { topLeft: [0, 0], anchor: ["left", "top"] });
 Setting `angle` rotates the sprite around its anchor and changes the
 axis-aligned bounding box returned by `rect()`/`width`/`height` — useful when
 you collide-test a rotated actor, since the hitbox grows to cover the
-rotated silhouette.
+rotated silhouette. The edge and corner properties read and move that same
+box, so `ship.left = 0` puts a rotated ship's leftmost point at the left of
+the screen.
 
 ```js
 function update(dt) {
@@ -112,7 +114,7 @@ never the picture.
 - `move(x, y)` / `moveIp(x, y)` — like `Rect.move`/`moveIp`; `move` returns
   a new `Rect`, `moveIp` moves the actor itself.
 - `inflate(x, y)` / `inflateIp(x, y)` — grow/shrink the hitbox around its
-  center.
+  center; the picture keeps its size and place.
 - `touches(target)` — `true` when the actor overlaps `target`, which can be
   another `Actor`, a `Rect`, a `[left, top, width, height]` tuple, or an
   `[x, y]` point such as a click position.

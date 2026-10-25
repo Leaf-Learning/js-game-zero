@@ -72,6 +72,38 @@ describe("Clock scheduling", () => {
     expect(calls).toBe(0);
   });
 
+  test("a callback that schedules itself with a delay of 0 runs once a tick, not forever", () => {
+    const clock = new Clock({
+      onError(error) {
+        throw error;
+      },
+    });
+    let calls = 0;
+    function blink() {
+      calls += 1;
+      if (calls > 100) throw new Error("still looping in one tick");
+      clock.schedule(blink, 0);
+    }
+    clock.schedule(blink, 0);
+    clock.tick(1 / 60);
+    expect(calls).toBe(1);
+    clock.tick(1 / 60);
+    expect(calls).toBe(2);
+    // So does one rescheduled with scheduleUnique, and a one-shot scheduled
+    // during a tick waits for the next one even when it's due already.
+    const unique = () => {
+      calls += 1;
+      clock.scheduleUnique(unique, 0);
+    };
+    calls = 0;
+    clock.unschedule(blink);
+    clock.schedule(unique, 0);
+    clock.tick(0);
+    expect(calls).toBe(1);
+    clock.tick(0);
+    expect(calls).toBe(2);
+  });
+
   test("per-tick callbacks receive dt each tick", () => {
     const clock = new Clock();
     const dts: number[] = [];
@@ -214,6 +246,9 @@ describe("Clock scheduling", () => {
       "clock.scheduleUnique needs a function to call later",
     );
     expect(() => loose.scheduleUnique!(null, 1)).toThrow(TypeError);
+    expect(() => loose.eachTick!(undefined)).toThrow(
+      "clock.eachTick needs a function to call later, but got undefined. Give the function's name without brackets: clock.eachTick(spawn), not clock.eachTick(spawn()).",
+    );
     expect(() => loose.schedule_interval!(() => {}, 1)).toThrow(
       "clock.schedule_interval doesn't exist. Did you mean clock.scheduleInterval?",
     );

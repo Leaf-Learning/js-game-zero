@@ -15,6 +15,10 @@ Calls `callback` once, `delay` seconds from now.
 clock.schedule(spawnEnemy, 2); // spawn one enemy, 2 seconds from now
 ```
 
+A callback scheduled by another scheduled callback waits for the next tick,
+even with a delay of `0`, so one that schedules itself again with
+`clock.schedule(loop, 0)` runs once a frame.
+
 ### `clock.scheduleInterval(callback, interval)`
 
 Calls `callback` repeatedly, every `interval` seconds, until unscheduled.
@@ -24,7 +28,7 @@ Calls `callback` repeatedly, every `interval` seconds, until unscheduled.
 clock.scheduleInterval(spawnEnemy, 3); // a new enemy every 3 seconds
 ```
 
-Every schedule takes the function itself, without brackets.
+Every schedule, and `eachTick`, takes the function itself, without brackets.
 `clock.scheduleInterval(spawnEnemy(), 3)` would call it once right away and
 hand over what it returned, so it throws a `TypeError` that says to drop the
 brackets.
@@ -61,9 +65,15 @@ Returns the clock's current time in seconds (the running total of every
 
 ### Error handling
 
-If a scheduled or `eachTick` callback throws, the clock logs the error to
-the console and unschedules _only that callback_ — one broken timer doesn't
-stop the rest of your game's scheduled events or crash the frame loop.
+In a game, a scheduled or `eachTick` callback that throws (an animation's
+`onFinished` too) stops the game, as an error in `update()` does: the game
+fails in the `clock` phase (`handle.failure.phase` is `"clock"`), and a
+`runtime-error` diagnostic reports `clock failed: …`. The other callbacks
+due on that tick still run, but `update()` and `draw()` don't.
+
+A `Clock` you make yourself with `new Clock()` keeps going instead: it logs
+the error to the console and unschedules only that callback.
+`new Clock({ onError })` hands the error to `onError` instead of logging it.
 
 ## Animation
 
@@ -88,8 +98,8 @@ animate(player, { x: 300, y: 120, duration: 0.5, tween: "decelerate" });
 - `duration` — seconds, default `1`.
 - `tween` — the easing curve name (see the table below), default
   `"linear"`. An unknown name throws with a "did you mean ...?" suggestion.
-- `onFinished` — called once, when the animation reaches its target
-  naturally (not when it's stopped early without `complete: true`).
+- `onFinished` — called once, when the animation reaches its target. It
+  isn't called when the animation is stopped, even with `stop(true)`.
 - Each target value must be a finite number, or an array of finite numbers
   matching the shape of the property's current value (e.g. animating a
   `[x, y]`-shaped property to another two-number array).
@@ -101,37 +111,40 @@ an earlier call keep running.
 `animate()` returns an `Animation` instance:
 
 - `.running: boolean`
-- `.stop(complete = false)` — stops the animation; if `complete` is `true`,
-  it jumps the property to its final value first.
+- `.stop(complete = false)` — stops the animation. `stop(true)` jumps the
+  properties to their final values first. Neither calls `onFinished`.
 - `.removeTarget(property)` — stops animating a single property, leaving
   any others on the same call running.
 
 ### Tween names
 
-| Name             | What the motion looks like                                                            |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `linear`         | Constant speed.                                                                       |
-| `easeIn`         | Starts slow, speeds up (CSS's name). Same as `accelerate`.                            |
-| `easeOut`        | Starts fast, slows to a stop (CSS's name). Same as `decelerate`.                      |
-| `easeInOut`      | Speeds up, then slows down (CSS's name). Same as `accelDecel`.                        |
-| `bounce`         | Bounces to a stop at the target, like a dropped ball. Same as `bounceEnd`.            |
-| `spring`         | Shoots past the target, then wobbles back and settles. Same as `outElastic`.          |
-| `accelerate`     | Starts slow, speeds up.                                                               |
-| `decelerate`     | Starts fast, eases to a stop.                                                         |
-| `accelDecel`     | Eases in, then eases out.                                                             |
-| `inElastic`      | Wobbles around the starting point, then snaps to the target at the end.               |
-| `outElastic`     | Shoots past the target right away, then wobbles back and settles.                     |
-| `inOutElastic`   | Wobbles at the start, then again around the target.                                   |
-| `bounceEnd`      | Bounces to a stop at the target, like a dropped ball.                                 |
-| `bounceStart`    | Bounces around the starting point, then heads for the target.                         |
-| `bounceStartEnd` | Bounces at both ends.                                                                 |
-| `endElastic`     | Pygame Zero's `end_elastic`: same as `inElastic`, the wobble comes near the end.      |
-| `startElastic`   | Pygame Zero's `start_elastic`: same as `outElastic`, the wobble comes near the start. |
-| `bothElastic`    | Pygame Zero's `both_elastic`: same as `inOutElastic`.                                 |
+| Name             | What the motion looks like                                                   |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `linear`         | Constant speed.                                                              |
+| `easeIn`         | Starts slow, speeds up (CSS's name). Same as `accelerate`.                   |
+| `easeOut`        | Starts fast, slows to a stop (CSS's name). Same as `decelerate`.             |
+| `easeInOut`      | Speeds up, then slows down (CSS's name). Same as `accelDecel`.               |
+| `bounce`         | Bounces to a stop at the target, like a dropped ball. Same as `bounceEnd`.   |
+| `spring`         | Shoots past the target, then wobbles back and settles. Same as `outElastic`. |
+| `accelerate`     | Starts slow, speeds up.                                                      |
+| `decelerate`     | Starts fast, eases to a stop.                                                |
+| `accelDecel`     | Eases in, then eases out.                                                    |
+| `inElastic`      | Wobbles around the starting point, then snaps to the target at the end.      |
+| `outElastic`     | Shoots past the target right away, then wobbles back and settles.            |
+| `inOutElastic`   | Wobbles at the start, then again around the target.                          |
+| `bounceEnd`      | Bounces to a stop at the target, like a dropped ball.                        |
+| `bounceStart`    | Bounces around the starting point, then heads for the target.                |
+| `bounceStartEnd` | Bounces at both ends.                                                        |
+| `endElastic`     | Same as `inElastic`: the wobble comes near the end.                          |
+| `startElastic`   | Same as `outElastic`: the wobble comes near the start.                       |
+| `bothElastic`    | Same as `inOutElastic`.                                                      |
 
-That's all 18 names `tween` accepts (`tweenNames` exports the same list at
-runtime, if you want to validate a name programmatically). Like every other
-name, they're camelCase: `tween: "bounce_end"` throws, suggesting
-`bounceEnd`. If you're not
+That's all 18 names `tween` accepts: Pygame Zero's 10 curves, the five
+plain-language names, and `endElastic`, `startElastic` and `bothElastic`,
+names from Pygame Zero's older docs (`end_elastic` and so on) that its code
+doesn't accept. To check a name in code, import the same list as
+`tweenNames` (`import { tweenNames } from "@js-game-zero/core"`); it isn't a
+global in a game file. Like every other name, they're camelCase:
+`tween: "bounce_end"` throws, suggesting `bounceEnd`. If you're not
 sure which to pick, try `easeOut` for smooth movement, `bounce` for things
 that land, and `spring` for things that pop into place.

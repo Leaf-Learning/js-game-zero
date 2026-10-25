@@ -1,19 +1,27 @@
 import { Actor, type ActorOptions } from "./actor";
 import { isActiveServiceProxy } from "./active-service";
-import { Animation, animate, withAnimationClock } from "./animation";
+import {
+  Animation,
+  animate,
+  animationsOn,
+  withAnimationClock,
+} from "./animation";
 import {
   locateAsset,
   createAssetLoaders,
   defaultAssetLoaders,
   setActiveAssetLoaders,
   validateAssetName,
+  type AssetLoader,
   type AssetLoaders,
+  type SoundAsset,
 } from "./assets";
 import { Clock, setActiveClock } from "./clock";
 import {
   createInputDispatcher,
   getParameterNames,
   INPUT_HOOK_NAMES,
+  markWholeEventHook,
   type Hook,
   type InputHooks,
 } from "./events";
@@ -27,11 +35,7 @@ import {
   type LiveMouse,
   setActiveKeyboard,
 } from "./input";
-import {
-  AudioUnlockState,
-  createMusicPlayer,
-  setActiveMusicPlayer,
-} from "./audio";
+import { createMusicPlayer, setActiveMusicPlayer } from "./audio";
 import { devicePixelRatioOf, resolvePixelDensity } from "./pixel-density";
 import {
   createSeededRandom,
@@ -182,6 +186,9 @@ export type GameHandle = {
 };
 
 const activeHandles: GameHandle[] = [];
+// How many live runs play through each sound loader. A host may hand one
+// loader to several runs, so sounds stop with the last run that uses it.
+const soundLoaderRuns = new Map<AssetLoader<SoundAsset>, number>();
 const gameInspectors = new WeakMap<GameHandle, SourceInspector>();
 
 /**
@@ -211,12 +218,7 @@ export function run(
     if (mode === "global") {
       context = createRuntimeContext(options, diagnostics, emit, undefined);
       const evaluated = withRuntimeContext(context, () =>
-        executeZeroBoilerplateSource(
-          String(moduleOrSource),
-          context,
-          run,
-          emit,
-        ),
+        executeZeroBoilerplateSource(String(moduleOrSource), context, emit),
       );
       module = evaluated.module;
       inspector = evaluated.inspector;
@@ -281,6 +283,7 @@ export function run(
     context.keyboard.clear();
     context.clock.clear();
     context.music.stop();
+    releaseSoundLoader(context.loaders.sounds);
     context.stop = null;
     context.autosave.detach();
     // A failed game keeps its inspector so a host can read the state at the crash.
@@ -338,18 +341,18 @@ export function run(
     (error) => failRuntime("input", error),
     touchControls,
   );
+  // Without the hook, a callback the game gave music.setOnMusicEnd() while
+  // its top level ran stays in place.
   const musicEndHook = hooks.onMusicEnd as (() => void) | undefined;
-  context.music.setOnMusicEnd(
-    musicEndHook
-      ? () => {
-          try {
-            withRuntimeContext(context, () => musicEndHook());
-          } catch (error) {
-            failRuntime("audio", error);
-          }
-        }
-      : undefined,
-  );
+  if (musicEndHook) {
+    context.music.setOnMusicEnd(() => {
+      try {
+        withRuntimeContext(context, () => musicEndHook());
+      } catch (error) {
+        failRuntime("audio", error);
+      }
+    });
+  }
 
   const ready = waitForPreloadGate(context)
     .then(() => {
@@ -417,6 +420,10 @@ export function run(
   context.stop = () => handle.stop();
   if (inspector) gameInspectors.set(handle, inspector);
   activeHandles.push(handle);
+  soundLoaderRuns.set(
+    context.loaders.sounds,
+    (soundLoaderRuns.get(context.loaders.sounds) ?? 0) + 1,
+  );
   setScreen(context.screen);
 
   if (options.autostart !== false) {
@@ -551,9 +558,9 @@ function createRuntimeContext(
         });
       },
     });
-    const scopedTone = createToneGenerator({
-      unlockState: new AudioUnlockState(),
-    });
+    // Tones share the page's unlock state with sounds, since one gesture
+    // unlocks all of a page's audio.
+    const scopedTone = createToneGenerator();
     return {
       canvas,
       ownsCanvas,
@@ -584,6 +591,20 @@ function createRuntimeContext(
   }
 }
 
+function releaseSoundLoader(loader: AssetLoader<SoundAsset>): void {
+  const runs = (soundLoaderRuns.get(loader) ?? 1) - 1;
+  if (runs > 0) soundLoaderRuns.set(loader, runs);
+  else soundLoaderRuns.delete(loader);
+  stopSoundsIfUnused(loader);
+}
+
+/** Stops every sound a loader holds, a looping one too, once no live run
+ * plays through it, so a stopped or restarted game falls silent. */
+function stopSoundsIfUnused(loader: AssetLoader<SoundAsset>): void {
+  if (soundLoaderRuns.has(loader)) return;
+  for (const name of loader.cacheKeys()) loader.get(name)?.stop();
+}
+
 function cleanupFailedStartup(
   context: RuntimeContext | undefined,
   emit: (diagnostic: RuntimeDiagnostic) => void,
@@ -593,6 +614,7 @@ function cleanupFailedStartup(
   context.keyboard.clear();
   context.clock.clear();
   context.music.stop();
+  stopSoundsIfUnused(context.loaders.sounds);
   if (context.ownsCanvas) context.canvas.remove?.();
   setScreen(activeHandles.at(-1)?.screen ?? null);
   void context.autosave.flush().catch((flushError: unknown) => {
@@ -632,12 +654,11 @@ function createGameContext(context: RuntimeContext): GameContext {
     }
   }
 
-  const scopedAnimate: typeof animate = (object, options) =>
-    withAnimationClock(context.clock, () => animate(object, options));
+  const animations = animationsOn(context.clock);
 
   return {
     Actor: ScopedActor,
-    Animation,
+    Animation: animations.Animation,
     Rect,
     ZRect,
     Screen,
@@ -654,7 +675,7 @@ function createGameContext(context: RuntimeContext): GameContext {
     fonts: context.loaders.fonts,
     storage: context.storage,
     tone: context.tone,
-    animate: scopedAnimate,
+    animate: animations.animate,
     exit: () => context.stop?.(),
   };
 }
@@ -685,9 +706,9 @@ function adaptDefinedGame(module: DefinedGameModule): GameModule {
     const eventCallback = callback as unknown as (
       event: GameKeyEvent | GameMouseEvent,
     ) => void;
-    writable[name] = (event: unknown): void => {
+    writable[name] = markWholeEventHook((event: unknown): void => {
       eventCallback(event as GameKeyEvent | GameMouseEvent);
-    };
+    });
   }
   return adapted;
 }
@@ -742,10 +763,10 @@ function runFrame(
       monitorAudioAssetGate(context);
       // A late render asset request may have just started a new load. Hold
       // drawing until it settles, but never freeze gameplay for audio loads.
-      if (isRuntimeGated(context)) {
-        monitorLateAssetGate(context, onFailure);
-        return;
-      }
+      // Watch every frame, not only while one is pending: a name an asset map
+      // doesn't list fails at once, before any frame sees it loading.
+      monitorLateAssetGate(context, onFailure);
+      if (isRuntimeGated(context)) return;
       try {
         // What this frame draws, for a host's `$drawn`.
         beginDrawn(context.screen);

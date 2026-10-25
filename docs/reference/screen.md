@@ -118,6 +118,8 @@ screen.draw.image("player.svg", [40, 40]);
 If the named image hasn't finished loading yet, nothing is drawn: it returns
 a `Promise` that resolves once the image has loaded, and the runtime holds
 the frames that follow until then, so the image shows from the next one.
+If it can't be loaded, the promise rejects and the run reports the missing
+image by name, so `draw()` needn't handle the promise itself.
 Images touched while the script starts up load before the first frame (see
 [`docs/reference/runtime.md`](runtime.md#preload-gate)).
 Prefer `Actor` for anything that moves or needs collision — drawing an image
@@ -227,7 +229,6 @@ Zero uses. Either works, but not both at once:
 | `outlineColor`  | `ocolor`         |
 | `shadowColor`   | `scolor`         |
 | `gradientColor` | `gcolor`         |
-| `minSize`       | `minFontsize`    |
 
 ### Position options
 
@@ -274,6 +275,8 @@ screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10
 - `widthem` — like `width`, but expressed as a multiple of `size`.
 - `lineheight` — pixels between lines (default `size * 1.2`).
 - `align` — `"left"` (default), `"center"`, or `"right"`, for multi-line text.
+  A [`textbox`](#screendrawtextboxtext-rect-options) follows its `anchor`
+  instead, so it centers by default.
 - `strip` — trims trailing spaces from each wrapped line (default `true`).
 - `anchor` — overrides which part of the text's bounding box sits at the
   resolved position; either one of the named anchor strings above, or a
@@ -294,10 +297,13 @@ screen.draw.text("HUD", { right: WIDTH - 10, top: 10 }); // top-right corner, 10
 
 Like `draw.text`, but instead of a fixed `size` you give a rectangle and
 `textbox` picks the **largest font size that fits inside it** (shrinking
-down to `minSize`, default `4`, if necessary). Text is centered in the
-rect by default; pass `anchor` (e.g. `"topLeft"`) to change that. `textbox`
-does not accept `pos`, `width`, or the scalar position keywords — the rect
-defines its layout box.
+down to `minSize`, default `4`, if necessary; `minFontsize` is another name
+for it, but not both at once). Text is centered in the rect by default.
+Pass `anchor` (e.g. `"topLeft"`) to place it elsewhere in the rect; its
+lines line up the same way (on the left for `"topLeft"`) unless you give
+`align`. The rect places the text, so `textbox` takes none of
+`draw.text`'s position options (`pos`, `center`, `topLeft`, `left`, ...)
+and no `width`; giving one throws a `TypeError` that says so.
 
 ```js
 screen.draw.textbox("You win!", [40, 60, 240, 80], {

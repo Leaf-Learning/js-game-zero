@@ -27,7 +27,10 @@ You don't need to call `save()` or `load()` yourself in normal use:
   `storage.delete(...)`, `storage.clear()`) schedules a save a fraction of a
   second later; rapid changes coalesce into one write instead of saving on
   every single mutation. Storage is also flushed immediately when the tab is
-  hidden or closed, so nothing is lost.
+  hidden or closed, and when the game stops, so nothing is lost. A change
+  inside a stored object or list, such as `storage.highScores.push(score)`,
+  is saved too, with the next of those saves; set the key again
+  (`storage.highScores = storage.highScores`) to save it sooner.
 
 ## Reading and writing
 
@@ -54,9 +57,13 @@ storage.score; // 10
 | `storage.path`                          | The backing location: a scoped `localStorage` key in the browser, or a file path in the sandbox.   |
 
 Values must be JSON-serializable — plain objects, arrays, strings, numbers,
-booleans, and `null`. Anything else (a class instance, a function, `NaN`,
-`Infinity`, a circular reference) throws a `JsonStorageError` naming the
-offending path, e.g. `highScores[2].player`.
+booleans, and `null`. Storing anything else (a class instance, a function,
+`undefined`, `NaN`, `Infinity`, a circular reference), anywhere inside the
+value, throws a `JsonStorageError` naming the offending path, e.g.
+`NaN is not a JSON value at storage.highScores[2].score`, and stores nothing.
+A value changed inside a stored object or list after it was stored is only
+checked when storage saves: until it's a JSON value again, saving fails,
+with a warning naming its path, and nothing in storage is saved.
 
 ## Gotchas
 

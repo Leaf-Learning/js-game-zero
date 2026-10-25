@@ -163,6 +163,32 @@ describe("image loader cache and surfaces", () => {
     expect(player.getRect().size).toEqual([32, 24]);
   });
 
+  test("an image property still loading says so, and a missing one says it's missing", async () => {
+    let release: ((image: SurfaceLike) => void) | undefined;
+    const loader = createImageLoader({
+      projectId: "test_project",
+      loadAsset: (_url, name) =>
+        name.startsWith("player.")
+          ? new Promise<SurfaceLike>((resolve) => {
+              release = resolve;
+            })
+          : Promise.reject(new Error("missing")),
+    });
+    const images = loader as unknown as Record<string, SurfaceLike>;
+
+    const player = images.player!;
+    expect(() => player.getSize()).toThrow(
+      "images.player is still loading. Name it at the top level (let picture = images.player;) and the game's first frame waits for it.",
+    );
+    release?.(surface(32, 24));
+    await loader.waitForIdle();
+    expect(player.getSize()).toEqual([32, 24]);
+
+    const ghost = images.ghost!;
+    await expect(loader.waitForIdle()).rejects.toThrow(MissingAssetError);
+    expect(() => ghost.getSize()).toThrow(MissingAssetError);
+  });
+
   test("pendingCount and waitForIdle track in-flight loads for the runtime preload gate", async () => {
     let releaseFirst: (() => void) | undefined;
     const loader = createImageLoader({

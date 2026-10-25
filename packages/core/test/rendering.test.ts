@@ -4,6 +4,7 @@ import {
   ImageSurface,
   Screen,
   rgb,
+  type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
 import {
@@ -14,6 +15,7 @@ import {
   type CanvasLike,
   type DrawableImage,
 } from "@js-game-zero/core/host";
+import { setActiveDiagnosticEmit } from "../src/runtime-diagnostics";
 
 type Operation = { name: string; args: unknown[] };
 
@@ -301,6 +303,27 @@ describe("Screen canvas drawing", () => {
     ).toThrow("Unknown text anchor: midbottom. Did you mean midBottom?");
   });
 
+  test("textbox refuses position options up front, since its rect places its text", () => {
+    const { screen, context } = mockScreen();
+    const options = {
+      center: [20, 10],
+      topLeft: [0, 0],
+      pos: [0, 0],
+      left: 5,
+      centerY: 10,
+    };
+    for (const [option, value] of Object.entries(options)) {
+      expect(() =>
+        screen.draw.textbox("hi", [0, 0, 40, 20], {
+          [option]: value,
+        } as never),
+      ).toThrow(
+        `screen.draw.textbox places its text with its rect, so it has no option called ${option}. Move the rect to move the text, and use anchor (like anchor: "topLeft") and align to place the text inside it.`,
+      );
+    }
+    expect(context.operations).toEqual([]);
+  });
+
   test("draw.image draws an image like blit", () => {
     const loader = createImageLoader({
       projectId: "draw_image",
@@ -440,6 +463,51 @@ describe("Screen canvas drawing", () => {
 
     screen.blit("late", [7, 8]);
     expect(drawnAt(7, 8)).toBe(1);
+  });
+
+  test("a missing image is reported to the run once, with no unhandled rejection", async () => {
+    const loader = createImageLoader({
+      projectId: "test_project",
+      loadAsset: async () => {
+        throw new Error("404");
+      },
+    });
+    const { screen } = mockScreen(loader);
+    const diagnostics: RuntimeDiagnostic[] = [];
+    let unhandled: unknown;
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandled = reason;
+    };
+    process.on("unhandledRejection", onUnhandledRejection);
+    try {
+      // A draw() blits it every frame, ignoring what blit returns.
+      for (let frame = 0; frame < 3; frame += 1) {
+        const previous = setActiveDiagnosticEmit((diagnostic) =>
+          diagnostics.push(diagnostic),
+        );
+        screen.blit("missing", [0, 0]);
+        setActiveDiagnosticEmit(previous);
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+      }
+      expect(unhandled).toBeUndefined();
+    } finally {
+      process.off("unhandledRejection", onUnhandledRejection);
+    }
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        phase: "asset",
+        message: expect.stringContaining('Failed to load image "missing"'),
+      }),
+    ]);
+    // The loader keeps the failures for the runtime's asset gate, and
+    // awaiting blit still rejects.
+    await expect(loader.waitForIdle()).rejects.toThrow(
+      "3 image assets failed to load.",
+    );
+    await expect(screen.blit("missing", [0, 0])).rejects.toThrow(
+      "Missing image asset: missing",
+    );
   });
 });
 

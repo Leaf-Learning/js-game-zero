@@ -1,8 +1,11 @@
 import { audioUnlock, clampVolume, type AudioUnlockState } from "./audio";
 import { guardSpellings } from "./friendly-names";
-import { rejectUnknownOptions } from "./util";
+import { closestName, describeValue, rejectUnknownOptions } from "./util";
 
 const tonePlayOptionKeys = new Set(["waveform", "volume"]);
+
+/** What an oscillator can play without a custom wave of its own. */
+const waveforms = ["sine", "square", "sawtooth", "triangle"] as const;
 
 export type Waveform = OscillatorType;
 
@@ -247,7 +250,16 @@ export function requireToneDuration(duration: number): number {
 export function normalizeWaveform(waveform: WaveformInput): Waveform {
   if (waveform === "sin") return "sine";
   if (waveform === "saw") return "sawtooth";
-  return waveform;
+  if ((waveforms as readonly unknown[]).includes(waveform)) return waveform;
+  const suggestion =
+    typeof waveform === "string"
+      ? closestName(waveform, [...waveforms, "sin", "saw"])
+      : undefined;
+  throw new TypeError(
+    `tone waveform must be "sine", "square", "sawtooth" or "triangle", not ${describeValue(waveform)}.${
+      suggestion === undefined ? "" : ` Did you mean "${suggestion}"?`
+    }`,
+  );
 }
 
 function setAudioParam(

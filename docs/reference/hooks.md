@@ -1,10 +1,10 @@
 # Hooks And Input Constants
 
-Your game is a set of top-level functions. The runtime calls the ones it
-recognizes, in zero-boilerplate mode as plain `function` declarations and in
-import mode as properties on the object you pass to `run()`. This page
-documents every hook, then the `keys`, `keymods`, and `mouse` constant tables
-used by the input hooks.
+Your game is a set of top-level functions and settings. The runtime calls the
+functions it recognizes, in zero-boilerplate mode as plain `function`
+declarations and in import mode as properties on the object you pass to
+`run()`. This page documents the settings, every hook, then the `keys`,
+`keymods`, and `mouse` constant tables used by the input hooks.
 
 Hook names are camelCase (`onKeyDown`, `onMouseDown`, ...), and work the
 same way in both modes. (A game made with `defineGame()` is the exception:
@@ -26,6 +26,28 @@ JavaScript function: `function onKeyDown(k) {}` gets the key, and
 `hook-parameter` warning saying which value such a parameter receives, since
 `onMouseDown(btn)` gets the position, not the button. Name your parameters
 as shown below to avoid the warning.
+
+One name is different: a hook whose only parameter is called `event`
+receives all of its values in one object, as a `defineGame()` hook does, so
+`function onKeyDown(event) {}` reads `event.key` and `event.mod`.
+
+## Settings
+
+Set these at the top of a game, like `WIDTH = 480;`.
+
+| Setting          | What it does                                                                                               | Default                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `WIDTH`          | The game's width in pixels, rounded down to a whole number. `screen` and the mouse use it.                 | `800`                    |
+| `HEIGHT`         | The game's height in pixels, rounded down to a whole number.                                               | `600`                    |
+| `TITLE`          | The page's title, shown on its tab.                                                                        | The page's own title     |
+| `ICON`           | The name of an image in `images/`, as `Actor` takes it (`ICON = "ship";`), shown as the page's icon.       | The page's own icon      |
+| `PIXEL_DENSITY`  | How many canvas pixels each game pixel gets. See [`screen.md`](screen.md#pixel_density-and-screendensity). | The device's pixel ratio |
+| `TOUCH_CONTROLS` | On-screen buttons for touch screens. See [Touch controls](#touch-controls).                                | None                     |
+
+A `WIDTH` or `HEIGHT` that isn't a positive number is ignored, with an
+`invalid-config` warning, and so is an `ICON` that isn't an image name. In
+import mode, put the settings on the game module or in `run()`'s options
+(see [`runtime.md`](runtime.md#runoptions)).
 
 ## draw()
 
@@ -64,7 +86,7 @@ function update(dt) {
 }
 ```
 
-## onKeyDown(key, mod, unicode) / onKeyUp(key, mod)
+## onKeyDown(key, mod, unicode, repeat) / onKeyUp(key, mod, unicode, repeat)
 
 ```ts
 function onKeyDown(
@@ -73,7 +95,12 @@ function onKeyDown(
   unicode: string,
   repeat: boolean,
 ): void;
-function onKeyUp(key: number, mod: number): void;
+function onKeyUp(
+  key: number,
+  mod: number,
+  unicode: string,
+  repeat: boolean,
+): void;
 ```
 
 Fired on `keydown`/`keyup`.
@@ -86,8 +113,8 @@ Fired on `keydown`/`keyup`.
 - `unicode` — the typed character as a one-character string (`""` for
   non-printable keys like arrows or function keys).
 - `repeat` — `true` if this event is an OS-generated key-repeat while the key
-  is held down, rather than the initial press. Only available on
-  `onKeyDown` (declare it as a fourth parameter if you need it).
+  is held down, rather than the initial press. It's always `false` for
+  `onKeyUp`.
 
 ```js
 function onKeyDown(key, mod) {

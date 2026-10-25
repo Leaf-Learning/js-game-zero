@@ -44,10 +44,15 @@ export class JsonStorageError extends Error {
   }
 }
 
+/** Keyed by a symbol so no storage key can collide with it. */
+const savedText = Symbol("savedText");
+
 export class Storage {
   private readonly adapter: StorageAdapter;
   private readonly values = new Map<string, unknown>();
   private readonly listeners = new Set<() => void>();
+  /** The JSON last saved or loaded: what the adapter holds, as far as this storage knows. */
+  [savedText] = "{}";
 
   constructor(options: StorageOptions = {}) {
     this.adapter =
@@ -72,12 +77,14 @@ export class Storage {
 
   set(key: string, value: unknown): void {
     requireStorageKey(key);
+    validateJsonValue(value, `storage.${key}`);
     this.values.set(key, value);
     this.notify();
   }
 
   setDefault(key: string, defaultValue: unknown): unknown {
     requireStorageKey(key);
+    validateJsonValue(defaultValue, `storage.${key}`);
     if (!this.values.has(key)) {
       this.values.set(key, defaultValue);
       this.notify();
@@ -125,7 +132,9 @@ export class Storage {
   }
 
   async save(): Promise<void> {
-    await this.adapter.save(JSON.stringify(this.jsonObject()));
+    const text = JSON.stringify(this.jsonObject());
+    await this.adapter.save(text);
+    this[savedText] = text;
   }
 
   async load(): Promise<void> {
@@ -146,6 +155,7 @@ export class Storage {
 
   private applyLoadedText(text: string | null): void {
     this.values.clear();
+    this[savedText] = "{}";
     if (text === null || text === "") return;
     let parsed: unknown;
     try {
@@ -166,6 +176,7 @@ export class Storage {
     for (const [key, value] of Object.entries(parsed)) {
       this.values.set(key, value);
     }
+    this[savedText] = JSON.stringify(this.jsonObject());
   }
 
   private notify(): void {
@@ -181,6 +192,16 @@ export class Storage {
 }
 
 guardSpellings(Storage.prototype, "storage");
+
+/**
+ * Whether `storage` holds anything its last save or load didn't, including a
+ * change inside a stored object or list (`storage.highScores.push(...)`),
+ * which no set() announces. Throws a JsonStorageError, naming the key, when
+ * a stored value has since become one JSON can't hold.
+ */
+export function hasUnsavedChanges(storage: Storage): boolean {
+  return JSON.stringify(storage.toJSON()) !== storage[savedText];
+}
 
 export function createStorage(options: StorageOptions = {}): Storage {
   return new Storage(options);
@@ -227,7 +248,7 @@ function validateJsonValueInner(
   }
   if (typeof value === "number") {
     if (Number.isFinite(value)) return;
-    throw new JsonStorageError(path, "Non-finite numbers are not JSON values");
+    throw new JsonStorageError(path, `${value} is not a JSON value`);
   }
   if (typeof value !== "object") {
     throw new JsonStorageError(path, `${typeof value} is not a JSON value`);

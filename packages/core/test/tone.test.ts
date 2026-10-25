@@ -110,6 +110,22 @@ describe("tone note and frequency parsing", () => {
       "Did you mean volume?",
     );
   });
+
+  test("rejects a waveform tone doesn't have, listing the ones it does", () => {
+    const generator = createToneGenerator({
+      audioContext: new MockAudioContext(),
+    });
+    expect(() =>
+      generator.create("A4", 0.2, { waveform: "squar" as never }),
+    ).toThrow(
+      'tone waveform must be "sine", "square", "sawtooth" or "triangle", not "squar". Did you mean "square"?',
+    );
+    expect(() => generator.create("A4", 0.2, { waveform: "custom" })).toThrow(
+      'tone waveform must be "sine", "square", "sawtooth" or "triangle", not "custom".',
+    );
+    const created = generator.create("A4", 0.2);
+    expect(() => created.play({ waveform: 3 as never })).toThrow(TypeError);
+  });
 });
 
 describe("tone Web Audio scheduling", () => {

@@ -24,10 +24,14 @@ type TickEvent = {
  * returned (usually `undefined`), so say so where it happens rather than when
  * the clock first fires.
  */
-function requireCallback(callback: unknown, method: string): void {
+function requireCallback(
+  callback: unknown,
+  method: string,
+  rest = ", 1",
+): void {
   if (typeof callback === "function") return;
   throw new TypeError(
-    `clock.${method} needs a function to call later, but got ${describeValue(callback)}. Give the function's name without brackets: clock.${method}(spawn, 1), not clock.${method}(spawn(), 1).`,
+    `clock.${method} needs a function to call later, but got ${describeValue(callback)}. Give the function's name without brackets: clock.${method}(spawn${rest}), not clock.${method}(spawn()${rest}).`,
   );
 }
 
@@ -92,6 +96,7 @@ export class Clock {
   }
 
   eachTick(callback: TickCallback): void {
+    requireCallback(callback, "eachTick", "");
     this.tickCallbacks.push({ callback, canceled: false });
   }
 
@@ -119,8 +124,12 @@ export class Clock {
     this.tickCallbacks = this.tickCallbacks.filter((event) => !event.canceled);
     this.time = targetTime;
 
+    // Anything scheduled from here on waits for the next tick, so a callback
+    // that schedules itself with a delay of 0 runs once a frame rather than
+    // forever in this one.
+    const firstLater = this.nextOrder;
     let event = this.nextDueEvent();
-    while (event && event.due <= this.time) {
+    while (event && event.due <= this.time && event.order < firstLater) {
       this.scheduled.splice(this.scheduled.indexOf(event), 1);
       if (!event.canceled) {
         this.active.add(event);

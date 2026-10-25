@@ -651,12 +651,20 @@ function createLazyAsset<T>(context: LazyAssetContext<T>): T {
 function createLazySurface(
   context: LazyAssetContext<SurfaceLike>,
 ): SurfaceLike {
-  void context.load().catch(() => undefined);
+  let failure: { readonly error: unknown } | undefined;
+  void context.load().catch((error: unknown) => {
+    failure = { error };
+  });
 
+  // An image still loading isn't missing. A game's first frame waits for
+  // the images its top level named, so say how to be one of them.
   const loaded = (): SurfaceLike => {
     const asset = context.get();
-    if (!asset) throw new MissingAssetError(context.kind, context.requested);
-    return asset;
+    if (asset) return asset;
+    if (failure) throw failure.error;
+    throw new Error(
+      `images.${context.requested} is still loading. Name it at the top level (let picture = images.${context.requested};) and the game's first frame waits for it.`,
+    );
   };
 
   const surface: SurfaceLike = {

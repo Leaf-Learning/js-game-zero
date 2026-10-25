@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { Screen, fonts, type FontAsset } from "@js-game-zero/core";
+import {
+  Screen,
+  fonts,
+  type FontAsset,
+  type TextboxOptions,
+} from "@js-game-zero/core";
 import {
   fitTextboxFontSize,
   layoutText,
@@ -325,6 +330,40 @@ describe("draw.textbox", () => {
     expect(context.operations).toContainEqual({
       name: "translate",
       args: [10, 12],
+    });
+  });
+
+  test("textbox lines its text up the way its anchor places it, so centered by default", () => {
+    // Where the line's x is on screen, and how the canvas aligns it there.
+    function placed(options: TextboxOptions) {
+      const { screen, context } = screenAndContext();
+      screen.draw.textbox("You win!", [40, 60, 240, 80], options);
+      const at = (name: string) =>
+        context.operations.find((op) => op.name === name)?.args ?? [];
+      const [x] = at("translate") as number[];
+      const [, lineX] = at("fillText") as [string, number];
+      return { x: (x ?? 0) + lineX, align: context.textAlign };
+    }
+    expect(placed({ size: 48 })).toEqual({ x: 160, align: "center" });
+    expect(placed({ size: 48, anchor: "midBottom" })).toEqual({
+      x: 160,
+      align: "center",
+    });
+    expect(placed({ size: 48, anchor: "topLeft" })).toEqual({
+      x: 40,
+      align: "left",
+    });
+    expect(placed({ size: 48, anchor: "bottomRight" })).toEqual({
+      x: 280,
+      align: "right",
+    });
+    expect(placed({ size: 48, anchor: [10, "top"] })).toEqual({
+      x: 40,
+      align: "left",
+    });
+    expect(placed({ size: 48, align: "left" })).toEqual({
+      x: 40,
+      align: "left",
     });
   });
 });

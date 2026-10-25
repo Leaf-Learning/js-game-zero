@@ -14,6 +14,7 @@ import {
   type BrowserStorageLike,
 } from "@js-game-zero/core/host";
 import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
+import { attachAutosave } from "../src/runtime-persistence";
 import { getActiveStorage, setActiveStorage } from "../src/storage";
 
 class MemoryAdapter implements StorageAdapter {
@@ -126,19 +127,53 @@ describe("JSON storage map and proxy API", () => {
     });
     await expect(corrupt.load()).rejects.toBeInstanceOf(JsonStorageError);
 
+    // A value changed after it was stored, inside a stored object.
     const store = createStorage({ adapter: new MemoryAdapter() });
-    store.set("profile", { nested: { callback: () => "nope" } });
+    const profile: Record<string, Record<string, unknown>> = { nested: {} };
+    store.set("profile", profile);
+    profile.nested!.callback = () => "nope";
     await expect(store.save()).rejects.toMatchObject({
       path: "storage.profile.nested.callback",
     });
 
     const circular: Record<string, unknown> = {};
-    circular.self = circular;
     store.clear();
     store.set("circular", circular);
+    circular.self = circular;
     await expect(store.save()).rejects.toMatchObject({
       path: "storage.circular.self",
     });
+  });
+
+  test("a value JSON can't hold throws where it's stored, naming the key, and never gets in", async () => {
+    const adapter = new MemoryAdapter();
+    const store = proxy(createStorage({ adapter }));
+    expect(() => store.set("speed", Number.NaN)).toThrow(JsonStorageError);
+    expect(() => store.set("speed", Number.NaN)).toThrow(
+      "NaN is not a JSON value at storage.speed",
+    );
+    expect(() => {
+      store.lastSpeed = 0 / 0;
+    }).toThrow("NaN is not a JSON value at storage.lastSpeed");
+    expect(() => store.setDefault("best", Infinity)).toThrow(
+      "Infinity is not a JSON value at storage.best",
+    );
+    expect(() => store.set("stats", { speed: [1, Number.NaN] })).toThrow(
+      "NaN is not a JSON value at storage.stats.speed[1]",
+    );
+    expect(() => store.set("score", undefined)).toThrow(
+      "undefined is not a JSON value at storage.score",
+    );
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(() => store.set("loop", circular)).toThrow(
+      "Circular references are not JSON values at storage.loop.self",
+    );
+    expect(store.keys()).toEqual([]);
+
+    store.highScore = 999;
+    await store.save();
+    expect(adapter.text).toBe('{"highScore":999}');
   });
 });
 
@@ -409,5 +444,82 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
 
     delete store.score;
     expect(notifications).toBe(2);
+  });
+});
+
+describe("auto-save of changes no set() announces", () => {
+  test("a flush saves a change inside a stored object or list", async () => {
+    const adapter = new MemoryAdapter(
+      "memory",
+      JSON.stringify({ highScores: [100] }),
+    );
+    const store = createStorage({ adapter });
+    store.loadSync();
+    const autosave = attachAutosave(store, () => {});
+    try {
+      (store.get("highScores") as number[]).push(250);
+      await autosave.flush();
+      expect(adapter.text).toBe('{"highScores":[100,250]}');
+
+      (store.get("highScores") as number[])[0] = 300;
+      await autosave.flush();
+      expect(adapter.text).toBe('{"highScores":[300,250]}');
+    } finally {
+      autosave.detach();
+    }
+  });
+
+  test("a flush writes nothing when nothing changed since the load or last save", async () => {
+    const saves: string[] = [];
+    const pretty = JSON.stringify({ score: 3 }, null, 2);
+    const asyncAdapter: StorageAdapter = {
+      path: "async",
+      async load() {
+        return pretty;
+      },
+      save(text) {
+        saves.push(text);
+      },
+    };
+    const store = createStorage({ adapter: asyncAdapter });
+    const autosave = attachAutosave(store, () => {});
+    try {
+      await store.load();
+      await autosave.flush();
+      expect(saves).toEqual([]);
+
+      store.set("score", 4);
+      await autosave.flush();
+      await autosave.flush();
+      expect(saves).toEqual(['{"score":4}']);
+
+      // Nothing stored at all: no file or localStorage key is made.
+      const emptyAdapter = new MemoryAdapter();
+      const empty = createStorage({ adapter: emptyAdapter });
+      empty.loadSync();
+      const emptyAutosave = attachAutosave(empty, () => {});
+      await emptyAutosave.flush();
+      emptyAutosave.detach();
+      expect(emptyAdapter.text).toBeNull();
+    } finally {
+      autosave.detach();
+    }
+  });
+
+  test("a stored value changed into one JSON can't hold fails the save, naming it", async () => {
+    const adapter = new MemoryAdapter();
+    const store = createStorage({ adapter });
+    const autosave = attachAutosave(store, () => {});
+    try {
+      const stats = { speed: 1 };
+      store.set("stats", stats);
+      stats.speed = Number.NaN;
+      await expect(autosave.flush()).rejects.toThrow(
+        "NaN is not a JSON value at storage.stats.speed",
+      );
+      expect(adapter.text).toBeNull();
+    } finally {
+      autosave.detach();
+    }
   });
 });

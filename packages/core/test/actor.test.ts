@@ -240,6 +240,68 @@ describe("Actor edge/position setters", () => {
   });
 });
 
+describe("Actor positions when rotated", () => {
+  function expectPoint(actual: readonly number[], expected: [number, number]) {
+    expect(actual[0]).toBeCloseTo(expected[0]);
+    expect(actual[1]).toBeCloseTo(expected[1]);
+  }
+
+  test("every edge and corner setter puts the rotated bounding box there", () => {
+    const loader = loaderWithSprites();
+    const points = [
+      "topLeft",
+      "topRight",
+      "bottomLeft",
+      "bottomRight",
+      "midTop",
+      "midLeft",
+      "midRight",
+      "midBottom",
+      "center",
+    ] as const;
+    for (const key of points) {
+      const actor = new Actor("hero.svg", [100, 100], { angle: 45, loader });
+      actor[key] = [10, 20];
+      expectPoint(actor[key], [10, 20]);
+    }
+    for (const key of ["left", "top", "right", "bottom"] as const) {
+      const actor = new Actor("hero.svg", [100, 100], { angle: 45, loader });
+      const before = actor.rect();
+      actor[key] = 0;
+      expect(actor[key]).toBeCloseTo(0);
+      // Only that edge's axis moves, and the box keeps its size.
+      const after = actor.rect();
+      const other = key === "left" || key === "right" ? "top" : "left";
+      expect(after[other]).toBeCloseTo(before[other]);
+      expect(after.width).toBeCloseTo(before.width);
+      expect(after.height).toBeCloseTo(before.height);
+    }
+    const moved = new Actor("hero.svg", [100, 100], { angle: 45, loader });
+    const left = moved.left;
+    moved.moveIp(5, 0);
+    expect(moved.left).toBeCloseTo(left + 5);
+  });
+
+  test("the position it was given stays put when its size changes or its image arrives", async () => {
+    const loader = loaderWithSprites();
+    const actor = new Actor("hero.svg", { angle: 90, loader });
+    actor.center = [100, 100];
+    actor.scale = 1;
+    expectPoint(actor.center, [100, 100]);
+    expectPoint(actor.pos, [100, 100]);
+    actor.midBottom = [50, 180];
+    actor.scale = 2;
+    expectPoint(actor.midBottom, [50, 180]);
+    const later = new Actor("later.svg", {
+      center: [100, 100],
+      angle: 90,
+      loader,
+    });
+    await later.ready();
+    expectPoint(later.center, [100, 100]);
+  });
+});
+
 describe("Actor asset lifecycle", () => {
   test("ready() awaits an in-flight load and then resolves synchronously from cache", async () => {
     const loader = loaderWithSprites();
@@ -698,6 +760,42 @@ describe("Actor sizing", () => {
     expect(actor.rect()).toMatchObject({ width: 50, height: 30 });
     expect(actor.center).toEqual([50, 50]);
     expect(drawWith(actor, loader)?.slice(3)).toEqual([40, 20]);
+  });
+
+  test("inflateIp leaves the picture where it was, whatever the anchor", () => {
+    const loader = loaderWithSprites();
+    /** Where the picture lands: [left, top, width, height]. */
+    function picture(actor: Actor): number[] {
+      const context = new MockContext();
+      actor.draw(
+        new Screen(
+          { width: 200, height: 200 },
+          context as unknown as CanvasRenderingContext2D,
+          { imageLoader: loader },
+        ),
+      );
+      const at = (name: string) =>
+        context.operations.find((op) => op.name === name)?.args as number[];
+      const [x = 0, y = 0] = at("translate");
+      const [, left = 0, top = 0, width = 0, height = 0] = at("drawImage");
+      return [x + left, y + top, width, height];
+    }
+    const anchors = [
+      ["center", "center"],
+      ["left", "bottom"],
+      [3, 4],
+    ] as const;
+    for (const anchor of anchors) {
+      const actor = new Actor("hero.svg", [100, 100], {
+        anchor,
+        scale: 2,
+        loader,
+      });
+      const before = picture(actor);
+      actor.inflateIp(20, 10);
+      expect(actor.rect()).toMatchObject({ width: 60, height: 30 });
+      expect(picture(actor)).toEqual(before);
+    }
   });
 
   test("rejects non-positive sizes and more than one size source", () => {

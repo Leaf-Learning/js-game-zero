@@ -11,6 +11,10 @@ import { normalizeColor, verticalGradient, type Color } from "./color";
 import { guardSpellings } from "./friendly-names";
 import { Rect, ZRect, type Point, type RectLike } from "./geometry";
 import {
+  describeRuntimeError,
+  getActiveDiagnosticEmit,
+} from "./runtime-diagnostics";
+import {
   clamp,
   describeValue,
   didYouMean,
@@ -102,7 +106,7 @@ export type TextOptions = {
 
 export type TextboxOptions = Omit<
   TextOptions,
-  | "pos"
+  | TextPositionKey
   | "width"
   | "widthem"
   | "top"
@@ -156,8 +160,9 @@ type TextPositionKey =
 const textPositionKeys = ["pos", ...rectPositionKeys] as const;
 
 /**
- * Readable names for Pygame Zero's terse text options. Either name works;
- * giving both for the same option is an error.
+ * Readable names for Pygame Zero's terse text options, and for textbox's
+ * `minFontsize`, which Pygame Zero doesn't have. Either name works; giving
+ * both for the same option is an error.
  */
 const textOptionAliases = {
   size: "fontsize",
@@ -170,7 +175,6 @@ const textOptionAliases = {
 
 const textboxOptionKeys = new Set<string>([
   ...Object.keys(textOptionAliases),
-  ...rectPositionKeys,
   "fontname",
   "sysfontname",
   "fontsize",
@@ -193,17 +197,22 @@ const textboxOptionKeys = new Set<string>([
   "angle",
 ]);
 
-const textOptionKeys = new Set<string>([
-  ...[...textboxOptionKeys].filter(
-    (key) => key !== "minFontsize" && key !== "minSize",
-  ),
-  "pos",
+/** The options that place draw.text's text. A textbox's rect places its text. */
+const textPlacingOptionKeys = new Set<string>([
+  ...textPositionKeys,
   "top",
   "left",
   "bottom",
   "right",
   "centerX",
   "centerY",
+]);
+
+const textOptionKeys = new Set<string>([
+  ...[...textboxOptionKeys].filter(
+    (key) => key !== "minFontsize" && key !== "minSize",
+  ),
+  ...textPlacingOptionKeys,
   "width",
   "widthem",
 ]);
@@ -450,6 +459,9 @@ export function recordDrawn(screen: Screen, thing: DrawnThing): void {
   if (list && list.length < MAX_DRAWN) list.push(thing);
 }
 
+/** The images each screen has reported it couldn't load. */
+const reportedImages = new WeakMap<Screen, Set<string>>();
+
 const colorOf = (color: Color): DrawnValue =>
   typeof color === "string" ? color : [...color];
 
@@ -558,7 +570,24 @@ export class Screen {
       // Not loaded yet, so this frame draws nothing here: drawing it once it
       // arrived would paint over whatever the frame drew after it. The
       // runtime holds the frames that follow until it has loaded.
-      return this.imageLoader.load(image as string).then(() => undefined);
+      const name = image as string;
+      const loaded = this.imageLoader.load(name).then(() => undefined);
+      // A draw() ignores this promise, so a failure is reported to the run
+      // instead, as an Actor's image is: once, though it's blitted each frame.
+      const reportDiagnostic = getActiveDiagnosticEmit();
+      void loaded.catch((error: unknown) => {
+        const reported = reportedImages.get(this) ?? new Set<string>();
+        if (!reportDiagnostic || reported.has(name)) return;
+        reportedImages.set(this, reported.add(name));
+        reportDiagnostic({
+          code: "runtime-error",
+          severity: "warning",
+          phase: "asset",
+          recoverable: true,
+          message: `Failed to load image "${name}": ${describeRuntimeError(error)}`,
+        });
+      });
+      return loaded;
     }
     recordDrawn(this, {
       kind: "image",
@@ -816,6 +845,14 @@ export class Screen {
     rectLike: RectLike,
     givenOptions: TextboxOptions,
   ): void {
+    const placing = Object.keys(givenOptions).find((key) =>
+      textPlacingOptionKeys.has(key),
+    );
+    if (placing !== undefined) {
+      throw new TypeError(
+        `screen.draw.textbox places its text with its rect, so it has no option called ${placing}. Move the rect to move the text, and use anchor (like anchor: "topLeft") and align to place the text inside it.`,
+      );
+    }
     rejectUnknownOptions(
       givenOptions,
       textboxOptionKeys,
@@ -838,6 +875,7 @@ export class Screen {
     // rect.topLeft + anchor * rect.size, and the same anchor places the
     // text block relative to that point. So the default centers the text
     // in the rect, while e.g. anchor "topLeft" lays out from rect.topLeft.
+    // Its lines line up the same way across the rect unless given `align`.
     const anchor = options.anchor ?? "center";
     const rectAnchorOffset = anchorOffsetFor(anchor, rect.width, rect.height);
     const point: Point = [
@@ -850,6 +888,7 @@ export class Screen {
       width: rect.width,
       lineheight: fit.lineHeight,
       anchor,
+      align: options.align ?? alignForAnchor(anchor),
     });
     renderTextLayout(this.context, layout, options);
   }
@@ -1339,6 +1378,19 @@ function anchorOffsetFor(
     ];
   }
   throw new TypeError("anchor must be a known string or two-item tuple.");
+}
+
+/**
+ * The `align` matching an anchor's horizontal part, as Pygame Zero's drawbox
+ * defaults it: `"topLeft"` is `"left"`, `"center"` and `"midTop"` are
+ * `"center"`. A pixel offset counts from the left, so it's `"left"`.
+ */
+function alignForAnchor(anchor: TextAnchor): TextAlignOption {
+  if (typeof anchor !== "string" && typeof anchor[0] === "number") {
+    return "left";
+  }
+  const [x] = anchorOffsetFor(anchor, 2, 0);
+  return x === 0 ? "left" : x === 1 ? "center" : "right";
 }
 
 function lineBaseX(

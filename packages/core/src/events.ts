@@ -197,15 +197,32 @@ export function dispatchHook(
   order: readonly string[] = Object.keys(args),
 ): void {
   if (!handler) return;
-  const parameters = getParameterNames(handler);
-  if (parameters.length === 1 && parameters[0] === "event") {
+  if (takesWholeEvent(handler)) {
     handler(args);
     return;
   }
-  const names = resolveHookParameters(parameters, order);
+  const names = resolveHookParameters(getParameterNames(handler), order);
   handler(
     ...names.map((name) => (name === undefined ? undefined : args[name])),
   );
+}
+
+// Hooks that take the whole event object whatever their parameter is called:
+// defineGame's, whose parameter a minifier renames in an app's bundle.
+const wholeEventHooks = new WeakSet<Function>();
+
+/** Marks `handler` to receive the whole event object, as `event` would. */
+export function markWholeEventHook<T extends Function>(handler: T): T {
+  wholeEventHooks.add(handler);
+  return handler;
+}
+
+/** Whether `handler` receives the whole event object: it was marked, or its
+ * one parameter is called `event`. */
+export function takesWholeEvent(handler: Function): boolean {
+  if (wholeEventHooks.has(handler)) return true;
+  const parameters = getParameterNames(handler);
+  return parameters.length === 1 && parameters[0] === "event";
 }
 
 /**

@@ -45,13 +45,29 @@ directly — for its dimensions, say — the zero-boilerplate `images` global
 lazy access:
 
 ```js
-let size = images.player.getSize(); // starts loading images/player.svg
+let ship = images.player; // starts loading images/player.svg
+
+function draw() {
+  let [width, height] = ship.getSize();
+}
 ```
 
-Or load explicitly and `await` the result:
+The game's first frame waits for every image its top level named, so their
+sizes are there in `update()` and `draw()`. At the top level an image is
+usually still loading, and reading its size there throws an error that says
+so, unless the host page handed the images over already decoded
+(`loadImages`, which `jgz` and the sandbox use).
+
+An image has `getWidth()`, `getHeight()`, `getSize()` and `getRect()`. Give
+`getRect()` a point to place it by, like an Actor's
+(`images.player.getRect({ center: [160, 90] })`), for a `Rect` of the image's
+size there; without one it sits at `[0, 0]`.
+
+In an import-mode game, or any `async` function, load explicitly and `await`
+the result:
 
 ```js
-let sprite = await images.load("player.svg");
+const sprite = await images.load("player.svg");
 sprite.getWidth();
 sprite.getHeight();
 ```

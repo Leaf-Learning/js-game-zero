@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   clock,
   defineGame,
@@ -20,7 +23,9 @@ import {
 } from "@js-game-zero/core";
 import {
   collectRuntimeDiagnostics,
+  createBrowserSoundAsset,
   createImageLoader,
+  createMusicLoader,
   createSoundLoader,
   getGameInspector,
   loadImages,
@@ -304,6 +309,134 @@ function onKeyDown() {
 
     handle.stop();
     expect(getGameInspector(handle)).toBeNull();
+  });
+
+  test("keeps a music end callback the top level gave setOnMusicEnd", async () => {
+    const tracks: { emitEnded(): void }[] = [];
+    const originalAudio = globalThis.Audio;
+    globalThis.Audio = class {
+      loop = false;
+      currentTime = 0;
+      volume = 1;
+      paused = true;
+      readonly ended = new Set<() => void>();
+      constructor() {
+        tracks.push(this);
+      }
+      play(): Promise<void> {
+        this.paused = false;
+        return Promise.resolve();
+      }
+      pause(): void {
+        this.paused = true;
+      }
+      addEventListener(_type: string, listener: () => void): void {
+        this.ended.add(listener);
+      }
+      removeEventListener(_type: string, listener: () => void): void {
+        this.ended.delete(listener);
+      }
+      emitEnded(): void {
+        for (const listener of [...this.ended]) listener();
+      }
+    } as unknown as typeof Audio;
+    try {
+      const handle = run(
+        `
+let ended = 0;
+music.setOnMusicEnd(() => { ended += 1; });
+music.playOnce("theme");
+function draw() {}
+`,
+        {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          loaders: {
+            music: createMusicLoader({
+              projectId: "music_end",
+              loadAsset: async (url, name) => ({ kind: "music", name, url }),
+            }),
+          },
+        },
+      );
+      await handle.ready;
+      for (let turn = 0; turn < 10 && tracks.length === 0; turn += 1) {
+        await Promise.resolve();
+      }
+      tracks[0]?.emitEnded();
+      await Promise.resolve();
+
+      expect(getGameInspector(handle)?.read("ended")).toBe(1);
+      await handle.dispose();
+    } finally {
+      globalThis.Audio = originalAudio;
+    }
+  });
+
+  test("a looping sound stops when its game stops or restarts", async () => {
+    const elements: { loop: boolean; paused: boolean }[] = [];
+    const sounds = createSoundLoader({
+      projectId: "looping_sound",
+      loadAsset: async (url, name) =>
+        createBrowserSoundAsset(
+          { kind: "sound", name, url },
+          {
+            createAudioElement() {
+              const element = {
+                src: "",
+                loop: false,
+                currentTime: 0,
+                volume: 1,
+                duration: 1,
+                paused: true,
+                async play() {
+                  element.paused = false;
+                },
+                pause() {
+                  element.paused = true;
+                },
+                addEventListener() {},
+                removeEventListener() {},
+              };
+              elements.push(element);
+              return element;
+            },
+          },
+        ),
+    });
+    await sounds.load("engine");
+    const looping = () =>
+      elements.filter((element) => element.loop && !element.paused).length;
+    const first = run(
+      `
+let started = false;
+function update() {
+  if (!started) sounds.engine.loop();
+  started = true;
+}
+`,
+      {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+        loaders: { sounds },
+      },
+    );
+    await first.ready;
+    first.step(0.016);
+    await Promise.resolve();
+    expect(looping()).toBe(1);
+
+    const second = await first.restart();
+    expect(looping()).toBe(0);
+    await second.ready;
+    second.step(0.016);
+    await Promise.resolve();
+    expect(looping()).toBe(1);
+
+    await second.dispose();
+    expect(looping()).toBe(0);
   });
 
   test("keeps the inspector of a failed game for post-mortem reads", () => {
@@ -1256,6 +1389,73 @@ describe("scoped game definitions and deterministic lifecycle failures", () => {
     expect(handle.storage.get("updated")).toBe(true);
     await handle.dispose();
     expect(handle.state).toBe("stopped");
+  });
+
+  test("defineGame's animate and Animation run on its clock outside a hook", async () => {
+    const box = { x: 0, y: 0 };
+    const handle = run(
+      defineGame(({ animate, Animation }) => {
+        void Promise.resolve().then(() => {
+          animate(box, { x: 100, duration: 1 });
+          new Animation(box, { y: 50, duration: 1 });
+        });
+        return { draw() {} };
+      }),
+      { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+    );
+    await handle.ready;
+    handle.step(0.5);
+    handle.step(0.5);
+
+    expect(box).toEqual({ x: 100, y: 50 });
+    await handle.dispose();
+  });
+
+  test("defineGame's input hooks get the event object in a minified app", async () => {
+    // A bundler renames the `event` parameter of the hook defineGame
+    // installs, so the runtime can't go by that name.
+    const dir = await mkdtemp(join(tmpdir(), "jgz-minified-"));
+    try {
+      const entry = join(dir, "game.ts");
+      await Bun.write(
+        entry,
+        `import { defineGame, run } from ${JSON.stringify(resolve(import.meta.dir, "../src/index.ts"))};
+export const start = (options, pressed) =>
+  run(defineGame(() => ({ draw() {}, onKeyDown(event) { pressed(event); } })), options);`,
+      );
+      const build = await Bun.build({
+        entrypoints: [entry],
+        minify: true,
+        target: "browser",
+      });
+      expect(build.success).toBe(true);
+      // In a folder of its own: Bun's resolver remembers what a folder held
+      // when the build read it, and would load game.ts for game.js.
+      const bundle = join(dir, "out", "bundle.js");
+      await Bun.write(bundle, await build.outputs[0]!.text());
+      const { start } = (await import(bundle)) as {
+        start: (
+          options: object,
+          pressed: (event: unknown) => void,
+        ) => ReturnType<typeof run>;
+      };
+
+      const target = canvas();
+      const pressed: unknown[] = [];
+      const handle = start(
+        { autostart: false, canvas: target, storage: new MemoryAdapter() },
+        (event) => pressed.push(event),
+      );
+      await handle.ready;
+      target.dispatchEvent(keyEvent("keydown", "ArrowRight", "ArrowRight"));
+
+      expect(pressed).toEqual([
+        expect.objectContaining({ key: keys.RIGHT, repeat: false }),
+      ]);
+      await handle.dispose();
+    } finally {
+      await rm(dir, { force: true, recursive: true });
+    }
   });
 
   test("a draw failure emits one phase diagnostic, fails, and fully disposes", async () => {
@@ -2277,6 +2477,36 @@ function draw() {
         "blob:grass",
         "data:image/svg+xml,cat",
       ]);
+    });
+  });
+
+  test("an image a hook names that the map doesn't list fails the game", async () => {
+    await withFakeImages(async () => {
+      // The map has no ghost, so its load fails at once, before any frame
+      // could see it loading.
+      const handle = run(
+        `
+function draw() {
+  screen.blit("ghost", [0, 0]);
+}
+`,
+        {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          assetUrls: { "images/cat.svg": "data:image/svg+xml,cat" },
+        },
+      );
+      await handle.ready;
+      handle.step(0);
+      // As between two frames in a browser, the load fails in the meantime.
+      await Bun.sleep(0);
+      handle.step(0);
+      await Promise.race([handle.done, Bun.sleep(50)]);
+
+      expect(handle.state).toBe("failed");
+      expect(handle.failure?.phase).toBe("asset");
+      expect(handle.failure?.message).toContain("ghost");
     });
   });
 

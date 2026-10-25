@@ -1,7 +1,7 @@
 import { Actor, type ActorOptions } from "./actor";
-import { Animation, animate } from "./animation";
+import { animationsOn } from "./animation";
 import type { AssetLoaders } from "./assets";
-import { createBrowserSoundAsset, type MusicPlayer } from "./audio";
+import type { MusicPlayer } from "./audio";
 import { Clock } from "./clock";
 import { rgb } from "./color";
 import { friendlyService, guardedMember } from "./friendly-names";
@@ -9,15 +9,16 @@ import { Rect, ZRect } from "./geometry";
 import { clamp, randomChoice, randomInt } from "./helpers";
 import {
   createLiveMouse,
-  KeyboardState,
+  type KeyboardState,
   keymods,
   keys,
   type MouseState,
 } from "./input";
 import { mathWithRandom, type RandomSource } from "./random";
-import { Screen } from "./rendering";
+import { resizeScreen, Screen } from "./rendering";
 import {
   diagnoseSource,
+  isValidRuntimeDimension,
   RUNTIME_CONFIGURATION_NAMES,
   RUNTIME_SOURCE_HOOK_NAMES,
 } from "./runtime-diagnostics";
@@ -41,40 +42,89 @@ export type SourceEvaluationContext = {
   stop: (() => void) | null;
 };
 
-const builtinGlobals: Record<string, unknown> = {
-  Array,
-  BigInt,
-  Boolean,
-  Date,
-  Error,
-  Infinity,
-  Intl,
-  JSON,
-  Map,
-  Math,
-  NaN,
-  Number,
-  Object,
-  Promise,
-  RangeError,
-  ReferenceError,
-  RegExp,
-  Set,
-  String,
-  Symbol,
-  SyntaxError,
-  TypeError,
-  WeakMap,
-  WeakSet,
-  console,
-  decodeURIComponent,
-  encodeURIComponent,
-  isFinite,
-  isNaN,
-  parseFloat,
-  parseInt,
-  undefined,
-};
+/**
+ * What a game sees of the page's global scope: ECMAScript's globals, and the
+ * web's few that are about the language rather than the page. Everything else
+ * the page has stays out; the names a game might reach for say what to use
+ * instead (`unavailableGlobalHints`). One this engine lacks is left out.
+ * `globalThis` is the game's own, made with its scope.
+ */
+const builtinGlobals: Record<string, unknown> = Object.fromEntries(
+  [
+    // ECMAScript's global values and functions
+    "Infinity",
+    "NaN",
+    "undefined",
+    "eval",
+    "isFinite",
+    "isNaN",
+    "parseFloat",
+    "parseInt",
+    "decodeURI",
+    "decodeURIComponent",
+    "encodeURI",
+    "encodeURIComponent",
+    // its constructors
+    "AggregateError",
+    "Array",
+    "ArrayBuffer",
+    "BigInt",
+    "BigInt64Array",
+    "BigUint64Array",
+    "Boolean",
+    "DataView",
+    "Date",
+    "Error",
+    "EvalError",
+    "FinalizationRegistry",
+    "Float16Array",
+    "Float32Array",
+    "Float64Array",
+    "Function",
+    "Int8Array",
+    "Int16Array",
+    "Int32Array",
+    "Iterator",
+    "Map",
+    "Number",
+    "Object",
+    "Promise",
+    "Proxy",
+    "RangeError",
+    "ReferenceError",
+    "RegExp",
+    "Set",
+    "SharedArrayBuffer",
+    "String",
+    "Symbol",
+    "SyntaxError",
+    "TypeError",
+    "Uint8Array",
+    "Uint8ClampedArray",
+    "Uint16Array",
+    "Uint32Array",
+    "URIError",
+    "WeakMap",
+    "WeakRef",
+    "WeakSet",
+    // its namespaces, and ECMA-402's
+    "Atomics",
+    "Intl",
+    "JSON",
+    "Math",
+    "Reflect",
+    // the web's
+    "console",
+    "structuredClone",
+    "queueMicrotask",
+    "atob",
+    "btoa",
+    "TextDecoder",
+    "TextEncoder",
+  ]
+    .filter((name) => name in globalThis)
+    .map((name) => [name, (globalThis as Record<string, unknown>)[name]]),
+);
 
 const drawMethods = [
   "line",
@@ -189,6 +239,7 @@ const unavailableGlobalHints: Record<string, string> = {
     'Use new Actor("name") or screen.blit("name", [x, y]) to show a picture from images/.',
   Audio:
     'Use sounds.name.play() for a sound in sounds/, or music.play("name") for music.',
+  run: "A game file runs by itself: put WIDTH, HEIGHT and hooks like function draw() {} at its top level.",
 };
 
 const sourceResultFields = [
@@ -220,7 +271,6 @@ type EvaluatedSource = {
 export function executeZeroBoilerplateSource(
   source: string,
   context: SourceEvaluationContext,
-  runFunction: unknown,
   emit: (diagnostic: RuntimeDiagnostic) => void,
 ): SourceEvaluation {
   diagnoseSource(source, emit);
@@ -247,10 +297,9 @@ export function executeZeroBoilerplateSource(
   }
 
   const globals = {
-    Animation,
-    animate,
+    // On this game's clock even when started outside a hook.
+    ...animationsOn(context.clock),
     Clock: pointToService(Clock, "Clock", "clock", context.clock),
-    KeyboardState,
     Rect,
     ZRect,
     Screen: pointToService(Screen, "Screen", "screen", context.screen),
@@ -267,35 +316,56 @@ export function executeZeroBoilerplateSource(
     keyboard: context.keyboard,
     keymods: friendlyService(keymods, "keymods"),
     keys: friendlyService(keys, "keys"),
-    // Top-level code runs before WIDTH/HEIGHT size the canvas, so the
-    // not-yet-moved mouse is centered on the size the script asked for.
     mouse: friendlyService(
       createLiveMouse(context.mouseState, () => [
-        configuredSize("WIDTH", context.screen.width) / 2,
-        configuredSize("HEIGHT", context.screen.height) / 2,
+        context.screen.width / 2,
+        context.screen.height / 2,
       ]),
       "mouse",
     ),
     images: context.loaders.images,
     sounds: context.loaders.sounds,
     music: friendlyService(context.music, "music"),
-    createBrowserSoundAsset,
     storage: context.storage,
     tone: friendlyService(context.tone, "tone"),
     randomInt,
     randomChoice,
     clamp,
     rgb,
-    run: runFunction,
     exit: () => context.stop?.(),
     // A seeded run gives the game a Math of its own, so its sequence is
     // repeatable and no other game or page script can draw from it.
     ...(context.random ? { Math: mathWithRandom(context.random) } : {}),
   };
   const scopeTarget: Record<string, unknown> = { ...globals };
+  // The game's own global object: what it assigns at the top level, and the
+  // built-ins. The page's `window` stays out of reach, as it does by name.
+  scopeTarget.globalThis = new Proxy(scopeTarget, {
+    get(target, property, receiver) {
+      if (typeof property === "string" && !(property in target)) {
+        return builtinGlobals[property];
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    },
+    has: (target, property) => property in target || property in builtinGlobals,
+  });
+  // The runtime sizes the canvas from WIDTH and HEIGHT once top-level code
+  // has run, so while it runs the screen follows them as they're set, from
+  // the runtime's default size: top-level code sees the screen that update()
+  // and draw() will. The runtime still settles the density, and warns about
+  // an unusable size, afterwards.
+  let topLevel = false;
+  function sizeScreen(): void {
+    resizeScreen(
+      context.screen,
+      configuredSize("WIDTH", 800),
+      configuredSize("HEIGHT", 600),
+      context.screen.density,
+    );
+  }
   function configuredSize(name: "WIDTH" | "HEIGHT", fallback: number): number {
     const value = scopeTarget[name];
-    return typeof value === "number" && value > 0 ? value : fallback;
+    return isValidRuntimeDimension(value) ? Math.floor(value) : fallback;
   }
   // Reading a name nothing defined is a ReferenceError, like in any other
   // JavaScript, instead of a silent undefined that only fails later as
@@ -322,6 +392,9 @@ export function executeZeroBoilerplateSource(
     },
     set(target, property, value) {
       if (typeof property === "string") target[property] = value;
+      if (topLevel && (property === "WIDTH" || property === "HEIGHT")) {
+        sizeScreen();
+      }
       return true;
     },
   });
@@ -343,7 +416,14 @@ export function executeZeroBoilerplateSource(
     }
     throw error;
   }
-  const evaluated = factory(scope) as EvaluatedSource;
+  topLevel = true;
+  sizeScreen();
+  let evaluated: EvaluatedSource;
+  try {
+    evaluated = factory(scope) as EvaluatedSource;
+  } finally {
+    topLevel = false;
+  }
   const bindings = Object.freeze([...bindingNames]);
   const callables = Object.freeze(callableNames);
   return {

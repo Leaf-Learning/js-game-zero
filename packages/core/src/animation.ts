@@ -221,6 +221,30 @@ export function animate<T extends object>(
   return new Animation(object, options);
 }
 
+/**
+ * `Animation` and `animate` as a game's code gets them: they run on the
+ * game's own clock wherever they're called, so one started outside a hook,
+ * as in a promise callback, doesn't go to a clock that never ticks.
+ */
+export function animationsOn(scheduler: Clock): {
+  readonly Animation: typeof Animation;
+  readonly animate: typeof animate;
+} {
+  class GameAnimation<T extends object = object> extends Animation<T> {
+    constructor(
+      object: T,
+      options: AnimationOptions<T>,
+      clock: Clock = scheduler,
+    ) {
+      super(object, options, clock);
+    }
+  }
+  return {
+    Animation: GameAnimation,
+    animate: (object, options) => new GameAnimation(object, options),
+  };
+}
+
 export function withAnimationClock<T>(scheduler: Clock, callback: () => T): T {
   const previous = activeAnimationClock;
   activeAnimationClock = scheduler;

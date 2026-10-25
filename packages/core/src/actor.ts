@@ -456,9 +456,9 @@ export class Actor {
   }
 
   set left(value: number) {
-    const rect = this.baseRect();
+    const rect = this.rect();
     rect.left = requireFiniteNumber(value, "left");
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
   }
 
   get top(): number {
@@ -466,9 +466,9 @@ export class Actor {
   }
 
   set top(value: number) {
-    const rect = this.baseRect();
+    const rect = this.rect();
     rect.top = requireFiniteNumber(value, "top");
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
   }
 
   get right(): number {
@@ -476,9 +476,9 @@ export class Actor {
   }
 
   set right(value: number) {
-    const rect = this.baseRect();
+    const rect = this.rect();
     rect.right = requireFiniteNumber(value, "right");
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
   }
 
   get bottom(): number {
@@ -486,9 +486,9 @@ export class Actor {
   }
 
   set bottom(value: number) {
-    const rect = this.baseRect();
+    const rect = this.rect();
     rect.bottom = requireFiniteNumber(value, "bottom");
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
   }
 
   async ready(): Promise<SurfaceLike> {
@@ -545,12 +545,16 @@ export class Actor {
         target.context.rotate((-this.angle * Math.PI) / 180);
       }
       const native = this._native ?? this._surface;
+      const width = native.getWidth() * this._scale;
+      const height = native.getHeight() * this._scale;
+      // inflateIp grows the hitbox around its center, so the picture stays
+      // centered in it rather than moving with the hitbox's corner.
       target.context.drawImage(
         this._surface.source as CanvasImageSource,
-        -anchorX,
-        -anchorY,
-        native.getWidth() * this._scale,
-        native.getHeight() * this._scale,
+        -anchorX - (width - this.surfaceWidth()) / 2,
+        -anchorY - (height - this.surfaceHeight()) / 2,
+        width,
+        height,
       );
     } finally {
       target.context.restore();
@@ -586,10 +590,10 @@ export class Actor {
   moveIp(x: number, y: number): void;
   moveIp(offset: Point): void;
   moveIp(xOrOffset: number | Point, y?: number): void {
-    const rect = this.baseRect();
+    const rect = this.rect();
     if (Array.isArray(xOrOffset)) rect.moveIp(xOrOffset);
     else rect.moveIp(xOrOffset, y as number);
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
   }
 
   inflate(x: number, y: number): Rect;
@@ -719,15 +723,16 @@ export class Actor {
     value: Point,
   ): void {
     const point = requirePoint(value, key);
-    const rect = this.baseRect();
+    const rect = this.rect();
     rect[key] = point;
-    this.setPosFromBaseRect(rect);
+    this.setPosFromRect(rect);
     this.positionSource = { key, value: point };
   }
 
-  private setPosFromBaseRect(rect: Rect): void {
-    const [anchorX, anchorY] = this.anchorOffset();
-    this._pos = [rect.left + anchorX, rect.top + anchorY];
+  /** Moves the actor so `rect()` becomes `rect`, a moved copy of it. */
+  private setPosFromRect(rect: Rect): void {
+    const [offsetX, offsetY] = this.rectOffset();
+    this._pos = [rect.left + offsetX, rect.top + offsetY];
     this.positionSource = { key: "pos", value: this.pos };
   }
 
@@ -753,8 +758,16 @@ export class Actor {
     }
     const rect = new Rect(0, 0, this.width, this.height);
     rect[this.positionSource.key] = this.positionSource.value;
-    const [anchorX, anchorY] = this.anchorOffset();
-    this._pos = [rect.left + anchorX, rect.top + anchorY];
+    const [offsetX, offsetY] = this.rectOffset();
+    this._pos = [rect.left + offsetX, rect.top + offsetY];
+  }
+
+  /** Where `pos` is from the top-left of `rect()`: the anchor offset, unless
+   * the actor is rotated and its bounding box isn't the base rect. */
+  private rectOffset(): Point {
+    if (this.angle === 0) return this.anchorOffset();
+    const rect = this.rect();
+    return [this.x - rect.left, this.y - rect.top];
   }
 
   private anchorOffset(): Point {
