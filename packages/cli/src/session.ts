@@ -1,14 +1,16 @@
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   chromium,
+  errors,
   type Browser,
   type BrowserContext,
   type Page,
 } from "playwright";
 import type { ProtocolCommand, StatePath } from "./protocol";
-import { ProtocolError } from "./protocol";
+import { keyName, ProtocolError } from "./protocol";
 import { startProjectServer, type ProjectServer } from "./project-server";
 
 export type SessionEvent = {
@@ -24,6 +26,8 @@ export type SessionOptions = {
   readonly timeout: number;
   readonly cwd?: string;
   readonly onEvent: (event: SessionEvent) => void;
+  /** Aborting it abandons a session that is still starting. */
+  readonly signal?: AbortSignal;
 };
 
 type DriverStatus = {
@@ -58,19 +62,27 @@ type DriverWindow = Window & {
   __jgzSeed?: string;
 };
 
+/** A command that found the game stuck, after which its page was replaced. */
+class StuckGameError extends ProtocolError {
+  constructor(message: string) {
+    super("command_failed", message);
+  }
+}
+
 export class GameSession {
   readonly #options: SessionOptions;
   readonly #server: ProjectServer;
   readonly #browser: Browser;
   readonly #context: BrowserContext;
-  readonly #page: Page;
+  #page: Page;
   readonly #artifactsRoot: string;
-  /** Canonical Playwright key name -> first user-facing spelling. */
-  readonly #heldKeys = new Map<string, string>();
+  /** The held keys, as Playwright presses them. */
+  readonly #heldKeys = new Set<string>();
   readonly #heldMouseButtons = new Set<"left" | "middle" | "right">();
   readonly #consoleMessages: { level: string; text: string }[] = [];
   readonly #pageErrors: string[] = [];
   #screenshotNumber = 0;
+  #replacingPage = false;
   #closed = false;
 
   private constructor(
@@ -93,16 +105,23 @@ export class GameSession {
     const server = await startProjectServer(options.projectDirectory);
     let browser: Browser;
     try {
-      browser = await chromium.launch({ headless: !options.headed });
+      // The CLI handles these signals itself, closing the browser as it exits,
+      // so Playwright mustn't close the browser under a session that goes on.
+      browser = await chromium.launch({
+        headless: !options.headed,
+        handleSIGHUP: false,
+        handleSIGINT: false,
+        handleSIGTERM: false,
+      });
     } catch (error) {
       server.close();
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `${message}\nInstall Chromium with: bunx playwright install chromium`,
-      );
+      throw await launchError(error);
     }
+    const abandon = (): void => void browser.close().catch(() => undefined);
+    options.signal?.addEventListener("abort", abandon);
     let context: BrowserContext | undefined;
     try {
+      if (options.signal?.aborted) throw new Error("Interrupted.");
       // Device pixel ratio 1 keeps games at pixel density 1, so screenshots
       // and pixel summaries are WIDTH × HEIGHT unless a game sets
       // PIXEL_DENSITY itself.
@@ -118,8 +137,6 @@ export class GameSession {
         }, options.seed);
       }
       const page = await context.newPage();
-      page.setDefaultTimeout(options.timeout);
-      page.setDefaultNavigationTimeout(options.timeout);
       const artifactsRoot = await mkdtemp(join(tmpdir(), "js-game-zero-cli-"));
       const session = new GameSession(
         options,
@@ -135,8 +152,22 @@ export class GameSession {
       await context?.close().catch(() => undefined);
       await browser.close().catch(() => undefined);
       server.close();
-      throw error;
+      throw isTimeout(error)
+        ? new Error(startupMessage(error, options.timeout))
+        : error;
+    } finally {
+      options.signal?.removeEventListener("abort", abandon);
     }
+  }
+
+  /** The project folder, as the server resolved it. */
+  get projectRoot(): string {
+    return this.#server.projectRoot;
+  }
+
+  /** The folder holding images/, sounds/, music/ and fonts/. */
+  get assetRoot(): string {
+    return this.#server.assetRoot;
   }
 
   async execute(command: ProtocolCommand): Promise<unknown> {
@@ -146,10 +177,12 @@ export class GameSession {
       case "status":
         return this.status(command.pixels === true);
       case "step": {
-        const status = await this.#page.evaluate(
-          ({ dt, count }) =>
-            (window as DriverWindow).__jgzDriver?.step(dt, count),
-          command,
+        const status = await this.#drive((page) =>
+          page.evaluate(
+            ({ dt, count }) =>
+              (window as DriverWindow).__jgzDriver?.step(dt, count),
+            command,
+          ),
         );
         return this.#decorateStatus(requireResult(status));
       }
@@ -177,9 +210,11 @@ export class GameSession {
   }
 
   async status(pixels = false): Promise<unknown> {
-    const status = await this.#page.evaluate(
-      (options) => (window as DriverWindow).__jgzDriver?.status(options),
-      { pixels },
+    const status = await this.#drive((page) =>
+      page.evaluate(
+        (options) => (window as DriverWindow).__jgzDriver?.status(options),
+        { pixels },
+      ),
     );
     return this.#decorateStatus(requireResult(status));
   }
@@ -188,11 +223,8 @@ export class GameSession {
     await this.#releaseHeldInput();
     this.#consoleMessages.length = 0;
     this.#pageErrors.length = 0;
-    await this.#page.reload({
-      waitUntil: "load",
-      timeout: this.#options.timeout,
-    });
-    await this.#waitForInitialization();
+    await this.#drive((page) => page.reload({ waitUntil: "load" }));
+    await this.#drive((page) => this.#waitForInitialization(page));
     const status = await this.status();
     this.#options.onEvent({ event: "restarted", source, status });
     return status;
@@ -201,26 +233,27 @@ export class GameSession {
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    await this.#releaseHeldInput().catch(() => undefined);
-    await this.#context.close().catch(() => undefined);
-    await this.#browser.close().catch(() => undefined);
+    // Closing the browser closes its pages, a stuck one too.
+    await withTimeout(this.#browser.close(), this.#options.timeout).catch(
+      () => undefined,
+    );
     this.#server.close();
   }
 
   async #preparePage(): Promise<void> {
-    await this.#page.exposeBinding(
-      "__jgzEmit",
-      (_source, event: SessionEvent) => {
-        if (
-          event &&
-          typeof event === "object" &&
-          typeof event.event === "string"
-        ) {
-          this.#options.onEvent(event);
-        }
-      },
-    );
-    this.#page.on("console", (message) => {
+    const page = this.#page;
+    page.setDefaultTimeout(this.#options.timeout);
+    page.setDefaultNavigationTimeout(this.#options.timeout);
+    await page.exposeBinding("__jgzEmit", (_source, event: SessionEvent) => {
+      if (
+        event &&
+        typeof event === "object" &&
+        typeof event.event === "string"
+      ) {
+        this.#options.onEvent(event);
+      }
+    });
+    page.on("console", (message) => {
       const entry = { level: message.type(), text: message.text() };
       pushBounded(this.#consoleMessages, entry);
       this.#options.onEvent({
@@ -228,47 +261,95 @@ export class GameSession {
         ...entry,
       });
     });
-    this.#page.on("pageerror", (error) => {
+    page.on("pageerror", (error) => {
       pushBounded(this.#pageErrors, error.message);
       this.#options.onEvent({ event: "runtime-error", message: error.message });
     });
-    await this.#page.goto(this.#server.url, {
-      waitUntil: "load",
-      timeout: this.#options.timeout,
-    });
-    await this.#waitForInitialization();
+    await page.goto(this.#server.url, { waitUntil: "load" });
+    await this.#waitForInitialization(page);
   }
 
-  async #waitForInitialization(): Promise<void> {
-    await this.#page.waitForFunction(
+  async #waitForInitialization(page: Page): Promise<void> {
+    await page.waitForFunction(
       () => (window as DriverWindow).__jgzDriver?.initialized === true,
-      undefined,
-      { timeout: this.#options.timeout },
     );
+  }
+
+  /**
+   * Every call into the browser goes through here, bounded by `--timeout`:
+   * Playwright gives `evaluate`, key presses and clicks no timeout of their
+   * own. A page stuck in an endless loop can't be interrupted, so after a
+   * timeout the page is replaced, as `restart` would, and the call fails
+   * saying so. Any other failure keeps only its message (see `driverMessage`).
+   */
+  async #drive<T>(operation: (page: Page) => Promise<T>): Promise<T> {
+    if (this.#closed) {
+      throw new ProtocolError("command_failed", "Session is closed.");
+    }
+    try {
+      return await withTimeout(operation(this.#page), this.#options.timeout);
+    } catch (error) {
+      if (!isTimeout(error)) {
+        throw new ProtocolError("command_failed", driverMessage(error));
+      }
+      if (this.#replacingPage) throw error;
+      throw await this.#replaceStuckPage();
+    }
+  }
+
+  /** Closes a page that didn't answer in time and loads the game afresh on a
+   * new one in the same context, so browser storage survives. */
+  async #replaceStuckPage(): Promise<StuckGameError> {
+    const stuck = `The game didn't answer within ${this.#options.timeout} ms (--timeout), so it may be stuck in an endless loop.`;
+    if (this.#closed) return new StuckGameError(stuck);
+    this.#replacingPage = true;
+    try {
+      this.#heldKeys.clear();
+      this.#heldMouseButtons.clear();
+      this.#consoleMessages.length = 0;
+      this.#pageErrors.length = 0;
+      await withTimeout(this.#page.close(), this.#options.timeout).catch(
+        () => undefined,
+      );
+      this.#page = await this.#context.newPage();
+      await this.#preparePage();
+      const status = await this.status();
+      this.#options.onEvent({ event: "restarted", source: "timeout", status });
+      return new StuckGameError(
+        `${stuck} jgz restarted it, as restart does, so it's back at its start.`,
+      );
+    } catch (error) {
+      return new StuckGameError(
+        `${stuck} Restarting it failed too: ${startupMessage(error, this.#options.timeout)}`,
+      );
+    } finally {
+      this.#replacingPage = false;
+    }
   }
 
   #decorateStatus(status: DriverStatus): unknown {
     return {
       ...status,
-      heldKeys: [...this.#heldKeys.values()].sort(),
+      heldKeys: [...this.#heldKeys].map(keyName).sort(),
       heldMouseButtons: [...this.#heldMouseButtons].sort(),
       console: [...this.#consoleMessages],
       pageErrors: [...this.#pageErrors],
     };
   }
 
-  async #key(action: "down" | "up" | "tap", input: string): Promise<unknown> {
-    const key = normalizeKey(input);
+  async #key(action: "down" | "up" | "tap", key: string): Promise<unknown> {
     if (action === "down") {
       if (!this.#heldKeys.has(key)) {
-        await this.#page.keyboard.down(key);
-        this.#heldKeys.set(key, input.toLowerCase());
+        await this.#drive((page) => page.keyboard.down(key));
+        this.#heldKeys.add(key);
       }
     } else if (action === "up") {
-      await this.#page.keyboard.up(key);
+      await this.#drive((page) => page.keyboard.up(key));
       this.#heldKeys.delete(key);
     } else {
-      await this.#page.keyboard.press(key);
+      // A tap ends with the key up, held before or not.
+      await this.#drive((page) => page.keyboard.press(key));
+      this.#heldKeys.delete(key);
     }
     return this.status();
   }
@@ -282,17 +363,18 @@ export class GameSession {
     const button = command.button ?? "left";
     if (command.action === "down") {
       if (!this.#heldMouseButtons.has(button)) {
-        await this.#page.mouse.down({ button });
+        await this.#drive((page) => page.mouse.down({ button }));
         this.#heldMouseButtons.add(button);
       }
     } else if (command.action === "up") {
-      await this.#page.mouse.up({ button });
+      await this.#drive((page) => page.mouse.up({ button }));
       this.#heldMouseButtons.delete(button);
-    } else if (command.action === "click")
-      await this.#page.mouse.click(
-        ...(await this.#logicalPoint(command.x!, command.y!)),
-        { button },
-      );
+    } else if (command.action === "click") {
+      const [x, y] = await this.#logicalPoint(command.x!, command.y!);
+      // A click ends with the button up, held before or not.
+      await this.#drive((page) => page.mouse.click(x, y, { button }));
+      this.#heldMouseButtons.delete(button);
+    }
     return this.status();
   }
 
@@ -306,37 +388,41 @@ export class GameSession {
     const logicalY = y ?? status.canvas.height / 2;
     const [clientX, clientY] = await this.#logicalPoint(logicalX, logicalY);
     await this.#moveMouse(logicalX, logicalY);
-    await this.#page.locator("[data-jgz-canvas]").dispatchEvent("wheel", {
-      clientX,
-      clientY,
-      deltaY: direction === "up" ? -100 : 100,
-      buttons: 0,
-    });
+    await this.#drive((page) =>
+      page.locator("[data-jgz-canvas]").dispatchEvent("wheel", {
+        clientX,
+        clientY,
+        deltaY: direction === "up" ? -100 : 100,
+        buttons: 0,
+      }),
+    );
     return this.status();
   }
 
   async #moveMouse(x: number, y: number): Promise<void> {
     const [clientX, clientY] = await this.#logicalPoint(x, y);
-    await this.#page.mouse.move(clientX, clientY);
+    await this.#drive((page) => page.mouse.move(clientX, clientY));
   }
 
   async #logicalPoint(x: number, y: number): Promise<[number, number]> {
-    const dimensions = await this.#page.evaluate(() => {
-      const canvas =
-        document.querySelector<HTMLCanvasElement>("[data-jgz-canvas]");
-      if (!canvas) return null;
-      const box = canvas.getBoundingClientRect();
-      // The logical screen size: density multiplies canvas.width/height.
-      const logical = (window as DriverWindow).__jgzDriver?.status().canvas;
-      return {
-        left: box.left,
-        top: box.top,
-        displayedWidth: box.width,
-        displayedHeight: box.height,
-        width: logical?.width ?? canvas.width,
-        height: logical?.height ?? canvas.height,
-      };
-    });
+    const dimensions = await this.#drive((page) =>
+      page.evaluate(() => {
+        const canvas =
+          document.querySelector<HTMLCanvasElement>("[data-jgz-canvas]");
+        if (!canvas) return null;
+        const box = canvas.getBoundingClientRect();
+        // The logical screen size: density multiplies canvas.width/height.
+        const logical = (window as DriverWindow).__jgzDriver?.status().canvas;
+        return {
+          left: box.left,
+          top: box.top,
+          displayedWidth: box.width,
+          displayedHeight: box.height,
+          width: logical?.width ?? canvas.width,
+          height: logical?.height ?? canvas.height,
+        };
+      }),
+    );
     if (!dimensions) throw new Error("Game canvas is unavailable.");
     return [
       dimensions.left + (x / dimensions.width) * dimensions.displayedWidth,
@@ -344,39 +430,49 @@ export class GameSession {
     ];
   }
 
-  /** One value, every top-level binding, or a map keyed by each path's text. */
+  /** One value, every top-level binding, or a map keyed by each path's text.
+   * The actions have run by now, so a value that can't be read is reported
+   * in its place rather than failing the whole request. */
   async #inspectMany(
     request: StatePath | readonly StatePath[] | true,
   ): Promise<unknown> {
-    if (request === true) return this.#inspect(undefined);
-    if (!Array.isArray(request)) return this.#inspect(request as StatePath);
+    if (request === true) return this.#inspectInPlace(undefined);
+    if (!Array.isArray(request)) {
+      return this.#inspectInPlace(request as StatePath);
+    }
     const values: Record<string, unknown> = {};
     for (const path of request as readonly StatePath[]) {
-      try {
-        values[path.source] = await this.#inspect(path);
-      } catch (error) {
-        values[path.source] = { error: firstLine(error) };
-      }
+      values[path.source] = await this.#inspectInPlace(path);
     }
     return values;
   }
 
+  async #inspectInPlace(path?: StatePath): Promise<unknown> {
+    try {
+      return await this.#inspect(path);
+    } catch (error) {
+      // A stuck game has been restarted, so it no longer shows the actions.
+      if (error instanceof StuckGameError) throw error;
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   async #inspect(path?: StatePath): Promise<unknown> {
-    return this.#page.evaluate(
-      (target) => (window as DriverWindow).__jgzDriver?.inspect(target),
-      path,
+    return this.#drive((page) =>
+      page.evaluate(
+        (target) => (window as DriverWindow).__jgzDriver?.inspect(target),
+        path,
+      ),
     );
   }
 
   async #call(binding: string): Promise<unknown> {
-    try {
-      return await this.#page.evaluate(
+    return this.#drive((page) =>
+      page.evaluate(
         (name) => (window as DriverWindow).__jgzDriver?.call(name),
         binding,
-      );
-    } catch (error) {
-      throw new ProtocolError("command_failed", firstLine(error));
-    }
+      ),
+    );
   }
 
   /** Runs a batch of input and time actions, then reports once: the status
@@ -391,7 +487,16 @@ export class GameSession {
       await this.restart("command");
       await this.execute({ command: "step", dt: 1 / 60, count: 1 });
     }
-    for (const action of command.actions) await this.execute(action);
+    for (const [index, action] of command.actions.entries()) {
+      try {
+        await this.execute(action);
+      } catch (error) {
+        throw new ProtocolError(
+          error instanceof ProtocolError ? error.code : "command_failed",
+          `actions[${index}]: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     const status = await this.status(true);
     return {
       status,
@@ -405,8 +510,8 @@ export class GameSession {
   }
 
   async #screenshot(requestedPath?: string, inline = false): Promise<unknown> {
-    const shot = await this.#page.evaluate(() =>
-      (window as DriverWindow).__jgzDriver?.screenshot(),
+    const shot = await this.#drive((page) =>
+      page.evaluate(() => (window as DriverWindow).__jgzDriver?.screenshot()),
     );
     if (!shot) throw new Error("Game canvas is unavailable.");
     const comma = shot.dataUrl.indexOf(",");
@@ -427,14 +532,16 @@ export class GameSession {
   }
 
   async #releaseHeldInput(): Promise<void> {
-    for (const key of this.#heldKeys.keys()) {
-      await this.#page.keyboard.up(key).catch(() => undefined);
-    }
+    const keys = [...this.#heldKeys];
+    const buttons = [...this.#heldMouseButtons];
     this.#heldKeys.clear();
-    for (const button of this.#heldMouseButtons) {
-      await this.#page.mouse.up({ button }).catch(() => undefined);
-    }
     this.#heldMouseButtons.clear();
+    for (const key of keys) {
+      await this.#drive((page) => page.keyboard.up(key)).catch(unlessStuck);
+    }
+    for (const button of buttons) {
+      await this.#drive((page) => page.mouse.up({ button })).catch(unlessStuck);
+    }
   }
 }
 
@@ -471,111 +578,88 @@ export const HELP_COMMANDS = [
   "quit",
 ] as const;
 
-const keyAliases: Record<string, string> = {
-  left: "ArrowLeft",
-  right: "ArrowRight",
-  up: "ArrowUp",
-  down: "ArrowDown",
-  space: "Space",
-  enter: "Enter",
-  return: "Enter",
-  escape: "Escape",
-  esc: "Escape",
-  backspace: "Backspace",
-  tab: "Tab",
-  delete: "Delete",
-  insert: "Insert",
-  home: "Home",
-  end: "End",
-  pageup: "PageUp",
-  pagedown: "PageDown",
-  capslock: "CapsLock",
-  numlock: "NumLock",
-  scrolllock: "ScrollLock",
-  pause: "Pause",
-  printscreen: "PrintScreen",
-  shift: "Shift",
-  control: "Control",
-  ctrl: "Control",
-  alt: "Alt",
-  meta: "Meta",
-};
+/** Where the Playwright this CLI loads keeps its command-line installer. A
+ * global install has a Playwright of its own, apart from any project's, so
+ * `bunx playwright` may install another version's Chromium. */
+export async function playwrightInstaller(): Promise<{
+  readonly version: string;
+  readonly script: string;
+}> {
+  const manifestPath = fileURLToPath(
+    import.meta.resolve("playwright/package.json"),
+  );
+  const manifest = (await Bun.file(manifestPath).json()) as {
+    version: string;
+    bin?: { playwright?: string };
+  };
+  return {
+    version: manifest.version,
+    script: join(dirname(manifestPath), manifest.bin?.playwright ?? "cli.js"),
+  };
+}
 
-/** Each punctuation mark by the key it's on, unshifted. */
-const punctuationKeys: Record<string, string> = {
-  "-": "Minus",
-  "=": "Equal",
-  "[": "BracketLeft",
-  "]": "BracketRight",
-  "\\": "Backslash",
-  ";": "Semicolon",
-  "'": "Quote",
-  "`": "Backquote",
-  ",": "Comma",
-  ".": "Period",
-  "/": "Slash",
-};
+/** The command that installs Chromium for the Playwright this CLI loads. */
+export function chromiumInstallCommand(script: string): string {
+  return ["bun", script, "install", "chromium"].map(shellWord).join(" ");
+}
 
-/**
- * Every other key the engine maps, by its keyboard event `code`, except the
- * few Playwright can't press (Clear, NumpadEqual, F13 to F15).
- */
-const keyCodes = new Map(
-  [
-    ...Object.values(keyAliases),
-    ...Object.values(punctuationKeys),
-    "ArrowLeft",
-    "ArrowRight",
-    "ArrowUp",
-    "ArrowDown",
-    "ShiftLeft",
-    "ShiftRight",
-    "ControlLeft",
-    "ControlRight",
-    "AltLeft",
-    "AltRight",
-    "MetaLeft",
-    "MetaRight",
-    "ContextMenu",
-    "NumpadEnter",
-    "NumpadDecimal",
-    "NumpadDivide",
-    "NumpadMultiply",
-    "NumpadSubtract",
-    "NumpadAdd",
-    ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => `Key${letter}`),
-    ...[...Array(10).keys()].flatMap((digit) => [
-      `Digit${digit}`,
-      `Numpad${digit}`,
-    ]),
-    ...[...Array(12).keys()].map((index) => `F${index + 1}`),
-  ].map((code) => [code.toLowerCase(), code]),
-);
-
-export function normalizeKey(input: string): string {
-  const lower = input.toLowerCase();
-  const named = keyAliases[lower] ?? keyCodes.get(lower);
-  if (named) return named;
-  // By the physical key, so it arrives as a keyboard sends it: "a", or "A"
-  // only while Shift is held.
-  if (/^[a-z]$/i.test(input)) return `Key${input.toUpperCase()}`;
-  if (/^[0-9]$/.test(input)) return `Digit${input}`;
-  const punctuation = punctuationKeys[input];
-  if (punctuation) return punctuation;
-  throw new ProtocolError(
-    "invalid_request",
-    `Unsupported key: ${input}. Give a key's name (backspace, home), what it types unshifted (a, 7, ","), or its code (KeyA, Numpad1, ShiftLeft).`,
+/** A failed launch, naming the command that installs the missing Chromium
+ * when that is what failed. */
+export async function launchError(error: unknown): Promise<Error> {
+  const message = error instanceof Error ? error.message : String(error);
+  const missing = /Executable doesn't exist at (.+)/.exec(message);
+  if (!missing) return error instanceof Error ? error : new Error(message);
+  // Playwright's own advice, `npx playwright install`, may run another
+  // Playwright than this one.
+  const installer = await playwrightInstaller().catch(() => null);
+  if (!installer) return new Error(`Chromium isn't installed: ${missing[1]}`);
+  return new Error(
+    `jgz uses Playwright ${installer.version}, whose Chromium isn't installed (there's no ${missing[1]}).\nInstall it with: ${chromiumInstallCommand(installer.script)}`,
   );
 }
 
-/** Playwright prefixes evaluate errors with "evaluate:" and appends the
- * in-page stack; the game's own message is the only useful part. */
-function firstLine(error: unknown): string {
+function shellWord(word: string): string {
+  return /^[\w@%+=:,./-]+$/.test(word)
+    ? word
+    : `'${word.replaceAll("'", `'\\''`)}'`;
+}
+
+class TimedOut extends Error {}
+
+/** Rejects with `TimedOut` if `pending` takes longer than `timeout` ms. */
+function withTimeout<T>(pending: Promise<T>, timeout: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    pending,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new TimedOut()), timeout);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof TimedOut || error instanceof errors.TimeoutError;
+}
+
+function unlessStuck(error: unknown): void {
+  if (error instanceof StuckGameError) throw error;
+}
+
+function startupMessage(error: unknown, timeout: number): string {
+  return isTimeout(error)
+    ? `The game didn't finish starting within ${timeout} ms (--timeout), so it may be stuck in an endless loop.`
+    : driverMessage(error);
+}
+
+/** The first line of a failure in the browser. Playwright prefixes it with
+ * its own method (`evaluate: `) and follows it with the in-page stack, which
+ * holds the session's URL; the game's own message is the only useful part,
+ * without its class (`TypeError: `) either. */
+export function driverMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  return (message.split("\n")[0] ?? message).replace(
-    /^(evaluate: )?(Error: )?/,
-    "",
-  );
+  return (message.split("\n")[0] ?? message)
+    .replace(/^[a-z]\w*(?:\.[a-z]\w*)*: /, "")
+    .replace(/^(?:[A-Z]\w*)?Error: /, "");
 }
 
 function requireResult<T>(value: T | undefined): T {

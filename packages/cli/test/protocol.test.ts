@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import {
   mapBrowserKeyEvent,
   parseStatePath as parseHostStatePath,
@@ -8,10 +9,18 @@ import {
   decodeJsonLine,
   decodeTextLine,
   DEFAULT_STEP,
+  keyName,
+  normalizeKey,
   parseStatePath,
   ProtocolError,
 } from "../src/protocol";
-import { normalizeKey, resolveScreenshotPath } from "../src/session";
+import {
+  chromiumInstallCommand,
+  driverMessage,
+  launchError,
+  playwrightInstaller,
+  resolveScreenshotPath,
+} from "../src/session";
 
 describe("CLI options", () => {
   test("parses the test session flags", () => {
@@ -37,6 +46,15 @@ describe("CLI options", () => {
       timeout: 2000,
     });
   });
+
+  test("parses install-chromium, which takes no arguments", () => {
+    expect(parseCliOptions(["install-chromium"])).toMatchObject({
+      mode: "install-chromium",
+    });
+    expect(() => parseCliOptions(["install-chromium", "game"])).toThrow(
+      "takes no arguments",
+    );
+  });
 });
 
 describe("command protocol", () => {
@@ -56,7 +74,7 @@ describe("command protocol", () => {
     expect(decodeTextLine("key down left").value).toEqual({
       command: "key",
       action: "down",
-      key: "left",
+      key: "ArrowLeft",
     });
     expect(decodeTextLine('screenshot "artifacts/game state"').value).toEqual({
       command: "screenshot",
@@ -72,6 +90,37 @@ describe("command protocol", () => {
     expect(decodeJsonLine('{"command":"state"}').value).toEqual({
       command: "inspect",
     });
+  });
+
+  test("rejects an unknown key while decoding", () => {
+    for (const decode of [
+      () => decodeTextLine("key tap zz"),
+      () => decodeJsonLine('{"command":"key","action":"down","key":"zz"}'),
+    ]) {
+      expect(decode).toThrow("Unsupported key: zz");
+      expect(decode).toThrow(ProtocolError);
+    }
+  });
+
+  test("reads a lone quote or backslash ending the line as itself", () => {
+    expect(decodeTextLine("key tap '").value).toMatchObject({ key: "Quote" });
+    expect(decodeTextLine("key tap \\").value).toMatchObject({
+      key: "Backslash",
+    });
+    expect(decodeTextLine("key tap \\'").value).toMatchObject({
+      key: "Quote",
+    });
+    expect(decodeTextLine("key tap \\\\").value).toMatchObject({
+      key: "Backslash",
+    });
+    // A quote that closes, or opens a word, is still a quote.
+    expect(decodeTextLine("screenshot 'a b '").value).toEqual({
+      command: "screenshot",
+      path: "a b ",
+    });
+    expect(() => decodeTextLine("screenshot 'a b")).toThrow(
+      "Unterminated quote or escape.",
+    );
   });
 
   test("returns a correlated error for an invalid JSON command", () => {
@@ -160,6 +209,26 @@ test("normalizes documented key aliases", () => {
   expect(() => normalizeKey("F13")).toThrow("Unsupported key");
 });
 
+test("names each key as status lists it", () => {
+  expect(keyName(normalizeKey("right"))).toBe("right");
+  expect(keyName(normalizeKey("ArrowRight"))).toBe("right");
+  expect(keyName(normalizeKey("keyb"))).toBe("b");
+  expect(keyName(normalizeKey("B"))).toBe("b");
+  expect(keyName(normalizeKey("Digit7"))).toBe("7");
+  expect(keyName(normalizeKey("semicolon"))).toBe(";");
+  expect(keyName(normalizeKey("control"))).toBe("ctrl");
+  expect(keyName(normalizeKey("return"))).toBe("enter");
+  expect(keyName(normalizeKey("esc"))).toBe("escape");
+  expect(keyName(normalizeKey("numpad1"))).toBe("Numpad1");
+  expect(keyName(normalizeKey("shiftleft"))).toBe("ShiftLeft");
+  expect(keyName(normalizeKey("f5"))).toBe("F5");
+  // Each name gives back the key it names.
+  for (const input of ["space", "a", "0", "'", "\\", "Numpad9", "F12"]) {
+    const key = normalizeKey(input);
+    expect(normalizeKey(keyName(key)), input).toBe(key);
+  }
+});
+
 test("every key jgz presses is one the engine maps", () => {
   const names = [
     ..."abcdefghijklmnopqrstuvwxyz0123456789-=[]\\;'`,./",
@@ -211,6 +280,54 @@ test("resolves supplied screenshots from the invocation directory", () => {
   );
 });
 
+test("keeps only the game's message from a browser failure", () => {
+  expect(
+    driverMessage(
+      new Error(
+        "evaluate: TypeError: Unknown game-state binding: nothere\n    at Object.read (http://127.0.0.1:64215/abc/driver.js:6511:17)",
+      ),
+    ),
+  ).toBe("Unknown game-state binding: nothere");
+  expect(driverMessage(new Error("evaluate: Error: score: too low"))).toBe(
+    "score: too low",
+  );
+  expect(
+    driverMessage(
+      new Error("locator.dispatchEvent: Target page has been closed"),
+    ),
+  ).toBe("Target page has been closed");
+  expect(driverMessage("evaluate: oops")).toBe("oops");
+});
+
+test("names the Playwright installer to run, quoting where a shell needs it", () => {
+  expect(chromiumInstallCommand("/opt/node_modules/playwright/cli.js")).toBe(
+    "bun /opt/node_modules/playwright/cli.js install chromium",
+  );
+  expect(chromiumInstallCommand("/Users/My Name/it's/cli.js")).toBe(
+    "bun '/Users/My Name/it'\\''s/cli.js' install chromium",
+  );
+});
+
+test("a missing Chromium names the installer of the CLI's own Playwright", async () => {
+  const manifest = (await Bun.file(
+    fileURLToPath(import.meta.resolve("playwright/package.json")),
+  ).json()) as { version: string };
+  const installer = await playwrightInstaller();
+  expect(installer.version).toBe(manifest.version);
+  expect(await Bun.file(installer.script).exists()).toBe(true);
+
+  const error = await launchError(
+    new Error(
+      "launch: Executable doesn't exist at /cache/chromium_headless_shell-1248/chrome-headless-shell\n╔═══╗\n║ npx playwright install ║",
+    ),
+  );
+  expect(error.message).toBe(
+    `jgz uses Playwright ${manifest.version}, whose Chromium isn't installed (there's no /cache/chromium_headless_shell-1248/chrome-headless-shell).\nInstall it with: ${chromiumInstallCommand(installer.script)}`,
+  );
+  const other = new Error("launch: something else");
+  expect(await launchError(other)).toBe(other);
+});
+
 describe("agent batch commands", () => {
   test("decodes call for a plain top-level identifier only", () => {
     expect(decodeTextLine("call __probe")).toEqual({
@@ -243,9 +360,9 @@ describe("agent batch commands", () => {
       value: {
         command: "play",
         actions: [
-          { command: "key", action: "down", key: "right" },
+          { command: "key", action: "down", key: "ArrowRight" },
           { command: "step", dt: DEFAULT_STEP, count: 30 },
-          { command: "key", action: "up", key: "right" },
+          { command: "key", action: "up", key: "ArrowRight" },
         ],
         inspect: parseStatePath("player.x"),
         screenshot: true,
@@ -260,6 +377,30 @@ describe("agent batch commands", () => {
       actions: [{ command: "step", dt: DEFAULT_STEP, count: 1 }],
       inspect: true,
     });
+  });
+
+  test("checks every action, keys too, before a play runs any", () => {
+    const request = JSON.stringify({
+      id: 3,
+      command: "play",
+      actions: [
+        { command: "step", count: 30 },
+        { command: "key", action: "tap", key: "zz" },
+      ],
+    });
+    expect(() => decodeJsonLine(request)).toThrow(
+      "actions[1]: Unsupported key: zz.",
+    );
+    try {
+      decodeJsonLine(request);
+    } catch (error) {
+      expect(error).toMatchObject({ code: "invalid_request", id: 3 });
+    }
+    expect(() =>
+      decodeJsonLine(
+        '{"command":"play","actions":[{"command":"mouse","action":"click"}]}',
+      ),
+    ).toThrow("actions[0]: mouse click requires x and y.");
   });
 
   test("rejects play batches that nest anything but input and time", () => {

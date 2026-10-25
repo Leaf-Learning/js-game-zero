@@ -25,6 +25,7 @@ export type ProtocolCommand =
   | {
       readonly command: "key";
       readonly action: "down" | "up" | "tap";
+      /** The key as Playwright presses it (`normalizeKey`). */
       readonly key: string;
     }
   | {
@@ -135,7 +136,7 @@ export function decodeTextLine(line: string): DecodedCommand {
         value: {
           command: "key",
           action: keyAction(words[1]),
-          key: requiredString(words[2], "key"),
+          key: normalizeKey(requiredString(words[2], "key")),
         },
       };
     case "mouse":
@@ -222,7 +223,7 @@ function decodeCommandRecord(input: Record<string, unknown>): ProtocolCommand {
       return {
         command,
         action: keyAction(input.action),
-        key: requiredString(input.key, "key"),
+        key: normalizeKey(requiredString(input.key, "key")),
       };
     case "mouse": {
       const action = mouseAction(input.action);
@@ -306,6 +307,7 @@ function decodePlay(input: Record<string, unknown>): ProtocolCommand {
       `actions may hold at most ${MAX_PLAY_ACTIONS} entries.`,
     );
   }
+  // Every action is checked, keys included, before any of them runs.
   const actions = input.actions.map((entry, index) => {
     if (!isRecord(entry)) {
       throw new ProtocolError(
@@ -313,7 +315,16 @@ function decodePlay(input: Record<string, unknown>): ProtocolCommand {
         `actions[${index}] must be an object.`,
       );
     }
-    const action = decodeCommandRecord(entry);
+    let action: ProtocolCommand;
+    try {
+      action = decodeCommandRecord(entry);
+    } catch (error) {
+      if (!(error instanceof ProtocolError)) throw error;
+      throw new ProtocolError(
+        error.code,
+        `actions[${index}]: ${error.message}`,
+      );
+    }
     if (!playActions.has(action.command)) {
       throw new ProtocolError(
         "invalid_request",
@@ -480,6 +491,19 @@ function optionalCoordinates(
 }
 
 function splitWords(line: string): string[] {
+  try {
+    return splitQuotedWords(line);
+  } catch (error) {
+    // A quote or backslash on its own at the end of a line that otherwise
+    // fails has nothing to quote or escape, so it stands for itself:
+    // `key tap '`.
+    const lone = /(?:^|\s)(['"\\])$/u.exec(line.trim());
+    if (!lone) throw error;
+    return [...splitQuotedWords(line.trim().slice(0, -1)), lone[1] as string];
+  }
+}
+
+function splitQuotedWords(line: string): string[] {
   const words: string[] = [];
   let current = "";
   let quote: '"' | "'" | null = null;
@@ -515,6 +539,119 @@ function splitWords(line: string): string[] {
   }
   if (current) words.push(current);
   return words;
+}
+
+/** Each key's names; a key's first name is the one `keyName` gives. */
+const keyAliases: Record<string, string> = {
+  left: "ArrowLeft",
+  right: "ArrowRight",
+  up: "ArrowUp",
+  down: "ArrowDown",
+  space: "Space",
+  enter: "Enter",
+  return: "Enter",
+  escape: "Escape",
+  esc: "Escape",
+  backspace: "Backspace",
+  tab: "Tab",
+  delete: "Delete",
+  insert: "Insert",
+  home: "Home",
+  end: "End",
+  pageup: "PageUp",
+  pagedown: "PageDown",
+  capslock: "CapsLock",
+  numlock: "NumLock",
+  scrolllock: "ScrollLock",
+  pause: "Pause",
+  printscreen: "PrintScreen",
+  shift: "Shift",
+  ctrl: "Control",
+  control: "Control",
+  alt: "Alt",
+  meta: "Meta",
+};
+
+/** Each punctuation mark by the key it's on, unshifted. */
+const punctuationKeys: Record<string, string> = {
+  "-": "Minus",
+  "=": "Equal",
+  "[": "BracketLeft",
+  "]": "BracketRight",
+  "\\": "Backslash",
+  ";": "Semicolon",
+  "'": "Quote",
+  "`": "Backquote",
+  ",": "Comma",
+  ".": "Period",
+  "/": "Slash",
+};
+
+/**
+ * Every other key the engine maps, by its keyboard event `code`, except the
+ * few Playwright can't press (Clear, NumpadEqual, F13 to F15).
+ */
+const keyCodes = new Map(
+  [
+    ...Object.values(keyAliases),
+    ...Object.values(punctuationKeys),
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "ShiftLeft",
+    "ShiftRight",
+    "ControlLeft",
+    "ControlRight",
+    "AltLeft",
+    "AltRight",
+    "MetaLeft",
+    "MetaRight",
+    "ContextMenu",
+    "NumpadEnter",
+    "NumpadDecimal",
+    "NumpadDivide",
+    "NumpadMultiply",
+    "NumpadSubtract",
+    "NumpadAdd",
+    ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => `Key${letter}`),
+    ...[...Array(10).keys()].flatMap((digit) => [
+      `Digit${digit}`,
+      `Numpad${digit}`,
+    ]),
+    ...[...Array(12).keys()].map((index) => `F${index + 1}`),
+  ].map((code) => [code.toLowerCase(), code]),
+);
+
+export function normalizeKey(input: string): string {
+  const lower = input.toLowerCase();
+  const named = keyAliases[lower] ?? keyCodes.get(lower);
+  if (named) return named;
+  // By the physical key, so it arrives as a keyboard sends it: "a", or "A"
+  // only while Shift is held.
+  if (/^[a-z]$/i.test(input)) return `Key${input.toUpperCase()}`;
+  if (/^[0-9]$/.test(input)) return `Digit${input}`;
+  const punctuation = punctuationKeys[input];
+  if (punctuation) return punctuation;
+  throw new ProtocolError(
+    "invalid_request",
+    `Unsupported key: ${input}. Give a key's name (backspace, home), what it types unshifted (a, 7, ","), or its code (KeyA, Numpad1, ShiftLeft).`,
+  );
+}
+
+/** A key's name as `status` lists it: its first name (`right`), else what it
+ * types unshifted (`b`, `;`), else its code (`Numpad1`). */
+export function keyName(key: string): string {
+  const named = Object.keys(keyAliases).find(
+    (name) => keyAliases[name] === key,
+  );
+  if (named) return named;
+  const typed = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(key);
+  if (typed) return (typed[1] ?? typed[2] ?? "").toLowerCase();
+  const mark = Object.keys(punctuationKeys).find(
+    (character) => punctuationKeys[character] === key,
+  );
+  return mark ?? key;
 }
 
 function decodeRequestId(value: unknown): RequestId {

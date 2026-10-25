@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { parseArgs } from "node:util";
-import { createInterface } from "node:readline";
+import { createInterface, type Interface } from "node:readline";
 import {
   decodeJsonLine,
   decodeTextLine,
@@ -9,13 +9,18 @@ import {
   type DecodedCommand,
   type RequestId,
 } from "./protocol";
-import { GameSession, HELP_COMMANDS, type SessionEvent } from "./session";
+import {
+  GameSession,
+  HELP_COMMANDS,
+  playwrightInstaller,
+  type SessionEvent,
+} from "./session";
 import { watchProject, type ProjectWatcher } from "./watcher";
 
 export const VERSION = "0.2.0";
 
 export type CliOptions = {
-  readonly mode: "help" | "version" | "test";
+  readonly mode: "help" | "version" | "test" | "install-chromium";
   readonly projectDirectory?: string;
   readonly json: boolean;
   readonly headed: boolean;
@@ -58,8 +63,16 @@ export function parseCliOptions(args: readonly string[]): CliOptions {
   };
   if (parsed.values.help) return { mode: "help", ...base };
   if (parsed.values.version) return { mode: "version", ...base };
+  if (parsed.positionals[0] === "install-chromium") {
+    if (parsed.positionals.length !== 1) {
+      throw new CliUsageError("install-chromium takes no arguments.");
+    }
+    return { mode: "install-chromium", ...base };
+  }
   if (parsed.positionals[0] !== "test") {
-    throw new CliUsageError("Expected: jgz test <project-directory>");
+    throw new CliUsageError(
+      "Expected: jgz test <project-directory>, or jgz install-chromium",
+    );
   }
   if (parsed.positionals.length !== 2 || !parsed.positionals[1]) {
     throw new CliUsageError("test requires exactly one project directory.");
@@ -77,6 +90,11 @@ export class CliUsageError extends Error {
     this.name = "CliUsageError";
   }
 }
+
+/** Exit codes after a signal: 128 plus its number, as a shell reports a
+ * process the signal ended. Ctrl-C at the prompt counts as SIGINT. */
+const signalExitCodes = { SIGHUP: 129, SIGINT: 130, SIGTERM: 143 } as const;
+type StopSignal = keyof typeof signalExitCodes;
 
 export async function runCli(args = Bun.argv.slice(2)): Promise<number> {
   const jsonRequested = args.includes("--json");
@@ -102,112 +120,157 @@ export async function runCli(args = Bun.argv.slice(2)): Promise<number> {
     console.log(VERSION);
     return 0;
   }
+  if (options.mode === "install-chromium") return installChromium();
 
-  const writeEvent = (event: SessionEvent): void => {
-    if (options.json) writeJson({ type: "event", ...event });
-    else writeHumanEvent(event);
+  // A signal, or Ctrl-C at the prompt, ends the session the same way at any
+  // point, mid-command too: the browser is closed and the exit code names the
+  // signal. A second one exits at once, and Playwright still kills the
+  // browser as the process exits.
+  const stopping = new AbortController();
+  let stopSignal: StopSignal | undefined;
+  let lines: Interface | undefined;
+  const stop = (signal: StopSignal): void => {
+    if (stopSignal) process.exit(signalExitCodes[stopSignal]);
+    stopSignal = signal;
+    stopping.abort();
+    lines?.close();
   };
-
-  let session: GameSession;
+  const interrupted = Symbol("interrupted");
+  const stopped = new Promise<typeof interrupted>((resolve) => {
+    stopping.signal.addEventListener("abort", () => resolve(interrupted));
+  });
+  const signalHandlers = (Object.keys(signalExitCodes) as StopSignal[]).map(
+    (signal) => [signal, () => stop(signal)] as const,
+  );
+  for (const [signal, handler] of signalHandlers) process.on(signal, handler);
   try {
-    session = await GameSession.create({
-      projectDirectory: options.projectDirectory!,
-      headed: options.headed,
-      timeout: options.timeout,
-      onEvent: writeEvent,
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (options.json) {
-      writeJson(errorResponse(undefined, "startup_failed", message));
-    } else {
-      console.error(message);
-    }
-    return 1;
-  }
+    const writeEvent = (event: SessionEvent): void => {
+      if (options.json) writeJson({ type: "event", ...event });
+      else writeHumanEvent(event);
+    };
 
-  let queue: Promise<unknown> = Promise.resolve();
-  const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
-    const result = queue.then(operation, operation);
-    queue = result.catch(() => undefined);
-    return result;
-  };
-  let watcher: ProjectWatcher | undefined;
-  if (options.watch) {
-    watcher = watchProject(options.projectDirectory!, () => {
-      void enqueue(() => session.restart("watch")).catch((error) => {
-        writeEvent({
-          event: "runtime-error",
-          message: error instanceof Error ? error.message : String(error),
-          source: "watch",
+    let session: GameSession;
+    try {
+      session = await GameSession.create({
+        projectDirectory: options.projectDirectory!,
+        headed: options.headed,
+        timeout: options.timeout,
+        onEvent: writeEvent,
+        signal: stopping.signal,
+        ...(options.seed === undefined ? {} : { seed: options.seed }),
+      });
+    } catch (error) {
+      if (stopSignal) return signalExitCodes[stopSignal];
+      const message = error instanceof Error ? error.message : String(error);
+      if (options.json) {
+        writeJson(errorResponse(undefined, "startup_failed", message));
+      } else {
+        console.error(message);
+      }
+      return 1;
+    }
+
+    let queue: Promise<unknown> = Promise.resolve();
+    const enqueue = <T>(operation: () => Promise<T>): Promise<T> => {
+      const result = queue.then(operation, operation);
+      queue = result.catch(() => undefined);
+      return result;
+    };
+    let watcher: ProjectWatcher | undefined;
+    if (options.watch) {
+      watcher = watchProject(session.projectRoot, session.assetRoot, () => {
+        void enqueue(() => session.restart("watch")).catch((error) => {
+          writeEvent({
+            event: "runtime-error",
+            message: error instanceof Error ? error.message : String(error),
+            source: "watch",
+          });
         });
       });
-    });
-  }
-
-  if (!options.json) {
-    console.log(
-      `Testing ${options.projectDirectory} in ${options.headed ? "headed" : "headless"} Chromium.`,
-    );
-    console.log("Enter `help` for commands.");
-  }
-
-  const terminal = !options.json && Boolean(process.stdin.isTTY);
-  const lines = createInterface({
-    input: process.stdin,
-    output: terminal ? process.stdout : undefined,
-    terminal,
-    crlfDelay: Infinity,
-    prompt: terminal ? "jgz> " : undefined,
-  });
-  let interrupted = false;
-  const interrupt = (): void => {
-    interrupted = true;
-    lines.close();
-  };
-  process.once("SIGINT", interrupt);
-  process.once("SIGTERM", interrupt);
-  if (terminal) lines.prompt();
-
-  try {
-    for await (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        if (terminal) lines.prompt();
-        continue;
-      }
-      let decoded: DecodedCommand;
-      try {
-        decoded = options.json
-          ? decodeJsonLine(trimmed)
-          : decodeTextLine(trimmed);
-      } catch (error) {
-        writeCommandError(options.json, error);
-        if (terminal) lines.prompt();
-        continue;
-      }
-
-      try {
-        const result = await enqueue(() => session.execute(decoded.value));
-        writeSuccess(options.json, decoded.id, result);
-        if (decoded.value.command === "quit") {
-          lines.close();
-          break;
-        }
-      } catch (error) {
-        writeCommandError(options.json, error, decoded.id);
-      }
-      if (terminal) lines.prompt();
     }
+
+    if (!options.json && !stopSignal) {
+      console.log(
+        `Testing ${options.projectDirectory} in ${options.headed ? "headed" : "headless"} Chromium.`,
+      );
+      console.log("Enter `help` for commands.");
+    }
+
+    const terminal = !options.json && Boolean(process.stdin.isTTY);
+    lines = createInterface({
+      input: process.stdin,
+      output: terminal ? process.stdout : undefined,
+      terminal,
+      crlfDelay: Infinity,
+      prompt: terminal ? "jgz> " : undefined,
+    });
+    // In a terminal, readline reads Ctrl-C as a key, not as a signal.
+    lines.on("SIGINT", () => {
+      process.stdout.write("\n");
+      stop("SIGINT");
+    });
+    if (stopSignal) lines.close();
+    else if (terminal) lines.prompt();
+
+    try {
+      for await (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          if (terminal) lines.prompt();
+          continue;
+        }
+        let decoded: DecodedCommand;
+        try {
+          decoded = options.json
+            ? decodeJsonLine(trimmed)
+            : decodeTextLine(trimmed);
+        } catch (error) {
+          writeCommandError(options.json, error);
+          if (terminal) lines.prompt();
+          continue;
+        }
+
+        try {
+          const result = await Promise.race([
+            enqueue(() => session.execute(decoded.value)),
+            stopped,
+          ]);
+          if (result === interrupted) break;
+          writeSuccess(options.json, decoded.id, result);
+          if (decoded.value.command === "quit") {
+            lines.close();
+            break;
+          }
+        } catch (error) {
+          if (stopSignal) break;
+          writeCommandError(options.json, error, decoded.id);
+        }
+        if (terminal) lines.prompt();
+      }
+    } finally {
+      watcher?.close();
+      // A stopped session closes at once; a command still running then fails
+      // as its browser goes.
+      if (!stopSignal) await queue.catch(() => undefined);
+      await session.close();
+    }
+    return stopSignal ? signalExitCodes[stopSignal] : 0;
   } finally {
-    process.removeListener("SIGINT", interrupt);
-    process.removeListener("SIGTERM", interrupt);
-    watcher?.close();
-    await queue.catch(() => undefined);
-    await session.close();
+    for (const [signal, handler] of signalHandlers) {
+      process.removeListener(signal, handler);
+    }
   }
-  return interrupted ? 130 : 0;
+}
+
+/** Runs the installer of the Playwright this CLI loads, which may not be the
+ * one `bunx playwright` finds. */
+async function installChromium(): Promise<number> {
+  const { script } = await playwrightInstaller();
+  const installer = Bun.spawn(
+    [process.execPath, script, "install", "chromium"],
+    { stdio: ["inherit", "inherit", "inherit"] },
+  );
+  return installer.exited;
 }
 
 function writeSuccess(
@@ -278,6 +341,10 @@ function writeHumanEvent(event: SessionEvent): void {
     );
     return;
   }
+  if (event.event === "restarted") {
+    console.log(`[restarted:${String(event.source)}]`);
+    return;
+  }
   console.log(`[${event.event}]`);
 }
 
@@ -291,18 +358,29 @@ function parseTimeout(value: unknown): number {
   return timeout;
 }
 
-const HELP_TEXT = `js-game-zero browser-backed game verification
+const HELP_TEXT = `jgz: drive, inspect and screenshot a js-game-zero game in Chromium
 
 Usage:
-  jgz test <project-directory> [--json] [--headed] [--watch]
-      [--seed <value>] [--timeout <milliseconds>]
-  jgz --help
-  jgz --version
+  jgz test <project-directory> [options]
+  jgz install-chromium
+  jgz --help | --version
 
-Commands:
+Options for test:
+  --json          Read requests and write responses as JSON lines.
+  --headed        Show the browser window.
+  -w, --watch     Restart the game when main.js or an asset file changes.
+  --seed <value>  Seed the game's randomness, the same after every restart.
+  --timeout <ms>  How long the game may take to start, and to answer each
+                  call into the browser (one step's frames, a key press),
+                  before it counts as stuck and is restarted. Default ${DEFAULT_TIMEOUT}.
+
+install-chromium installs Chromium for the Playwright jgz uses.
+
+Commands, at the prompt or as JSON requests:
 ${HELP_COMMANDS.map((command) => `  ${command}`).join("\n")}
 
-Use --json for newline-delimited JSON requests and responses.`;
+The guide covers every command, the JSON protocol and its error codes:
+https://github.com/Leaf-Learning/js-game-zero/blob/main/docs/cli.md`;
 
 if (import.meta.main) {
   process.exitCode = await runCli();

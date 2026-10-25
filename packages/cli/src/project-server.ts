@@ -8,6 +8,8 @@ export type ProjectServer = {
   readonly origin: string;
   readonly url: string;
   readonly projectRoot: string;
+  /** The project root, or its assets/ folder in that layout. */
+  readonly assetRoot: string;
   close(): void;
 };
 
@@ -75,6 +77,7 @@ export async function startProjectServer(
     origin,
     url: `${origin}${prefix}/`,
     projectRoot,
+    assetRoot,
     close() {
       server.stop(true);
     },

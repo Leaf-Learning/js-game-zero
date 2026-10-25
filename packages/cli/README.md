@@ -7,18 +7,28 @@ JSON mode is built for agents and other programs checking a game.
 
 ## Install
 
-The CLI runs on [Bun](https://bun.sh) 1.3 or later. Install it and the Chromium
-it drives once:
+The CLI runs on [Bun](https://bun.sh) 1.3 or later and drives Chromium through
+Playwright (1.57 or later), a peer dependency. Each Playwright version drives
+its own build of Chromium, so install Chromium with the Playwright the CLI
+uses. Added to a project, the CLI shares the project's Playwright, which
+`bunx playwright` runs:
 
 ```sh
-bun add --global @js-game-zero/cli
+bun add -d @js-game-zero/cli
 bunx playwright install chromium
 ```
 
-Playwright (1.57 or later) is a peer dependency: installing the CLI installs it
-too, unless the project already has a version the CLI accepts, which it then
-uses. Install Chromium with that same Playwright, since each version drives its
-own build.
+Installed globally, the CLI has a Playwright of its own, which may not be the
+version `bunx playwright` runs in a project, so install its Chromium with
+`jgz install-chromium`:
+
+```sh
+bun add --global @js-game-zero/cli
+jgz install-chromium
+```
+
+When the Chromium it needs is missing, `jgz test` fails with the command that
+installs it. In a project, run the CLI as `bunx jgz`.
 
 ## Use
 
