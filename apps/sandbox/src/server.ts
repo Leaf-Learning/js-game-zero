@@ -406,6 +406,23 @@ async function exampleOwnAssetResponse(
   );
 }
 
+const LOOPBACK_HOSTNAMES = ["127.0.0.1", "localhost", "[::1]"];
+
+/**
+ * The names a browser can use for a server whose printed address has the
+ * hostname `browserHost` (bracketed if IPv6), that name first. A server on a
+ * loopback address also answers at `localhost`, which is what many people
+ * type, so every loopback name is listed and the editor works at whichever
+ * one is used.
+ */
+export function browserHostnames(browserHost: string): readonly string[] {
+  if (!LOOPBACK_HOSTNAMES.includes(browserHost)) return [browserHost];
+  return [
+    browserHost,
+    ...LOOPBACK_HOSTNAMES.filter((name) => name !== browserHost),
+  ];
+}
+
 export function startSandboxServer(args = Bun.argv.slice(2)): void {
   const { values } = parseArgs({
     args,
@@ -448,6 +465,7 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
   const publicHost =
     host === "0.0.0.0" ? "127.0.0.1" : host === "::" ? "::1" : host;
   const browserHost = publicHost.includes(":") ? `[${publicHost}]` : publicHost;
+  const hostnames = browserHostnames(browserHost);
   const editorOrigin = `http://${browserHost}:${port}`;
   const previewOrigin = `http://${browserHost}:${previewPort}`;
   Bun.serve({
@@ -457,6 +475,7 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
       ...(projectsRoot === undefined ? {} : { projectsRoot }),
       access: "editor",
       previewOrigin,
+      hostnames,
       testFixtures,
     }),
   });
@@ -466,6 +485,7 @@ export function startSandboxServer(args = Bun.argv.slice(2)): void {
     fetch: createSandboxPreviewServerHandler({
       ...(projectsRoot === undefined ? {} : { projectsRoot }),
       parentOrigin: editorOrigin,
+      hostnames,
     }),
   });
   console.log(`js-game-zero sandbox listening on ${editorOrigin}`);

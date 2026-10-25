@@ -2,13 +2,18 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import * as api from "./api";
 import { h, qs } from "./dom";
+import {
+  documentationLink,
+  documentationMediaUrl,
+  repositoryPath,
+  resolvedSourceUrl,
+} from "./documentation-links";
 import type {
   DocumentationDocument,
   DocumentationSummary,
 } from "../shared/contracts";
 
 const DEFAULT_DOCUMENT = "getting-started";
-const DOCS_ORIGIN = "https://jgz-docs.invalid";
 
 export type DocumentationBrowser = {
   load(): Promise<void>;
@@ -16,49 +21,6 @@ export type DocumentationBrowser = {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function encodePath(path: string): string {
-  return path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-}
-
-function sourceUrl(path: string): URL {
-  return new URL(`/${path}`, DOCS_ORIGIN);
-}
-
-function resolvedSourceUrl(
-  href: string,
-  document: DocumentationDocument,
-): URL | null {
-  try {
-    return new URL(href, sourceUrl(document.sourcePath));
-  } catch {
-    return null;
-  }
-}
-
-function decodedSourcePath(url: URL): string | null {
-  try {
-    return decodeURIComponent(url.pathname.slice(1));
-  } catch {
-    return null;
-  }
-}
-
-function compatibleDocumentHash(
-  document: DocumentationSummary,
-  hash: string,
-): string {
-  // README.md#credits was retired in favor of the heading-derived
-  // #license-and-credits anchor; keep remapping the old link for
-  // backward compatibility with links that predate the rename.
-  if (document.sourcePath === "README.md" && hash === "#credits") {
-    return "#license-and-credits";
-  }
-  return hash;
 }
 
 function slugBase(value: string): string {
@@ -192,67 +154,45 @@ export function createDocumentationBrowser(): DocumentationBrowser {
     }
   }
 
-  function documentBySourcePath(
-    sourcePath: string,
-  ): DocumentationSummary | undefined {
-    if (sourcePath === "docs/reference/") {
-      return documents?.find((document) => document.id === "reference/hooks");
-    }
-    return documents?.find((document) => document.sourcePath === sourcePath);
-  }
-
   function decorateLinks(document: DocumentationDocument): void {
     for (const image of content.querySelectorAll<HTMLImageElement>("img")) {
       const original = image.getAttribute("src");
       if (!original) continue;
-      const resolved = resolvedSourceUrl(original, document);
-      if (!resolved || resolved.origin !== DOCS_ORIGIN) continue;
-      const sourcePath = decodedSourcePath(resolved);
-      if (!sourcePath) continue;
-      if (sourcePath.startsWith("docs/media/")) {
-        image.src = `/docs/media/${encodePath(
-          sourcePath.slice("docs/media/".length),
-        )}`;
-      }
+      const resolved = resolvedSourceUrl(original, document.sourcePath);
+      const sourcePath = resolved ? repositoryPath(resolved) : null;
+      if (sourcePath === null) continue;
+      const mediaUrl = documentationMediaUrl(sourcePath);
+      if (mediaUrl) image.src = mediaUrl;
       image.loading = "lazy";
     }
 
     for (const link of content.querySelectorAll<HTMLAnchorElement>("a[href]")) {
       const original = link.getAttribute("href");
       if (!original) continue;
-      const resolved = resolvedSourceUrl(original, document);
-      if (!resolved) continue;
+      const destination = documentationLink(
+        original,
+        document.sourcePath,
+        documents ?? [],
+      );
+      if (!destination) continue;
 
-      if (resolved.origin !== DOCS_ORIGIN) {
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        continue;
-      }
-
-      const sourcePath = decodedSourcePath(resolved);
-      if (!sourcePath) continue;
-      const destination = documentBySourcePath(sourcePath);
-      if (destination) {
-        const destinationHash = compatibleDocumentHash(
-          destination,
-          resolved.hash,
-        );
+      if (destination.kind === "document") {
         link.addEventListener("click", (event) => {
           event.preventDefault();
           if (destination.id === currentDocument) {
-            scrollToHash(content, destinationHash, true);
+            scrollToHash(content, destination.hash, true);
           } else {
-            void selectDocument(destination.id, destinationHash, true);
+            void selectDocument(destination.id, destination.hash, true);
           }
         });
         continue;
       }
 
-      // Non-document local routes (for example /examples) should not replace
+      // Everything else opens in a new tab, so following it never replaces
       // the sandbox or the open documentation browser.
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.href = `${resolved.pathname}${resolved.search}${resolved.hash}`;
+      if (destination.kind === "new-tab") link.href = destination.href;
     }
   }
 

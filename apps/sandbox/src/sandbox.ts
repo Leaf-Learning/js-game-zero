@@ -31,6 +31,9 @@ export type SandboxHandlerOptions = {
   readonly access?: "combined" | "editor" | "preview";
   readonly previewOrigin?: string;
   readonly parentOrigin?: string;
+  /** Hostnames a browser may use for this server, such as both `127.0.0.1`
+   * and `localhost`. See `partnerOrigin()`. */
+  readonly hostnames?: readonly string[];
 };
 
 export type SandboxProjectSummary = ProjectSummary;
@@ -97,6 +100,9 @@ export function createSandboxHandler(
   ): Promise<Response | null> {
     const rawPath = rawPathname(request.url);
     const url = new URL(request.url);
+    const hostnames = options.hostnames ?? [];
+    const previewOrigin = partnerOrigin(options.previewOrigin, url, hostnames);
+    const parentOrigin = partnerOrigin(options.parentOrigin, url, hostnames);
 
     try {
       if (
@@ -130,7 +136,7 @@ export function createSandboxHandler(
 
       if (editorEnabled && url.pathname === "/" && request.method === "GET") {
         const source = await Bun.file(join(CLIENT_DIR, "index.html")).text();
-        return new Response(clientShellPage(source, options.previewOrigin), {
+        return new Response(clientShellPage(source, previewOrigin), {
           headers: { "content-type": "text/html; charset=utf-8" },
         });
       }
@@ -256,11 +262,7 @@ export function createSandboxHandler(
       if (singleProjectRoute) {
         if (request.method === "GET") {
           const project = await repository.getProject(singleProjectRoute);
-          return previewReadResponse(
-            json({ project }),
-            access,
-            options.parentOrigin,
-          );
+          return previewReadResponse(json({ project }), access, parentOrigin);
         }
         if (editorEnabled && request.method === "DELETE") {
           return await deleteProjectResponse(repository, singleProjectRoute);
@@ -279,7 +281,7 @@ export function createSandboxHandler(
           return previewReadResponse(
             await readProjectFileResponse(repository, fileRoute),
             access,
-            options.parentOrigin,
+            parentOrigin,
           );
         }
         if (editorEnabled && request.method === "PUT") {
@@ -318,11 +320,11 @@ export function createSandboxHandler(
         validateProjectName(playProject);
         await repository.requireProject(playProject);
         const response = html(
-          previewShellPage(playProject, options.parentOrigin ?? url.origin),
+          previewShellPage(playProject, parentOrigin ?? url.origin),
         );
         response.headers.set(
           "content-security-policy",
-          `frame-ancestors ${options.parentOrigin ?? url.origin}`,
+          `frame-ancestors ${parentOrigin ?? url.origin}`,
         );
         return response;
       }
@@ -333,7 +335,7 @@ export function createSandboxHandler(
         return previewReadResponse(
           await readProjectAssetResponse(repository, assetReadRoute),
           access,
-          options.parentOrigin,
+          parentOrigin,
         );
       }
     } catch (error) {
@@ -350,13 +352,9 @@ function cloneableExamples(): readonly SandboxExampleSummary[] {
     .map((example) => ({
       slug: example.slug,
       title: example.title,
-      description: capitalize(example.e2eScenario),
+      description: example.description,
       expectsInput: example.expectsInput,
     }));
-}
-
-function capitalize(value: string): string {
-  return value.length > 0 ? value[0]!.toUpperCase() + value.slice(1) : value;
 }
 
 async function createProjectResponse(
@@ -703,6 +701,27 @@ function errorResponse(error: unknown): Response {
     "internal_error",
     500,
   );
+}
+
+/**
+ * The editor and its preview share a hostname and differ only by port. A
+ * browser can reach a server on 127.0.0.1 as `localhost` too, and the two
+ * names are different origins, so a page opened at another of the server's
+ * `hostnames` is paired with the editor or preview at that same name. Each
+ * page still names exactly one partner origin. Any other name keeps the
+ * configured origin.
+ */
+function partnerOrigin(
+  configured: string | undefined,
+  requestUrl: URL,
+  hostnames: readonly string[],
+): string | undefined {
+  if (!configured || !hostnames.includes(requestUrl.hostname)) {
+    return configured;
+  }
+  const partner = new URL(configured);
+  partner.hostname = requestUrl.hostname;
+  return partner.origin;
 }
 
 function previewReadResponse(

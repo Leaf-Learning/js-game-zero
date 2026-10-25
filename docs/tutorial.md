@@ -8,7 +8,7 @@ editor rather than pasting fragments in, and you'll always have something
 that runs.
 
 You'll need the sandbox running: `bun run dev:sandbox`, then open
-`http://localhost:4173`. If anything here is unfamiliar about the sandbox
+`http://127.0.0.1:4173`. If anything here is unfamiliar about the sandbox
 itself (panels, buttons, autosave), [`docs/sandbox.md`](sandbox.md) has the
 full tour — this tutorial only explains what you need as you go.
 
@@ -145,9 +145,10 @@ whole game, and `clampIp` moves the player back inside it.
 Press Play, then **click the game canvas once** before pressing the arrow
 keys — the sandbox (like any web page with an embedded frame) only sends
 keyboard events to whichever part of the page currently has focus, so an
-un-clicked preview won't see your key presses. You'll see a small "Click
-the game to use your keyboard" prompt the first time; clicking it (or the
-canvas itself) fixes it for the rest of your session.
+un-clicked preview won't see your key presses. A "Click the game to use
+your keyboard" prompt covers the game each time you press Play, and again
+whenever you click somewhere else, such as the editor. Click it (or the
+canvas itself) to give the game your keyboard.
 
 ## 6. Add mouse input
 
@@ -553,5 +554,5 @@ on the game-over screen to go again.
   everything else in the framework) in full — signatures, every option, and
   a short example each.
 - [`docs/examples.md`](examples.md) lists the full example games shipped
-  with the sandbox, including two complete arcade games, if you'd like to
-  read more source before writing your own.
+  with the sandbox, including five complete games, if you'd like to read
+  more source before writing your own.

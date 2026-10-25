@@ -51,6 +51,13 @@ const documents: readonly DocumentationSummary[] = [
     navigation: true,
   },
   {
+    id: "cli",
+    title: "Game Verification CLI",
+    section: "Learn",
+    sourcePath: "docs/cli.md",
+    navigation: true,
+  },
+  {
     id: "reference/hooks",
     title: "Hooks and Input",
     section: "API Reference",

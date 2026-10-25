@@ -227,7 +227,8 @@ function draw() {
 ```
 
 `animate(target, options)` smoothly changes any numeric property (or array
-of numbers) on any object over time, using one of 13 named easing curves.
+of numbers) on any object over time, using one of 10 easing curves, picked
+by name with `tween` (18 names, since some curves have two or three).
 Works on plain objects, `Actor`s, anything. See it running:
 `/examples/animation-basics`. Full tween list:
 [`docs/reference/clock.md#animation`](reference/clock.md#animation).

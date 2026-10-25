@@ -3,11 +3,14 @@ export type ExampleMode = "global" | "import";
 export type ExampleManifestEntry = {
   readonly slug: string;
   readonly title: string;
+  /** One sentence for learners, shown on the sandbox's example gallery. */
+  readonly description: string;
   readonly mode: ExampleMode;
   readonly entryPoint: string;
   readonly assets: readonly string[];
   readonly smokeMarker: "__jgzExampleStatus";
   readonly tutorial: string;
+  /** What the example's browser test checks; not shown to learners. */
   readonly e2eScenario: string;
   readonly expectsInput: "keyboard" | "mouse" | "none";
   readonly visual: boolean;
@@ -17,6 +20,8 @@ export const exampleManifest = [
   {
     slug: "drawing-basics",
     title: "Drawing Basics",
+    description:
+      "Draw a rectangle, line, circle and polygon on a gradient, and make the circle pulse.",
     mode: "global",
     entryPoint: "examples/drawing-basics/main.js",
     assets: [],
@@ -29,6 +34,7 @@ export const exampleManifest = [
   {
     slug: "actor-movement",
     title: "Actor Movement",
+    description: "Move a character left and right with the arrow keys.",
     mode: "global",
     entryPoint: "examples/actor-movement/main.js",
     assets: ["images/player.svg"],
@@ -40,7 +46,8 @@ export const exampleManifest = [
   },
   {
     slug: "sound-tone",
-    title: "Sound And Tone",
+    title: "Sound and Tone",
+    description: "Click to play a sound effect and a short generated tone.",
     mode: "global",
     entryPoint: "examples/sound-tone/main.js",
     assets: ["sounds/click.ogg"],
@@ -53,6 +60,8 @@ export const exampleManifest = [
   {
     slug: "animation-basics",
     title: "Animation Basics",
+    description:
+      "Glide a circle across the screen with animate() and an easing curve.",
     mode: "global",
     entryPoint: "examples/animation-basics/main.js",
     assets: [],
@@ -65,6 +74,8 @@ export const exampleManifest = [
   {
     slug: "sandbox-starter",
     title: "Sandbox Starter",
+    description:
+      "Move a circle with the arrow keys, in a game that imports what it uses instead of using globals.",
     mode: "import",
     entryPoint: "examples/sandbox-starter/main.ts",
     assets: [],
@@ -77,6 +88,8 @@ export const exampleManifest = [
   {
     slug: "storage-save",
     title: "Storage Save",
+    description:
+      "Change a score, save it, and load it back, even after a reload.",
     mode: "global",
     entryPoint: "examples/storage-save/main.js",
     assets: [],
@@ -89,6 +102,8 @@ export const exampleManifest = [
   {
     slug: "tappy-plane",
     title: "Tappy Plane",
+    description:
+      "Click to keep a plane in the air and fly it through gaps in the mountains.",
     mode: "global",
     entryPoint: "examples/tappy-plane/main.js",
     assets: [
@@ -110,6 +125,7 @@ export const exampleManifest = [
   {
     slug: "breakout",
     title: "Breakout",
+    description: "Bounce a ball off your paddle to clear a wall of bricks.",
     mode: "global",
     entryPoint: "examples/breakout/main.js",
     assets: [
@@ -133,6 +149,8 @@ export const exampleManifest = [
   {
     slug: "space-shooter",
     title: "Space Shooter",
+    description:
+      "Fly a ship and shoot down waves of enemies that get faster as you clear them.",
     mode: "global",
     entryPoint: "examples/space-shooter/main.js",
     assets: [
@@ -158,6 +176,8 @@ export const exampleManifest = [
   {
     slug: "snake",
     title: "Snake",
+    description:
+      "Steer a growing snake to the fruit without hitting a wall or your tail.",
     mode: "global",
     entryPoint: "examples/snake/main.js",
     assets: ["images/fruit.png", "sounds/eat.ogg", "sounds/die.ogg"],
@@ -171,6 +191,8 @@ export const exampleManifest = [
   {
     slug: "platformer",
     title: "Platformer",
+    description:
+      "Run and jump across platforms to collect gems and reach the flag.",
     mode: "global",
     entryPoint: "examples/platformer/main.js",
     assets: [

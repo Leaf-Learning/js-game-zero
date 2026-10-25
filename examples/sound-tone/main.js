@@ -1,6 +1,6 @@
 WIDTH = 320;
 HEIGHT = 180;
-TITLE = "Sound And Tone";
+TITLE = "Sound and Tone";
 
 // Files under assets/sounds/ are played through the `sounds` loader.
 // `sounds.click` matches assets/sounds/click.ogg — no setup needed beyond

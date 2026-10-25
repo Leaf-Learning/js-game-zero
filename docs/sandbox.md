@@ -10,7 +10,7 @@ you go. This page is a tour of the UI. For install/run instructions, see
 bun run dev:sandbox
 ```
 
-Then open `http://localhost:4173`.
+Then open `http://127.0.0.1:4173`, the address the server prints.
 
 ![The sandbox running a game, with the editor, asset panel, and live preview visible](media/main-view-running-game.png)
 
@@ -28,10 +28,12 @@ The top bar also keeps three tools within reach:
 
 - **Docs** opens the project documentation in a separate browser tab, so you
   can keep it visible while editing and running your game in the sandbox. Use
-  the grouped navigation to move between the tutorial, cookbook, sandbox
-  guide, examples, migration guide, and API reference. Documentation links and
-  images stay in the documentation tab; external website links open in a new
-  tab.
+  the grouped navigation to move between the getting-started guide, tutorial,
+  cookbook, sandbox guide, examples, migration guide, verification CLI guide,
+  and API reference. Links between these pages, and their images, stay in the
+  documentation tab. A link to another file in the repository, such as an
+  example's README, opens that file on GitHub in a new tab, and links to
+  other websites open in a new tab too.
 - **Examples** opens the cloneable example gallery described below.
 - The sun/moon button switches between light and dark mode. The sandbox
   follows your operating system on first use, then remembers whichever mode
@@ -153,13 +155,24 @@ teaches.
 bun run dev:sandbox
 ```
 
-serves on `http://127.0.0.1:4173` by default and stores projects in a
-`.jgz-projects` directory next to wherever you ran the command. To use a
-different port or an explicit (e.g. disposable) project directory:
+serves the editor on `http://127.0.0.1:4173` by default, prints that
+address, and stores projects in a `.jgz-projects` directory next to wherever
+you ran the command. The game preview runs on a second port, one above the
+editor's (4174 by default), so a game's code runs apart from the editor and
+can't use its project API. Use `--port` to move the editor, `--preview-port`
+to move the preview, and `--projects-root` for an explicit (e.g. disposable)
+project directory:
 
 ```sh
 bun apps/sandbox/src/server.ts --host 127.0.0.1 --port 4200 --projects-root /tmp/workshop-projects
 ```
+
+That editor is at `http://127.0.0.1:4200`, and its preview uses port 4201.
+
+The sandbox also works at `http://localhost:4173`. Your projects are the
+same at either address, but the browser keeps each game's saved `storage`,
+and the sandbox's own settings such as light or dark mode, separately for
+each address, so it's simplest to stick to one.
 
 ## Server API (advanced)
 
@@ -183,7 +196,12 @@ against it or building your own tooling on top:
 | `GET`    | `/api/examples`                       | List cloneable example games.              |
 | `GET`    | `/api/docs`                           | List documentation pages.                  |
 | `GET`    | `/api/docs/:id`                       | Read an allowlisted documentation page.    |
-| `GET`    | `/play/:project`                      | The preview page for a project.            |
+| `GET`    | `/assets/:project/:path`              | An asset's contents.                       |
+
+The game preview is served separately, on the preview port. Its
+`GET /play/:project` is the page the editor embeds to run a project, and it
+offers the same reads of a project, its files, and its assets that a running
+game needs, but no routes that change anything.
 
 Every project/file/asset route rejects path traversal, absolute paths,
 encoded escapes, backslashes, and symlink escapes — file and asset paths are

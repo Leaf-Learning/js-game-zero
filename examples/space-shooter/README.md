@@ -6,7 +6,7 @@ reach you, and survive as the waves get faster and bigger.
 
 ## Controls
 
-- **Arrow keys** or **WASD** to move the ship (it's kept in the lower half
+- **Arrow keys** or **WASD** to move the ship (it's kept in the lower part
   of the screen).
 - **Space** to fire.
 - After a game over, click or press space to try again.
@@ -19,9 +19,9 @@ reach you, and survive as the waves get faster and bigger.
   has a cooldown, and hits make the ship flash using `opacity`.
 - Normalizing diagonal input so moving in two directions does not increase
   the ship's speed.
-- A tiny hand-rolled sprite animation: cycling an `Actor`'s `image`
-  through a list of frames to play an explosion, advancing all elapsed
-  frames after a slow update.
+- Flip-book animation: each explosion is an `Actor` given a list of
+  `images`, an `fps` and `loop: false`, so it plays its pictures once on
+  the game clock and then reports `finished`.
 - Reacting to input with `onKeyDown()`/`onMouseDown()` and polling
   `keyboard` every frame for smooth movement.
 - Playing sound effects with `sounds.<name>.play()`.
@@ -33,9 +33,10 @@ reach you, and survive as the waves get faster and bigger.
 ## Reading and extending it
 
 Start with `resetGame()` and `spawnWave()`, then follow `update()` through
-the movement helpers. Laser, enemy, and explosion removal loops walk
-backwards so `splice()` does not skip the next item. Cosmetic explosions
-continue updating after gameplay ends.
+the movement helpers. The laser and enemy loops walk backwards so `splice()`
+does not skip the next item. Finished explosions are dropped with
+`filter()`, which `update()` does before checking for game over, so the
+last explosions still play out and disappear after the game ends.
 
 Try changing the firing cooldown or enemy speed. Keep new formations above
 `PLAYER_TOP_LIMIT` when changing row counts or spacing.

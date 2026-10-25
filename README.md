@@ -47,9 +47,9 @@ bun install
 bun run dev:sandbox
 ```
 
-Then open **http://localhost:4173** in your browser — that's the sandbox, a
-local code editor and live preview with no account or internet connection
-required after install.
+Then open **http://127.0.0.1:4173**, the address it prints, in your browser —
+that's the sandbox, a local code editor and live preview with no account or
+internet connection required after install.
 
 ## Learn more
 
@@ -65,7 +65,7 @@ required after install.
 - [**Game verification CLI**](docs/cli.md) — drive input and ticks, inspect
   state, and capture screenshots from agents or the terminal.
 - [**Examples**](docs/examples.md) — every shipped example game, including
-  two complete arcade games.
+  five complete games.
 - [**Migrating from Pygame Zero**](docs/migrating-from-pgzero.md) — a
   cheat sheet for teachers moving between the two.
 

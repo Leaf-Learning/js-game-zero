@@ -1,7 +1,7 @@
 # Examples
 
 Every game listed here ships with the sandbox and can be played directly
-(with the sandbox running, open `http://localhost:4173/examples`, or the
+(with the sandbox running, open `http://127.0.0.1:4173/examples`, or the
 **Examples** button in the sandbox's top bar) or cloned into your own
 project from the sandbox's example gallery (except the import-mode Sandbox
 Starter) — see
@@ -11,7 +11,7 @@ Starter) — see
 
 | Level                   | Examples                                                         | Focus                                                           |
 | ----------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
-| Beginner                | Drawing Basics, Actor Movement, Animation Basics, Sound And Tone | One API or frame-loop concept at a time.                        |
+| Beginner                | Drawing Basics, Actor Movement, Animation Basics, Sound and Tone | One API or frame-loop concept at a time.                        |
 | Next steps              | Storage Save, Sandbox Starter                                    | Async persistence and scoped application modules.               |
 | Intermediate            | Breakout, Snake, Space Shooter                                   | Game states, collections, timers, and focused helper functions. |
 | Intermediate / advanced | Platformer, Tappy Plane                                          | Tile physics and convex polygon collision.                      |
@@ -48,7 +48,7 @@ Loads `images/player.svg` into an `Actor` and moves it left/right with the
 arrow keys, clamped to the window. Teaches: `Actor` positioning, reading
 `keyboard` state inside `update(dt)`, and frame-rate-independent movement.
 
-## Sound And Tone
+## Sound and Tone
 
 Example route: `/examples/sound-tone`
 
@@ -116,8 +116,8 @@ Example route: `/examples/breakout`
 A wave-based shoot-'em-up: fly with the arrow keys (or WASD), fire lasers
 with space, and survive descending enemy formations that speed up with
 every wave you clear. Teaches: multi-actor management (lasers, enemies,
-explosions), frame-based animation, timed invulnerability, escalating
-difficulty, and lives/score HUD drawing.
+explosions), flip-book animation with an `Actor`'s `images`, timed
+invulnerability, escalating difficulty, and lives/score HUD drawing.
 
 Example route: `/examples/space-shooter`
 
@@ -149,7 +149,10 @@ Example route: `/examples/platformer`
 
 ## Assets
 
-The example games' art and sound (where not generated in code, like
-`sound-tone`'s inline tone/click effects) use free [CC0-licensed assets from
-kenney.nl](https://kenney.nl/) — see the [README](../README.md#license-and-credits) for
-the full credit.
+The example games' image and sound files, including Sound and Tone's
+`sounds/click.ogg`, are free [CC0-licensed assets from
+kenney.nl](https://kenney.nl/) — see the
+[README](../README.md#license-and-credits) for the full credit. The one
+exception is Actor Movement's `player.svg`, drawn for this project. Some
+effects are made in code instead, such as Sound and Tone's `tone` and Space
+Shooter's starfield.

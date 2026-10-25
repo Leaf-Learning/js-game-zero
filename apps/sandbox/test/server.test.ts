@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  browserHostnames,
   createSandboxPreviewServerHandler,
   createSandboxServerHandler,
   testFixtureRoutesLoaded,
@@ -168,6 +169,7 @@ describe("sandbox routes", () => {
       "sandbox",
       "examples",
       "migrating-from-pgzero",
+      "cli",
       "reference/hooks",
       "reference/screen",
       "reference/actor",
@@ -419,7 +421,12 @@ describe("sandbox routes", () => {
     const examples = await request("/api/examples");
     expect(examples.status).toBe(200);
     const body = (await examples.json()) as {
-      examples: { slug: string; expectsInput: string }[];
+      examples: {
+        slug: string;
+        title: string;
+        description: string;
+        expectsInput: string;
+      }[];
     };
     expect(body.examples.length).toBeGreaterThan(0);
     expect(body.examples.map((example) => example.slug)).toContain(
@@ -429,6 +436,13 @@ describe("sandbox routes", () => {
     expect(body.examples.map((example) => example.slug)).not.toContain(
       "sandbox-starter",
     );
+    // The gallery shows each example's own title and learner description.
+    expect(body.examples).toContainEqual({
+      slug: "sound-tone",
+      title: "Sound and Tone",
+      description: "Click to play a sound effect and a short generated tone.",
+      expectsInput: "mouse",
+    });
 
     const clone = await request("/api/projects", {
       method: "POST",
@@ -729,6 +743,75 @@ describe("sandbox routes", () => {
     expect(await response.text()).toContain(
       'data-jgz-preview-origin="http://127.0.0.1:4174"',
     );
+  });
+
+  test("the editor and preview pair up at whichever loopback name the editor was opened with", async () => {
+    // A server on 127.0.0.1 also answers at localhost, a different origin.
+    // Opened at localhost, the editor must embed the preview at localhost,
+    // and that preview must allow exactly that editor to frame it.
+    await createProject();
+    const hostnames = browserHostnames("127.0.0.1");
+    expect(hostnames).toEqual(["127.0.0.1", "localhost", "[::1]"]);
+    const editor = createSandboxServerHandler({
+      projectsRoot,
+      access: "editor",
+      previewOrigin: "http://127.0.0.1:4174",
+      hostnames,
+    });
+    const preview = createSandboxPreviewServerHandler({
+      projectsRoot,
+      parentOrigin: "http://127.0.0.1:4173",
+      hostnames,
+    });
+
+    for (const [hostname, expectedHostname] of [
+      ["localhost", "localhost"],
+      ["127.0.0.1", "127.0.0.1"],
+      ["[::1]", "[::1]"],
+      // Names that aren't the server's keep the printed address, so a
+      // rebound DNS name can't make the preview trust its own origin.
+      ["attacker.example", "127.0.0.1"],
+    ] as const) {
+      const shell = await editor(new Request(`http://${hostname}:4173/`));
+      expect(await shell.text()).toContain(
+        `data-jgz-preview-origin="http://${expectedHostname}:4174"`,
+      );
+
+      const play = await preview(
+        new Request(`http://${hostname}:4174/play/demo_game`),
+      );
+      expect(play.status).toBe(200);
+      expect(play.headers.get("content-security-policy")).toBe(
+        `frame-ancestors http://${expectedHostname}:4173`,
+      );
+      expect(await play.text()).toContain(
+        `data-jgz-parent-origin="http://${expectedHostname}:4173"`,
+      );
+
+      const source = await preview(
+        new Request(
+          `http://${hostname}:4174/api/projects/demo_game/files/main.js`,
+        ),
+      );
+      expect(source.headers.get("access-control-allow-origin")).toBe(
+        `http://${expectedHostname}:4173`,
+      );
+    }
+  });
+
+  test("only a loopback server is offered under its other loopback names", () => {
+    expect(browserHostnames("localhost")).toEqual([
+      "localhost",
+      "127.0.0.1",
+      "[::1]",
+    ]);
+    expect(browserHostnames("[::1]")).toEqual([
+      "[::1]",
+      "127.0.0.1",
+      "localhost",
+    ]);
+    expect(browserHostnames("192.168.1.20")).toEqual(["192.168.1.20"]);
+    expect(browserHostnames("example.test")).toEqual(["example.test"]);
   });
 
   test("editor mutations reject learner-preview origins", async () => {

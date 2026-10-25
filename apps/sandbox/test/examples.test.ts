@@ -19,6 +19,13 @@ test("example manifest exposes complete smoke metadata", async () => {
     expect(example.smokeMarker).toBe("__jgzExampleStatus");
     expect(example.tutorial).toMatch(/^examples\/.+\/README\.md$/);
     expect(example.e2eScenario.length).toBeGreaterThan(0);
+    // Learners read the title and description on the gallery cards: a
+    // title-cased name, and a sentence of its own, not the test scenario.
+    expect(example.title).not.toMatch(/ (?:And|Or|Of|The|To|With|In|On) /);
+    expect(example.description).toMatch(/^[A-Z].*\.$/);
+    expect(example.description.toLowerCase()).not.toContain(
+      example.e2eScenario.toLowerCase(),
+    );
     expect(["global", "import"]).toContain(example.mode);
     expect(["keyboard", "mouse", "none"]).toContain(example.expectsInput);
 

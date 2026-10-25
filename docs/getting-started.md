@@ -32,7 +32,8 @@ project files to disk as you type.
 bun run dev:sandbox
 ```
 
-Then open **http://localhost:4173**. On first run you'll see two ways to
+Then open **http://127.0.0.1:4173**, the address the server prints
+(`http://localhost:4173` works too). On first run you'll see two ways to
 start: **Start from an example** clones one of the shipped example games
 into a new project you can edit freely, and **Blank project** starts from a
 tiny working game (an arrow-key-controlled circle) so you have something on
@@ -55,7 +56,7 @@ The sandbox also serves the example games listed in
 [`docs/examples.md`](examples.md) — they're the same games offered in the
 "Start from an example" gallery, and they're a good way to see idiomatic
 code before writing your own. With the sandbox running, open the **Examples**
-button in the top bar, or browse to `http://localhost:4173/examples`.
+button in the top bar, or browse to `http://127.0.0.1:4173/examples`.
 
 ## For teachers: running a classroom session
 
@@ -72,15 +73,19 @@ button in the top bar, or browse to `http://localhost:4173/examples`.
 
 ## Troubleshooting
 
-**"Address already in use" / the sandbox won't start on port 4173.**
-Something else is already listening on that port — either stop it, or run
-the sandbox on a different port:
+**The sandbox won't start: "Failed to start server. Is port 4173 in use?"**
+The sandbox uses two ports: 4173 for the editor, and the next one, 4174, for
+the game preview. The message names the one that's taken. Something else is
+already listening on it — either stop that, or run the sandbox on different
+ports:
 
 ```sh
 bun apps/sandbox/src/server.ts --port 4200
 ```
 
-then open `http://localhost:4200` instead.
+The preview then uses 4201, and you open `http://127.0.0.1:4200` instead.
+To choose the preview's port yourself, add `--preview-port`, for example
+`--preview-port 4300`.
 
 **I pressed Play but there's no sound.** Browsers block audio until the
 page has seen a user gesture (a click or key press). Click anywhere in the

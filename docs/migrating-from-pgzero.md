@@ -70,26 +70,26 @@ to onKeyDown.`) — see [`docs/reference/hooks.md`](reference/hooks.md).
 | `clock.schedule`, `schedule_interval`, `schedule_unique`, `unschedule`, `each_tick` | `clock.schedule`, `scheduleInterval`, `scheduleUnique`, `unschedule`, `eachTick` | See [`docs/reference/clock.md`](reference/clock.md).                                                    |
 | `animate(obj, tween='linear', duration=1, x=300)`                                   | `animate(obj, { tween: "linear", duration: 1, x: 300 })`                         | Python keyword arguments become one options object — see "Animation" below.                             |
 | `sounds.eep.play()`, `music.play("theme")`                                          | Same                                                                             | See [`docs/reference/audio.md`](reference/audio.md).                                                    |
-| `tone.play('A4', 0.2)`                                                              | Same                                                                             | See "Tone" below for the duration cap.                                                                  |
+| `tone.play('A4', 0.2)`                                                              | Same                                                                             | The same 4-second cap; see below for how a bad duration fails.                                          |
 | `storage["score"]`, `storage.get(...)`                                              | Same, plus `storage.score`                                                       | See "Storage" below.                                                                                    |
 | `images.alien`, `sounds.eep`, `music`                                               | Same                                                                             | See [`docs/reference/loaders.md`](reference/loaders.md).                                                |
 
 ### Every renamed name
 
-| Pygame Zero                                                                                                                                                                                     | js-game-zero                                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hooks: `on_key_down`, `on_key_up`, `on_mouse_down`, `on_mouse_up`, `on_mouse_move`, `on_music_end`                                                                                              | `onKeyDown`, `onKeyUp`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMusicEnd`                                                                                  |
-| Positions: `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `centerx`, `centery`                                                               | `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `midTop`, `midLeft`, `midRight`, `midBottom`, `centerX`, `centerY`                                           |
-| Collisions: `collidepoint`, `colliderect`, `collidelist`, `collidelistall`, `collidedict`, `collidedictall`                                                                                     | `collidePoint`, `collideRect`, `collideList`, `collideListAll`, `collideDict`, `collideDictAll`                                                                  |
-| Rect changes: `move_ip`, `inflate_ip`, `clamp_ip`, `clip_ip`, `union_ip`, `unionall`, `unionall_ip`                                                                                             | `moveIp`, `inflateIp`, `clampIp`, `clipIp`, `unionIp`, `unionAll`, `unionAllIp`                                                                                  |
-| Actor: `angle_to`, `distance_to`                                                                                                                                                                | `angleTo`, `distanceTo`                                                                                                                                          |
-| Drawing: `screen.draw.filled_circle`, `filled_rect`, `filled_polygon`; the text option `min_fontsize`                                                                                           | `screen.draw.filledCircle`, `filledRect`, `filledPolygon`; `minFontsize`                                                                                         |
-| Images: `get_width()`, `get_height()`, `get_size()`, `get_rect()`                                                                                                                               | `getWidth()`, `getHeight()`, `getSize()`, `getRect()`                                                                                                            |
-| Sounds: `get_length()`, `set_volume()`, `get_volume()`                                                                                                                                          | `getLength()`, `setVolume()`, `getVolume()`                                                                                                                      |
-| Music: `play_once`, `fadeout`, `set_volume`, `get_volume`, `get_pos`, `set_pos`, `is_playing`                                                                                                   | `playOnce`, `fadeOut`, `setVolume`, `getVolume`, `getPos`, `setPos`, `isPlaying`                                                                                 |
-| Clock: `schedule_interval`, `schedule_unique`, `each_tick`                                                                                                                                      | `scheduleInterval`, `scheduleUnique`, `eachTick`                                                                                                                 |
-| Storage: `setdefault`                                                                                                                                                                           | `setDefault`                                                                                                                                                     |
-| Animation: `on_finished`; tweens `accel_decel`, `in_elastic`, `out_elastic`, `in_out_elastic`, `bounce_end`, `bounce_start`, `bounce_start_end`, `end_elastic`, `start_elastic`, `both_elastic` | `onFinished`; `accelDecel`, `inElastic`, `outElastic`, `inOutElastic`, `bounceEnd`, `bounceStart`, `bounceStartEnd`, `endElastic`, `startElastic`, `bothElastic` |
+| Pygame Zero                                                                                                                                     | js-game-zero                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Hooks: `on_key_down`, `on_key_up`, `on_mouse_down`, `on_mouse_up`, `on_mouse_move`, `on_music_end`                                              | `onKeyDown`, `onKeyUp`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMusicEnd`                                        |
+| Positions: `topleft`, `topright`, `bottomleft`, `bottomright`, `midtop`, `midleft`, `midright`, `midbottom`, `centerx`, `centery`               | `topLeft`, `topRight`, `bottomLeft`, `bottomRight`, `midTop`, `midLeft`, `midRight`, `midBottom`, `centerX`, `centerY` |
+| Collisions: `collidepoint`, `colliderect`, `collidelist`, `collidelistall`, `collidedict`, `collidedictall`                                     | `collidePoint`, `collideRect`, `collideList`, `collideListAll`, `collideDict`, `collideDictAll`                        |
+| Rect changes: `move_ip`, `inflate_ip`, `clamp_ip`, `clip_ip`, `union_ip`, `unionall`, `unionall_ip`                                             | `moveIp`, `inflateIp`, `clampIp`, `clipIp`, `unionIp`, `unionAll`, `unionAllIp`                                        |
+| Actor: `angle_to`, `distance_to`                                                                                                                | `angleTo`, `distanceTo`                                                                                                |
+| Drawing: `screen.draw.filled_circle`, `filled_rect`, `filled_polygon`                                                                           | `screen.draw.filledCircle`, `filledRect`, `filledPolygon`                                                              |
+| Images: `get_width()`, `get_height()`, `get_size()`, `get_rect()`                                                                               | `getWidth()`, `getHeight()`, `getSize()`, `getRect()`                                                                  |
+| Sounds: `get_length()`, `set_volume()`, `get_volume()`                                                                                          | `getLength()`, `setVolume()`, `getVolume()`                                                                            |
+| Music: `play_once`, `fadeout`, `set_volume`, `get_volume`, `get_pos`, `set_pos`, `is_playing`                                                   | `playOnce`, `fadeOut`, `setVolume`, `getVolume`, `getPos`, `setPos`, `isPlaying`                                       |
+| Clock: `schedule_interval`, `schedule_unique`, `each_tick`                                                                                      | `scheduleInterval`, `scheduleUnique`, `eachTick`                                                                       |
+| Storage: `setdefault`                                                                                                                           | `setDefault`                                                                                                           |
+| Animation: `on_finished`; tweens `accel_decel`, `in_elastic`, `out_elastic`, `in_out_elastic`, `bounce_end`, `bounce_start`, `bounce_start_end` | `onFinished`; `accelDecel`, `inElastic`, `outElastic`, `inOutElastic`, `bounceEnd`, `bounceStart`, `bounceStartEnd`    |
 
 Pygame Zero names that are one word, or run words together with no
 camelCase spelling, keep their spelling: `blit`, `unschedule`, `unpause`,
@@ -106,12 +106,17 @@ project's source, not assumptions from the Python API's shape.
   JavaScript has no equivalent of Python's `**kwargs`, so
   `animate(ship, angle=90, tween='bounce_end')` becomes
   `animate(ship, { angle: 90, tween: "bounceEnd" })` — the tweens are
-  otherwise Pygame Zero's same 13 curves, in camelCase (plus friendlier
-  names such as `easeOut` and `bounce`). See
+  otherwise Pygame Zero's same 10 curves, in camelCase. `tween` also
+  accepts friendlier names such as `easeOut` and `bounce`, and
+  `endElastic`, `startElastic` and `bothElastic`, the names older Pygame
+  Zero docs gave the elastic curves: 18 names in all. See
   [`docs/reference/clock.md#animation`](reference/clock.md#animation).
-- **Generated tones are capped at 4 seconds.** `tone.play(note, duration)`
-  throws a `RangeError` if `duration` is greater than `4` (or not greater
-  than `0`). `tone` is meant for short blips; use `music` for anything
+- **A bad tone duration is a rejected Promise, not an immediate error.**
+  Tones are capped at 4 seconds in both, and neither accepts a duration of
+  `0`. Pygame Zero raises `ValueError` from `tone.play` straight away. Here
+  `tone.play(note, duration)` is async, so it returns a Promise that rejects
+  with a `RangeError` when `duration` is greater than `4` or not greater
+  than `0`. `tone` is meant for short blips; use `music` for anything
   longer.
 - **Browser audio needs a user gesture, every time, no exceptions.**
   Pygame Zero (a desktop app) can play sound the instant the game starts.
@@ -120,21 +125,24 @@ project's source, not assumptions from the Python API's shape.
   first sound cue to be triggered by player input, not by `draw()` on
   frame one. See the tutorial's [sound and tone
   step](tutorial.md#7-sound-and-tone).
-- **`storage` is a proxy object, not a `dict` subclass.** Both support
-  `storage["key"]`/`storage.key` and `.get`/`.setdefault`/`.clear` the same
-  way Pygame Zero's `storage` does, but this project's `storage` is a class
+- **`storage` is a proxy object, not a `dict` subclass.** Pygame Zero's
+  `storage` is a `dict`, so you use `storage["key"]` and dict methods such
+  as `.get`, `.setdefault` and `.clear`. Here `storage["key"]`, `.get` and
+  `.clear` work the same, `setdefault` is spelled `setDefault`, and
+  `storage.key` works too. But this project's `storage` is a class
   instance with real methods (`save`, `load`, `path`, ...) exposed through a
   JavaScript `Proxy` — using one of those method names as your own key (e.g.
   `storage.save = 5`) overwrites the method instead of storing a value. A
   Python dict has no such collision, since `dict` methods live outside `d[k]`
-  attribute access. See [`docs/reference/storage.md`](reference/storage.md).
+  item access. See [`docs/reference/storage.md`](reference/storage.md).
   Saving and loading are also automatic here (see the same page) where
   Pygame Zero's storage is saved explicitly.
 - **One `Rect` class, always using floating-point coordinates.** Real
   pygame has a strictly-integer `Rect` and Pygame Zero layers its own
   float-friendly `ZRect` on top to work around that. JavaScript numbers are
-  always floating point, so there's no such split here — `Rect` and `ZRect`
-  are the exact same class, and neither ever truncates to an integer. If a
+  always floating point, so there's no such split here — `ZRect` is a
+  subclass of `Rect` that adds nothing, both use floating-point coordinates,
+  and neither ever truncates to an integer. If a
   ported script relied on pygame's `Rect` silently truncating coordinates,
   check for that assumption explicitly.
 - **No `antialias` option on text.** Pygame Zero's `ptext`-based text
