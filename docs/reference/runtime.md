@@ -122,7 +122,7 @@ instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 | `assetBaseUrl`       | Where asset URLs are rooted (default `/assets`).                                                                                                                                                                                                               |
 | `assetUrls`          | The game's assets by path, each with its URL: `{ "images/cat.svg": "data:image/svg+xml;base64,…" }`. When set, assets load only from here, never from `assetBaseUrl`. See [assets without a server](loaders.md#assets-without-a-server).                       |
 | `preload`            | An array of asset paths (e.g. `["images/player.svg"]`) to start loading immediately, before any is referenced by code.                                                                                                                                         |
-| `preloadedAssets`    | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes (e.g. the sandbox preview).                                                                                                |
+| `preloadedAssets`    | Pre-built `{ images, sounds, music, fonts }` asset maps to seed the cache synchronously — used by hosts that already have the bytes. `loadImages(assetUrls)` makes the `images` map; see [assets without a server](loaders.md#assets-without-a-server).        |
 | `storage`            | A `Storage` instance or a raw `StorageAdapter` (`{ path, load(), save(text) }`) to use instead of the default `localStorage`-backed one.                                                                                                                       |
 | `loaders`            | Override one or more of the `images`/`sounds`/`music`/`fonts` loader instances.                                                                                                                                                                                |
 | `keyboardTarget`     | The `EventTarget` that receives keyboard events (default `window`).                                                                                                                                                                                            |
@@ -175,9 +175,14 @@ directly to end itself.
 ## Preload gate
 
 Each run tracks its own required image and font loads (Actor constructions,
-`images.player` touches, and `preload` entries) and holds drawing until those
-loads and storage initialization settle. A required image/font failure rejects
-`handle.ready`, fails the handle, and performs cleanup. Sound and music loads
+`images.player` touches, and `preload` entries) and holds frames, with no
+`update` and no `draw`, until those loads and storage initialization settle.
+An image or font first asked for later, in a hook (a new `actor.image`, a first
+`screen.blit`), holds the frames after it the same way until it has loaded,
+and `handle.step()` does nothing meanwhile. So a host that steps a game in a
+synchronous loop should hand it its images decoded, with
+[`loadImages`](loaders.md#assets-without-a-server). A required image/font
+failure rejects `handle.ready`, fails the handle, and performs cleanup. Sound and music loads
 are recoverable: they report a warning but never freeze another run or stop
 rendering. `handle.ready` lets hosts await startup explicitly instead of
 polling.
@@ -258,8 +263,9 @@ file at `@js-game-zero/core/reference/<page>.md`.
 | `read(path)`     | The live value at a binding or a [state path](#state-paths), as it is.                                                                    |
 | `inspect(path?)` | The value at a path as JSON, exactly as `jgz`'s `inspect` reports it (`serializeGameValue`); with no path, every binding's value by name. |
 
-The same module exports `serializeGameValue(value)`, `parseStatePath(source)`
-and `createSeededRandom(seed)`.
+The same module exports `serializeGameValue(value)`, `parseStatePath(source)`,
+`createSeededRandom(seed)` and `loadImages(assetUrls)` (see
+[assets without a server](loaders.md#assets-without-a-server)).
 
 ### State paths
 
@@ -276,17 +282,17 @@ in order, rather than one of its bindings, through `read`, `inspect` and
 `jgz`'s `inspect` alike. Each thing drawn has its `kind` and what it is and
 where, as the game gave them:
 
-| `kind`    | Fields                                                  | From                                                      |
-| --------- | ------------------------------------------------------- | --------------------------------------------------------- |
-| `fill`    | `color`, and `to` for a gradient                        | `screen.fill`                                             |
-| `clear`   |                                                         | `screen.clear`                                            |
-| `image`   | `image` (its name), `x`, `y` (its top-left)             | `screen.blit`, `screen.draw.image`                        |
-| `actor`   | `image`, `x`, `y`                                       | an Actor's `draw()`                                       |
-| `circle`  | `x`, `y`, `radius`, `color`, `filled`                   | `screen.circle`, `screen.draw.circle`, `filledCircle`     |
-| `rect`    | `x`, `y`, `width`, `height`, `color`, `filled`          | `screen.rect`, `screen.draw.rect`, `filledRect`           |
-| `polygon` | `x`, `y` (its first point), `points`, `color`, `filled` | `screen.triangle`, `screen.draw.polygon`, `filledPolygon` |
-| `line`    | `x`, `y`, `x2`, `y2`, `color`                           | `screen.line`, `screen.draw.line`                         |
-| `text`    | `text`, and `x`, `y`, `color` when it has them          | `screen.text`, `screen.draw.text`, `screen.draw.textbox`  |
+| `kind`    | Fields                                                                     | From                                                      |
+| --------- | -------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `fill`    | `color`, and `to` for a gradient                                           | `screen.fill`                                             |
+| `clear`   |                                                                            | `screen.clear`                                            |
+| `image`   | `image` (its name), `x`, `y` (its top-left)                                | `screen.blit`, `screen.draw.image`                        |
+| `actor`   | `image`, `x`, `y`                                                          | an Actor's `draw()`                                       |
+| `circle`  | `x`, `y`, `radius`, `color`, `filled`                                      | `screen.circle`, `screen.draw.circle`, `filledCircle`     |
+| `rect`    | `x`, `y`, `width`, `height`, `color`, `filled`                             | `screen.rect`, `screen.draw.rect`, `filledRect`           |
+| `polygon` | `x`, `y` (its first point), `points`, `color`, `filled`                    | `screen.triangle`, `screen.draw.polygon`, `filledPolygon` |
+| `line`    | `x`, `y`, `x2`, `y2`, `color`                                              | `screen.line`, `screen.draw.line`                         |
+| `text`    | `text`, `x`, `y`, `width`, `height` (its box), and `color` when it has one | `screen.text`, `screen.draw.text`, `screen.draw.textbox`  |
 
 `$drawn[0].kind`, `$drawn[2].image` and the like read single things. A frame
 keeps its first 200 things; before the first frame `$drawn` is empty. So a
@@ -301,13 +307,15 @@ with `$type`:
 
 ```js
 serializeGameValue(new Actor("cat", [40, 60]));
-// { $type: "Actor", image: "cat", x: 40, y: 60, width, height, angle, … }
+// { $type: "Actor", image: "cat", x: 40, y: 60, width, height, angle, …, properties: {} }
 serializeGameValue(new Rect(1, 2, 3, 4));
 // { $type: "Rect", left: 1, top: 2, right: 4, bottom: 6, width: 3, height: 4, center: [2.5, 4] }
 serializeGameValue({ missing: undefined, big: Infinity });
 // { big: { $type: "Number", value: "Infinity" }, missing: { $type: "Undefined" } }
 ```
 
+An Actor's `properties` are the fields the game gave it (`cat.speed = 40` is
+`properties.speed`); a `read` gives the Actor itself, so `cat.speed` there.
 Sets, maps, dates and errors are tagged too; values deeper than six levels,
 lists past 100 items and circular references come back as `Truncated` or
 `Circular`.
@@ -332,7 +340,7 @@ predict. A seed that isn't a string or a finite number fails at startup.
 
 ### Driving a game from a host page
 
-The script-tag build (`window.JGZ`) carries `getGameInspector`,
+The script-tag build (`window.JGZ`) carries `loadImages`, `getGameInspector`,
 `serializeGameValue`, `parseStatePath` and `createSeededRandom` beside the
 learner-facing API, so a page can run a game it drives itself, the way the CLI
 does, without a bundler:

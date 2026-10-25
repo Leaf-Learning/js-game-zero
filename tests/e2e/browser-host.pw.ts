@@ -58,6 +58,7 @@ test("a host page runs a seeded game off-screen, drives it and reads its state",
     const api = Object.fromEntries(
       [
         "run",
+        "loadImages",
         "getGameInspector",
         "serializeGameValue",
         "parseStatePath",
@@ -139,6 +140,7 @@ test("a host page runs a seeded game off-screen, drives it and reads its state",
 
   expect(result.api).toEqual({
     run: "function",
+    loadImages: "function",
     getGameInspector: "function",
     serializeGameValue: "function",
     parseStatePath: "function",
@@ -181,6 +183,66 @@ test("a host page runs a seeded game off-screen, drives it and reads its state",
     released: 0,
   });
   expect(result.pageRandomUntouched).toBe(true);
+  expect(errors).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("a host page hands a game its images decoded, so its top level sees their sizes", async ({
+  page,
+}) => {
+  const { errors, pageErrors } = collectPageErrors(page);
+  await page.goto("/fixtures/browser-host");
+  await page.waitForFunction(() => Boolean(window.JGZ?.loadImages));
+
+  const result = await page.evaluate(async () => {
+    const JGZ = window.JGZ!;
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="60">' +
+      '<rect width="40" height="60" fill="tomato"/></svg>';
+    const assetUrls = {
+      "images/box.svg": `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    };
+    // Moving an Actor placed by an edge needs its size, which an image the
+    // run loads itself doesn't have yet while the top level runs.
+    const source = `
+let box = new Actor("box", { midBottom: [100, 180] });
+box.x = 160;
+let atStart = [box.width, box.height, box.bottom];
+`;
+    const start = async (preloaded: boolean) => {
+      const canvas = document.createElement("canvas");
+      const handle = JGZ.run(source, {
+        canvas,
+        autostart: false,
+        keyboardTarget: canvas,
+        mouseReleaseTarget: canvas,
+        assetUrls,
+        ...(preloaded
+          ? { preloadedAssets: { images: await JGZ.loadImages(assetUrls) } }
+          : {}),
+      });
+      await handle.ready;
+      handle.step(0);
+      const inspector = JGZ.getGameInspector(handle)!;
+      const seen = {
+        atStart: inspector.read("atStart"),
+        midBottom: inspector.read("box.midBottom"),
+      };
+      handle.stop();
+      return seen;
+    };
+    return { preloaded: await start(true), loadedByRun: await start(false) };
+  });
+
+  expect(result.preloaded).toEqual({
+    atStart: [40, 60, 180],
+    midBottom: [160, 180],
+  });
+  // What loadImages fixes: the same game sinks 30 pixels without it.
+  expect(result.loadedByRun).toEqual({
+    atStart: [0, 0, 180],
+    midBottom: [160, 210],
+  });
   expect(errors).toEqual([]);
   expect(pageErrors).toEqual([]);
 });

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { parseStatePath as parseHostStatePath } from "@js-game-zero/core/host";
+import {
+  mapBrowserKeyEvent,
+  parseStatePath as parseHostStatePath,
+} from "@js-game-zero/core/host";
 import { parseCliOptions } from "../src/cli";
 import {
   decodeJsonLine,
@@ -139,9 +142,64 @@ describe("read-only state paths", () => {
 
 test("normalizes documented key aliases", () => {
   expect(normalizeKey("left")).toBe("ArrowLeft");
-  expect(normalizeKey("a")).toBe("A");
+  expect(normalizeKey("a")).toBe("KeyA");
+  expect(normalizeKey("A")).toBe("KeyA");
+  expect(normalizeKey("7")).toBe("Digit7");
   expect(normalizeKey("F12")).toBe("F12");
+  expect(normalizeKey("backspace")).toBe("Backspace");
+  expect(normalizeKey("PageUp")).toBe("PageUp");
+  expect(normalizeKey(",")).toBe("Comma");
+  expect(normalizeKey("/")).toBe("Slash");
+  expect(normalizeKey("numpad1")).toBe("Numpad1");
+  expect(normalizeKey("ShiftLeft")).toBe("ShiftLeft");
+  expect(normalizeKey("keyq")).toBe("KeyQ");
   expect(() => normalizeKey("Hyper")).toThrow("Unsupported key");
+  // Shifted marks are typed with Shift held, as on a keyboard.
+  expect(() => normalizeKey("!")).toThrow("Unsupported key");
+  // Playwright can't press these.
+  expect(() => normalizeKey("F13")).toThrow("Unsupported key");
+});
+
+test("every key jgz presses is one the engine maps", () => {
+  const names = [
+    ..."abcdefghijklmnopqrstuvwxyz0123456789-=[]\\;'`,./",
+    "left",
+    "right",
+    "up",
+    "down",
+    "space",
+    "enter",
+    "escape",
+    "backspace",
+    "tab",
+    "delete",
+    "insert",
+    "home",
+    "end",
+    "pageup",
+    "pagedown",
+    "capslock",
+    "numlock",
+    "scrolllock",
+    "pause",
+    "printscreen",
+    "contextmenu",
+    "shiftleft",
+    "shiftright",
+    "controlleft",
+    "altright",
+    "metaleft",
+    "numpadenter",
+    "numpadadd",
+    "numpad0",
+    "numpad9",
+    "f1",
+    "f12",
+  ];
+  for (const name of names) {
+    const code = normalizeKey(name);
+    expect(mapBrowserKeyEvent({ code, key: "" })?.key, name).toBeGreaterThan(0);
+  }
 });
 
 test("resolves supplied screenshots from the invocation directory", () => {

@@ -409,7 +409,6 @@ describe("Screen canvas drawing", () => {
 
     screen.blit(surface(6, 7), [3, 4]);
     screen.blit("hero.svg", [1, 2, 30, 40]);
-    await screen.blit("missing", [0, 0]);
 
     expect(context.operations).toContainEqual({
       name: "drawImage",
@@ -419,10 +418,28 @@ describe("Screen canvas drawing", () => {
       name: "drawImage",
       args: [expect.anything(), 1, 2],
     });
-    expect(context.operations).toContainEqual({
-      name: "drawImage",
-      args: [expect.anything(), 0, 0],
+  });
+
+  test("an image that hasn't loaded draws nothing, even once it loads", async () => {
+    const loader = createImageLoader({
+      projectId: "test_project",
+      loadAsset: async () => surface(4, 5),
     });
+    const { screen, context } = mockScreen(loader);
+    const drawnAt = (x: number, y: number) =>
+      context.operations.filter(
+        (operation) =>
+          operation.name === "drawImage" &&
+          operation.args[1] === x &&
+          operation.args[2] === y,
+      ).length;
+
+    // Painting it later would land on top of whatever came after it.
+    await screen.blit("late", [7, 8]);
+    expect(drawnAt(7, 8)).toBe(0);
+
+    screen.blit("late", [7, 8]);
+    expect(drawnAt(7, 8)).toBe(1);
   });
 });
 

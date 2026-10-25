@@ -70,6 +70,23 @@ inspect player.pos
 screenshot
 ```
 
+`<key>` names a key in any case, in one of three ways:
+
+- By name: `left`, `right`, `up`, `down`, `space`, `enter` (or `return`),
+  `escape` (or `esc`), `backspace`, `tab`, `delete`, `insert`, `home`, `end`,
+  `pageup`, `pagedown`, `capslock`, `numlock`, `scrolllock`, `pause`,
+  `printscreen`, `shift`, `ctrl` (or `control`), `alt`, `meta`, and `F1` to
+  `F12`.
+- By what it types unshifted: a letter, a digit, or one of `-` `=` `[` `]`
+  `\` `;` `'` `` ` `` `,` `.` `/`.
+- By its keyboard event `code`, for any other key the engine knows:
+  `Numpad1`, `NumpadEnter`, `ShiftLeft`, `ContextMenu`, and the codes of the
+  keys above (`KeyA`, `Digit1`, `Comma`).
+
+A key is pressed as a keyboard sends it: `key tap a` reaches `onKeyDown` with
+`unicode` `"a"`, and with `shift` held down it's `"A"` (`7` is `"&"`, `,` is
+`"<"`). The number pad presses with NumLock off, so it types nothing.
+
 Use `--headed` when you also want a visible game window. `--watch` reloads the
 game after source or asset edits; without it, `restart` is the only operation
 that rereads files. Browser storage survives either kind of restart for the
@@ -141,7 +158,8 @@ strictly observational: calls, assignments, quoted indexes, and prototype
 access are rejected.
 
 Actors are represented by stable summaries containing their image, position,
-size, angle, opacity, anchor, rectangle, and learner-added properties. Other
+size, angle, opacity, anchor and rectangle, and under `properties` the fields
+the game gave them: `bug.speed = 40` is `properties.speed`. Other
 framework objects, sets, maps, undefined or special numeric values, circular
 references, and truncated collections use explicit `$type` tags so the output
 always remains valid JSON.
@@ -160,7 +178,10 @@ inspectable in this first version. Screenshots and input still work normally.
 
 Games start with automatic animation frames disabled. The CLI waits for storage
 and render assets, calls one `step(0)` to draw the initial screen, and advances
-only in response to `step`. The default step is one sixtieth of a second.
+only in response to `step`. The default step is one sixtieth of a second. A
+`step` runs `count` frames (a whole number from 1 to 100,000) of `dt` seconds
+each (0 or more), so `{"command": "step", "dt": 0}` runs one frame without
+moving time on, and a `count` of 0 is refused.
 
 `--seed <value>` gives the game the same repeatable sequence after each
 restart: `Math.random`, `randomInt` and `randomChoice` follow it. It is

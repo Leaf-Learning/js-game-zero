@@ -117,6 +117,30 @@ function draw() {
   handle.stop();
 });
 
+test("text is recorded with its box, however it was placed", () => {
+  // Every character measures 10 wide, and a line at fontsize 20 is 24 tall.
+  const handle = run(
+    `
+function draw() {
+  screen.draw.text("Hi", [20, 30], { fontsize: 20 })
+  screen.draw.text("Mid", { center: [180, 100], fontsize: 20 })
+  screen.draw.text("End", [300, 50], { anchor: "bottomRight", fontsize: 20 })
+  screen.draw.textbox("Box", [10, 400, 100, 40])
+}
+`,
+    { canvas: new QuietCanvas() as unknown as RuntimeCanvas, autostart: false },
+  );
+  const inspector = getGameInspector(handle)!;
+  handle.step(1 / 60);
+  expect(inspector.inspect("$drawn")).toEqual([
+    { kind: "text", text: "Hi", x: 20, y: 30, width: 20, height: 24 },
+    { kind: "text", text: "Mid", x: 165, y: 88, width: 30, height: 24 },
+    { kind: "text", text: "End", x: 270, y: 26, width: 30, height: 24 },
+    { kind: "text", text: "Box", x: 10, y: 400, width: 100, height: 40 },
+  ]);
+  handle.stop();
+});
+
 test("an Actor drawn is recorded with its picture and position", () => {
   const loader = createImageLoader({
     projectId: "test_project",

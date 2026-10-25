@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
-import { Rect, run, type RuntimeCanvas } from "@js-game-zero/core";
 import {
+  ImageSurface,
+  Rect,
+  run,
+  type DrawableImage,
+  type RuntimeCanvas,
+} from "@js-game-zero/core";
+import {
+  createImageLoader,
   getGameInspector,
   parseStatePath,
   serializeGameValue,
@@ -23,6 +30,37 @@ class MockCanvas extends EventTarget {
   remove(): void {}
 }
 const canvas = () => new MockCanvas() as unknown as RuntimeCanvas;
+
+test("an Actor's properties are the fields the game gave it, and nothing of the engine's", async () => {
+  const images = createImageLoader({
+    loadAsset: async () => new ImageSurface({} as DrawableImage, 20, 10),
+  });
+  const handle = run(
+    `
+let bug = new Actor("bug", [50, 40]);
+bug.images = ["bug", "bug"];
+bug.fps = 12;
+bug.loop = false;
+bug.speed = 40;
+`,
+    { canvas: canvas(), autostart: false, loaders: { images } },
+  );
+  await handle.ready;
+  expect(getGameInspector(handle)!.inspect("bug")).toMatchObject({
+    $type: "Actor",
+    image: "bug",
+    width: 20,
+    height: 10,
+    properties: { speed: 40 },
+  });
+  expect(
+    Object.keys(
+      (getGameInspector(handle)!.inspect("bug") as { properties: object })
+        .properties,
+    ),
+  ).toEqual(["speed"]);
+  await handle.dispose();
+});
 
 test("serializes framework and non-JSON values with stable tags", () => {
   const circular: Record<string, unknown> = { value: 1 };

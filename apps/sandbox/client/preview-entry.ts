@@ -1,9 +1,9 @@
 import {
-  ImageSurface,
   run,
   type RuntimeDiagnostic,
   type SurfaceLike,
 } from "@js-game-zero/core";
+import { loadImages } from "@js-game-zero/core/host";
 import { assetSourceUrl, getProject, readFile } from "./api";
 
 type ConsoleLevel = "log" | "info" | "warn" | "error";
@@ -132,21 +132,6 @@ canvas.addEventListener("blur", () =>
 );
 window.addEventListener("focus", () => canvas.focus());
 
-function loadImageSurface(path: string): Promise<SurfaceLike> {
-  return new Promise((resolve, reject) => {
-    const image = new window.Image();
-    image.addEventListener("load", () => resolve(new ImageSurface(image)), {
-      once: true,
-    });
-    image.addEventListener(
-      "error",
-      () => reject(new Error(`Failed to preload ${path}`)),
-      { once: true },
-    );
-    image.src = assetSourceUrl(project, path);
-  });
-}
-
 /**
  * Zero-boilerplate code often accesses images synchronously at the top of
  * the file (e.g. `images.player.getSize()` right after declaring an
@@ -160,33 +145,18 @@ function loadImageSurface(path: string): Promise<SurfaceLike> {
 async function preloadAssets(
   files: readonly string[],
 ): Promise<{ images: Record<string, SurfaceLike>; preload: string[] }> {
-  const images: Record<string, SurfaceLike> = {};
-  const preload: string[] = [];
-  const imagePaths = files.filter((path) => path.startsWith("images/"));
-  const loaded = await Promise.all(
-    imagePaths.map(async (path) => {
-      try {
-        return [path, await loadImageSurface(path)] as const;
-      } catch {
-        return null;
-      }
-    }),
+  const imageUrls = Object.fromEntries(
+    files
+      .filter((path) => path.startsWith("images/"))
+      .map((path) => [path, assetSourceUrl(project, path)]),
   );
-  for (const entry of loaded) {
-    if (!entry) continue;
-    const [path, surface] = entry;
-    images[path.slice("images/".length)] = surface;
-  }
-  for (const path of files) {
-    if (
+  const preload = files.filter(
+    (path) =>
       path.startsWith("sounds/") ||
       path.startsWith("music/") ||
-      path.startsWith("fonts/")
-    ) {
-      preload.push(path);
-    }
-  }
-  return { images, preload };
+      path.startsWith("fonts/"),
+  );
+  return { images: await loadImages(imageUrls), preload };
 }
 
 forwardConsole();

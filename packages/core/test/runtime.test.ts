@@ -23,6 +23,7 @@ import {
   createImageLoader,
   createSoundLoader,
   getGameInspector,
+  loadImages,
   type RuntimeDiagnostic,
   type RuntimeScheduler,
 } from "@js-game-zero/core/host";
@@ -2193,29 +2194,46 @@ function draw() {}
   });
 });
 
+/**
+ * Stands in for HTMLImageElement while `body` runs, with just enough of it
+ * for the browser image loader: every image is 24×12 and loads on the next
+ * microtask, except a URL with "broken" in it, which fails. `body` gets the
+ * URLs requested so far.
+ */
+async function withFakeImages(
+  body: (requested: readonly string[]) => Promise<void>,
+): Promise<void> {
+  const requested: string[] = [];
+  class FakeImage {
+    decoding = "";
+    readonly naturalWidth = 24;
+    readonly naturalHeight = 12;
+    private readonly listeners = new Map<string, () => void>();
+    addEventListener(type: string, listener: () => void): void {
+      this.listeners.set(type, listener);
+    }
+    set src(url: string) {
+      requested.push(url);
+      const outcome = url.includes("broken") ? "error" : "load";
+      queueMicrotask(() => this.listeners.get(outcome)?.());
+    }
+  }
+  const original = Object.getOwnPropertyDescriptor(globalThis, "Image");
+  Object.defineProperty(globalThis, "Image", {
+    configurable: true,
+    value: FakeImage,
+  });
+  try {
+    await body(requested);
+  } finally {
+    if (original) Object.defineProperty(globalThis, "Image", original);
+    else Reflect.deleteProperty(globalThis, "Image");
+  }
+}
+
 describe("assets from a map (assetUrls)", () => {
   test("an Actor's image loads from its URL in assetUrls, with no asset server", async () => {
-    const requested: string[] = [];
-    // Just enough of HTMLImageElement for the browser image loader.
-    class FakeImage {
-      decoding = "";
-      readonly naturalWidth = 24;
-      readonly naturalHeight = 12;
-      private readonly listeners = new Map<string, () => void>();
-      addEventListener(type: string, listener: () => void): void {
-        this.listeners.set(type, listener);
-      }
-      set src(url: string) {
-        requested.push(url);
-        queueMicrotask(() => this.listeners.get("load")?.());
-      }
-    }
-    const original = Object.getOwnPropertyDescriptor(globalThis, "Image");
-    Object.defineProperty(globalThis, "Image", {
-      configurable: true,
-      value: FakeImage,
-    });
-    try {
+    await withFakeImages(async (requested) => {
       const assetUrls = { "images/cat.svg": "data:image/svg+xml,cat" };
       const handle = run(
         `
@@ -2238,9 +2256,55 @@ function draw() {
       expect(requested).toEqual(["data:image/svg+xml,cat"]);
       expect(handle.loaders.images.assetUrls).toEqual(assetUrls);
       await handle.dispose();
-    } finally {
-      if (original) Object.defineProperty(globalThis, "Image", original);
-      else Reflect.deleteProperty(globalThis, "Image");
-    }
+    });
+  });
+
+  test("loadImages decodes every image in a map by its name, leaving out failures", async () => {
+    await withFakeImages(async (requested) => {
+      const images = await loadImages({
+        "images/cat.svg": "data:image/svg+xml,cat",
+        "images/tiles/grass.png": "blob:grass",
+        "images/broken.png": "blob:broken",
+        "sounds/pop.wav": "data:audio/wav,pop",
+      });
+      expect(Object.keys(images).sort()).toEqual([
+        "cat.svg",
+        "tiles/grass.png",
+      ]);
+      expect(images["cat.svg"]?.getSize()).toEqual([24, 12]);
+      expect([...requested].sort()).toEqual([
+        "blob:broken",
+        "blob:grass",
+        "data:image/svg+xml,cat",
+      ]);
+    });
+  });
+
+  test("images from loadImages are ready while a game's top level runs", async () => {
+    await withFakeImages(async () => {
+      const assetUrls = { "images/box.svg": "data:image/svg+xml,box" };
+      // Moving an Actor placed by an edge needs its size: with the image
+      // still loading, it would be placed as if it were 0×0.
+      const handle = run(
+        `
+let box = new Actor("box", { midBottom: [100, 180] });
+box.x = 160;
+let atStart = [box.width, box.height, box.bottom];
+`,
+        {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          assetUrls,
+          preloadedAssets: { images: await loadImages(assetUrls) },
+        },
+      );
+      await handle.ready;
+      handle.step(0);
+      const inspector = getGameInspector(handle)!;
+      expect(inspector.read("atStart")).toEqual([24, 12, 180]);
+      expect(inspector.read("box.midBottom")).toEqual([160, 180]);
+      await handle.dispose();
+    });
   });
 });

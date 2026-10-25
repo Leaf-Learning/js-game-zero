@@ -552,23 +552,21 @@ export class Screen {
     pos: Point | RectLike,
   ): Promise<void> | void {
     const at = rectFromBlitTarget(pos);
+    const surface =
+      typeof image === "string" ? this.imageLoader.get(image) : image;
+    if (!surface) {
+      // Not loaded yet, so this frame draws nothing here: drawing it once it
+      // arrived would paint over whatever the frame drew after it. The
+      // runtime holds the frames that follow until it has loaded.
+      return this.imageLoader.load(image as string).then(() => undefined);
+    }
     recordDrawn(this, {
       kind: "image",
       image: typeof image === "string" ? image : "",
       x: Array.isArray(at) ? at[0] : at.left,
       y: Array.isArray(at) ? at[1] : at.top,
     });
-    if (typeof image === "string") {
-      const cached = this.imageLoader.get(image);
-      if (cached) {
-        this.drawSurface(cached, pos);
-        return;
-      }
-      return this.imageLoader.load(image).then((surface) => {
-        this.drawSurface(surface, pos);
-      });
-    }
-    this.drawSurface(image, pos);
+    this.drawSurface(surface, pos);
   }
 
   /**
@@ -800,10 +798,14 @@ export class Screen {
     rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
     const options = canonicalTextOptions(given, "screen.draw.text");
     const layout = layoutText(this.context, text, pos, options);
+    // Where its box is, however it was placed (a point, center, an anchor).
     recordDrawn(this, {
       kind: "text",
       text: String(text),
-      ...(pos ? { x: pos[0], y: pos[1] } : {}),
+      x: layout.topLeft[0],
+      y: layout.topLeft[1],
+      width: layout.boxWidth,
+      height: layout.boxHeight,
       ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
     });
     renderTextLayout(this.context, layout, options);
@@ -826,6 +828,8 @@ export class Screen {
       text: String(text),
       x: rect.left,
       y: rect.top,
+      width: rect.width,
+      height: rect.height,
       ...(options.color === undefined ? {} : { color: colorOf(options.color) }),
     });
     const fit = fitTextboxFontSize(this.context, text, rect, options);

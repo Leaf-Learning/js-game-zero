@@ -2,6 +2,62 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Images ready before a game starts
+
+- `loadImages(assetUrls)`, in `@js-game-zero/core/host` and on `window.JGZ`,
+  decodes every image in an asset map for `preloadedAssets`. `run()` starts
+  a game's code at once, so an image the run loads itself has no size while
+  the top level runs: `player.width` read 0 there, and an Actor placed by
+  `midBottom` and then moved landed as if it were 0×0, sunk by half its
+  height. Images handed over decoded are ready from the first line, as they
+  already were in `jgz` and the sandbox preview, which now use `loadImages`
+  themselves.
+- The Actor reference no longer suggests `await player.ready()` at a game's
+  top level, which a zero-boilerplate game can't do.
+
+### Late images
+
+- `screen.blit` and `screen.draw.image` draw nothing for an image that
+  hasn't loaded, and their `Promise` resolves once it has. They used to draw
+  it when it arrived, outside any frame and on top of whatever the frame drew
+  after it, while `$drawn` already listed it. The runtime holds the frames
+  that follow until it loads, so it shows from the next one, as before.
+- The reference says what a late image or font holds: whole frames, `update`
+  as well as `draw`, while `handle.step()` does nothing. It said only drawing
+  waited.
+
+### The CLI's keys
+
+- `jgz` presses a letter or digit by its key, as a keyboard does: `a` and `A`
+  both arrive with `unicode` `"a"`, and as `"A"` while Shift is held (`7`
+  with Shift is `"&"`). It used to send `"A"` with no Shift, which no
+  keyboard sends, so a typing game behaved differently under `jgz` than in a
+  browser.
+- `jgz` presses every key the engine knows: Backspace, Tab, Delete, Home,
+  End, Page Up and Down, the lock keys, punctuation (`,` or `Comma`), the
+  number pad, left and right modifiers, and any key by its `code`. It
+  pressed only the arrows, Space, Enter, Escape, the modifiers, letters,
+  digits and F-keys. F13 to F15, which Playwright can't press, are refused
+  up front instead of failing in the browser. `docs/cli.md` lists the names.
+
+### Where text is drawn
+
+- A `$drawn` text entry gives its box, `x`, `y`, `width` and `height`,
+  however the text was placed. Text placed by `center`, `midTop` or another
+  named point had no position at all, and text at a point with an `anchor`
+  gave the anchor point, so a check couldn't tell where a centred title was.
+
+### Inspecting Actors
+
+- An inspected Actor's `properties` are only the fields the game gave it.
+  Flip-book Actors also showed the engine's own `_images`, `_fps`, `_loop`,
+  `animationStart` and `clockSource`, the last as a whole clock. The CLI and
+  runtime references now name `properties`.
+- `docs/cli.md` gives a `step`'s limits: a `count` from 1 to 100,000 and a
+  `dt` of 0 or more.
+
 ## 0.2.0 — 2026-10-24
 
 ### Ready for npm
