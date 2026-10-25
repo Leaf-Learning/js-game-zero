@@ -70,6 +70,7 @@ async function main(): Promise<void> {
   await checkExamplesDoc();
   await checkNoForbiddenLanguage();
   await checkCiWorkflow();
+  await checkReleaseWorkflow();
   await checkBuildMetadata();
   await checkLicenseBoundary();
 
@@ -206,15 +207,7 @@ async function checkNoForbiddenLanguage(): Promise<void> {
 
 async function checkCiWorkflow(): Promise<void> {
   const workflow = await Bun.file(".github/workflows/ci.yml").text();
-  let previousIndex = -1;
-  for (const step of requiredCiSteps) {
-    const index = workflow.indexOf(step);
-    if (index === -1) fail(`CI workflow must include: ${step}`);
-    if (index < previousIndex) {
-      fail(`CI workflow step is out of order: ${step}`);
-    }
-    previousIndex = index;
-  }
+  checkWorkflowSteps("CI workflow", workflow, requiredCiSteps);
 
   const rootPackage = await readPackageJson("package.json");
   const lintScript = rootPackage.scripts?.lint ?? "";
@@ -222,6 +215,33 @@ async function checkCiWorkflow(): Promise<void> {
     fail(
       "The lint script must include typecheck so CI covers static analysis.",
     );
+  }
+}
+
+// The release checks its commit as CI does before it publishes, and npm
+// trusts it through the job's OIDC token.
+async function checkReleaseWorkflow(): Promise<void> {
+  const workflow = await Bun.file(".github/workflows/release.yml").text();
+  checkWorkflowSteps("Release workflow", workflow, [
+    ...requiredCiSteps,
+    "bun run release:pack --tag",
+  ]);
+  if (!workflow.includes("id-token: write")) {
+    fail("Release workflow must grant id-token: write for npm.");
+  }
+}
+
+function checkWorkflowSteps(
+  label: string,
+  workflow: string,
+  steps: readonly string[],
+): void {
+  let previousIndex = -1;
+  for (const step of steps) {
+    const index = workflow.indexOf(step);
+    if (index === -1) fail(`${label} must include: ${step}`);
+    if (index < previousIndex) fail(`${label} step is out of order: ${step}`);
+    previousIndex = index;
   }
 }
 
@@ -258,7 +278,7 @@ async function checkLicenseBoundary(): Promise<void> {
     !licenseText.startsWith("MIT License\n") ||
     !licenseText.includes("Copyright (c) 2026 Taha Rafiq") ||
     // The tweens' curves are Penner's, under MIT on his terms.
-    !licenseText.includes("Easing equations copyright (c) 2001 Robert Penner")
+    !licenseText.includes("Copyright (c) 2001 Robert Penner (easing equations)")
   ) {
     fail("LICENSE must be the MIT License with both copyright notices.");
   }

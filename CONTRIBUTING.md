@@ -25,6 +25,8 @@ bunx playwright install chromium
 - `packages/core` — the framework itself (rendering, actors, geometry,
   input, animation, audio, storage). Most contributions land here.
 - `packages/browser-runtime` — the zero-boilerplate wrapper.
+- `packages/cli` — the `jgz` command, which runs a game in Chromium to
+  drive input, inspect state and take screenshots (see `docs/cli.md`).
 - `apps/sandbox` — the local editor/preview server (`apps/sandbox/src`) and
   its browser UI (`apps/sandbox/client`).
 - `examples` — playable example games, listed in `examples/manifest.ts`.
@@ -38,7 +40,8 @@ bunx playwright install chromium
 bun run dev:sandbox
 ```
 
-Opens on `http://localhost:4173`, storing projects under `.jgz-projects`.
+Opens on `http://127.0.0.1:4173` (the game preview uses port 4174), storing
+projects under `.jgz-projects`.
 Pass `-- --projects-root <path>` for a disposable project directory while
 iterating.
 
@@ -50,10 +53,11 @@ bun run test:e2e       # Playwright browser tests
 bun run docs:check     # documentation consistency checks
 ```
 
-Unit tests live next to the code they cover, as `*.test.ts` files, and run
-under Bun's built-in test runner. Browser (e2e) tests live in `tests/e2e`
-as `*.pw.ts` files and drive a real Chromium instance against a locally
-started sandbox server — see `playwright.config.ts`.
+Unit tests live in each package's `test/` directory (`packages/core/test`,
+`packages/cli/test`, `apps/sandbox/test`, and so on), as `*.test.ts` files,
+and run under Bun's built-in test runner. Browser (e2e) tests live in
+`tests/e2e` as `*.pw.ts` files and drive a real Chromium instance against a
+locally started sandbox server — see `playwright.config.ts`.
 
 If you add or change a public API in `packages/core`, add or update a unit
 test alongside it, and update the relevant page under `docs/reference/` in
@@ -88,7 +92,8 @@ over the documentation, not just a link checker:
 - Every JavaScript code block in `docs/tutorial.md` and `docs/cookbook.md`
   actually compiles.
 - README's shell command blocks reference real `package.json` scripts.
-- The CI workflow includes the expected steps, in order.
+- The CI workflow includes the expected steps, in order, and the release
+  workflow runs the same steps before it publishes.
 - User-facing docs don't reintroduce internal "Verification Criteria"
   language, and nothing claims this project is a "clean-room"
   implementation — its behavior is matched against Pygame Zero's docs and
@@ -113,6 +118,36 @@ to `requiredDocs` in `scripts/check-docs.ts`.
   treated as incomplete work, not a follow-up.
 - Describe what you tested manually, if anything, beyond the automated
   suite (e.g. "played through the sandbox tutorial flow by hand").
+
+## Releasing
+
+The three packages are released together, at one version.
+
+1. Set the version in `package.json`, in each `packages/*/package.json`, in
+   `VERSION` in `packages/cli/src/cli.ts`, and in the three `packages/*`
+   workspace entries at the top of `bun.lock`. `bun install` doesn't update
+   those, and `bun pm pack` takes browser-runtime's dependency on core from
+   them.
+2. Make the changelog's newest entry `## <version> — <date>`.
+3. Commit, tag the commit `v<version>`, and push both:
+
+   ```sh
+   git tag v0.2.1
+   git push origin main v0.2.1
+   ```
+
+The tag starts `.github/workflows/release.yml`. It runs CI's checks, then
+`bun run release:pack --tag <tag> --publish`, which checks that the
+versions, the tag and the changelog agree, packs each package with
+`bun pm pack`, and publishes core, browser-runtime and the CLI in that
+order. It skips any that npm already has at that version, so a release that
+failed halfway can be rerun. A prerelease version such as `0.3.0-beta.1` is
+published under the `next` tag, leaving `latest` alone.
+
+npm trusts the workflow to publish (trusted publishing), so no token is
+stored anywhere and each version carries a provenance statement. To see
+what a release would publish, run `bun run build`, `bun run package:check`
+and `bun run release:pack`: the tarballs are left in `.release/`.
 
 ## Licensing of contributions
 

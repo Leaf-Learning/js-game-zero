@@ -19,6 +19,7 @@
     "jgz": "bun packages/cli/src/cli.ts",
     "lint": "bun run typecheck && bun run format:check",
     "package:check": "bun scripts/check-packages.ts",
+    "release:pack": "bun scripts/release.ts",
     "test": "bun test packages apps scripts",
     "test:e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit"

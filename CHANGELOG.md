@@ -2,68 +2,28 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
-
-### Images ready before a game starts
-
-- `loadImages(assetUrls)`, in `@js-game-zero/core/host` and on `window.JGZ`,
-  decodes every image in an asset map for `preloadedAssets`. `run()` starts
-  a game's code at once, so an image the run loads itself has no size while
-  the top level runs: `player.width` read 0 there, and an Actor placed by
-  `midBottom` and then moved landed as if it were 0×0, sunk by half its
-  height. Images handed over decoded are ready from the first line, as they
-  already were in `jgz` and the sandbox preview, which now use `loadImages`
-  themselves.
-- The Actor reference no longer suggests `await player.ready()` at a game's
-  top level, which a zero-boilerplate game can't do.
-
-### Late images
-
-- `screen.blit` and `screen.draw.image` draw nothing for an image that
-  hasn't loaded, and their `Promise` resolves once it has. They used to draw
-  it when it arrived, outside any frame and on top of whatever the frame drew
-  after it, while `$drawn` already listed it. The runtime holds the frames
-  that follow until it loads, so it shows from the next one, as before.
-- The reference says what a late image or font holds: whole frames, `update`
-  as well as `draw`, while `handle.step()` does nothing. It said only drawing
-  waited.
-
-### The CLI's keys
-
-- `jgz` presses a letter or digit by its key, as a keyboard does: `a` and `A`
-  both arrive with `unicode` `"a"`, and as `"A"` while Shift is held (`7`
-  with Shift is `"&"`). It used to send `"A"` with no Shift, which no
-  keyboard sends, so a typing game behaved differently under `jgz` than in a
-  browser.
-- `jgz` presses every key the engine knows: Backspace, Tab, Delete, Home,
-  End, Page Up and Down, the lock keys, punctuation (`,` or `Comma`), the
-  number pad, left and right modifiers, and any key by its `code`. It
-  pressed only the arrows, Space, Enter, Escape, the modifiers, letters,
-  digits and F-keys. F13 to F15, which Playwright can't press, are refused
-  up front instead of failing in the browser. `docs/cli.md` lists the names.
-
-### Where text is drawn
-
-- A `$drawn` text entry gives its box, `x`, `y`, `width` and `height`,
-  however the text was placed. Text placed by `center`, `midTop` or another
-  named point had no position at all, and text at a point with an `anchor`
-  gave the anchor point, so a check couldn't tell where a centred title was.
-
-### Inspecting Actors
-
-- An inspected Actor's `properties` are only the fields the game gave it.
-  Flip-book Actors also showed the engine's own `_images`, `_fps`, `_loop`,
-  `animationStart` and `clockSource`, the last as a whole clock. The CLI and
-  runtime references now name `properties`.
-- `docs/cli.md` gives a `step`'s limits: a `count` from 1 to 100,000 and a
-  `dt` of 0 or more.
-
-## 0.2.0 — 2026-10-24
+## 0.2.0 — 2026-10-25
 
 ### Ready for npm
 
+- This is the first version on npm. 0.1.0 to 0.1.3 were never published.
 - Each package carries its description, repository, author, homepage and
   issue tracker, publishes as public, and has its own README.
+- Releases after this one are published from a version tag by GitHub
+  Actions, through npm's trusted publishing, and carry a provenance
+  statement. `CONTRIBUTING.md` describes the steps.
+
+### New since 0.1.3
+
+- `@js-game-zero/cli`: `jgz test` runs a game in headless Chromium and
+  drives it from the terminal or, with `--json`, from another program. It
+  steps frames, presses keys, moves and clicks the mouse, reads live state,
+  calls a game's probe functions, takes screenshots, and runs a whole
+  scenario in one `play` request. `docs/cli.md` covers it.
+- `TOUCH_CONTROLS` puts a D-pad and A, B, Start and Select buttons below a
+  game on touch screens, each pressing a key the game already reads. The
+  hooks reference covers it.
+- The Flappy Bird example is now Tappy Plane.
 
 ### MIT license
 
@@ -96,6 +56,216 @@ All notable changes to `js-game-zero` are recorded here.
   reference as Markdown by its file name (`reference["actor.md"]`), and each
   page is also a file at `@js-game-zero/core/reference/<page>.md`, for a host
   that hands the docs to a learner, a tool or a model.
+
+### Fixes
+
+- A `defineGame()` game's input hooks get their event object in an app a
+  bundler has minified. The runtime knew them by their parameter's name,
+  `event`, which a minifier renames, so `onKeyDown(event)` received the key
+  number instead.
+- A callback a game gives `music.setOnMusicEnd()` at its top level is kept.
+  The runtime cleared it at startup when the game had no `onMusicEnd()`.
+- Reading an image's size while it's still loading, such as
+  `images.player.getSize()` at a game's top level, says it's still loading
+  and how to have the first frame wait for it. It said the image was
+  missing.
+- A game's sounds stop when it stops or restarts, a looping one too. They
+  kept playing, so each restart added another loop.
+- `tone.isUnlocked()` is `true` once any sound or tone has played, as the
+  reference says. In a run, only the run's own tones counted.
+- An image or font a hook asks for that fails to load fails the game, as
+  one asked for at the top level does. One that failed at once, such as a
+  name an asset map doesn't list, went unnoticed.
+- Setting `left`, `top`, `topLeft`, `center` or any other edge or corner of
+  a rotated Actor puts its rotated bounding box there, as reading them
+  measures it. It placed the unrotated picture, so after
+  `actor.angle = 45` and `actor.left = 0`, `actor.left` read about -8.
+- A rotated Actor keeps the position it was given when its size changes or
+  its image finishes loading. It moved:
+  `new Actor("ship", { center: [100, 100], angle: 90 })` ended up centred at
+  `[110, 90]`.
+- `actor.inflateIp()` grows only the hitbox and leaves the picture where it
+  was. The picture moved with the hitbox's top-left corner.
+- `screen.draw.textbox` centres each line in its rect by default, and lines
+  them up by its `anchor` unless `align` is given, as the reference says.
+  The lines were always left-aligned.
+- `screen.draw.textbox` refuses `center`, `topLeft`, `pos` and the other
+  position options, saying its rect places its text. It accepted them and
+  then failed with "draw.text accepts exactly one position source."
+- `screen.blit` of an image that can't be loaded reports a warning naming
+  the image, once. It left an unhandled promise rejection every frame.
+- A callback that schedules itself again with `clock.schedule(callback, 0)`
+  runs once a frame. It ran again straight away, forever, freezing the tab,
+  so `function loop() { …; clock.schedule(loop, 0); }`, the usual port of a
+  `setTimeout` loop, hung the game.
+- `clock.eachTick(spin())`, with brackets, throws where it's written, saying
+  to drop the brackets, as the other schedules do. The game failed on its
+  first frame with "event.callback is not a function".
+- A game file can use all of JavaScript's standard built-ins, such as
+  `Float32Array` and the other typed arrays, `ArrayBuffer`, `DataView`,
+  `Reflect`, `Proxy`, `encodeURI`, `structuredClone` and `WeakRef`. They
+  weren't defined, so `new Float32Array(4)` threw "Float32Array is not
+  defined". `globalThis` in a game file is the game's own global scope, not
+  the page's `window`.
+- `animate()` and `new Animation()` called outside a hook, such as in
+  `actor.ready().then(...)`, run on the game's clock, in a game file and in
+  a `defineGame()` game. The animation never moved.
+- A game file's top-level code sees the screen size its `WIDTH` and
+  `HEIGHT` give (800 × 600 without them), as `update()` and `draw()` do. It
+  saw the canvas's size before the game sized it, such as 300 × 150, so
+  `screen.width / 2` at the top level wasn't the middle.
+- A game file no longer sees `createBrowserSoundAsset`, `KeyboardState` or
+  `run`, which are for host pages. Calling `run()` in a game file says a
+  game file runs by itself.
+- A change inside a stored object or list, such as
+  `storage.highScores.push(score)`, is saved. It was lost, even when the
+  tab closed or the game stopped, unless a key was set too.
+- Storing a value JSON can't hold, such as `storage.lastSpeed = 0 / 0`,
+  throws a `JsonStorageError` naming the key ("NaN is not a JSON value at
+  storage.lastSpeed") and stores nothing, as the reference says. The value
+  was stored, and every later save then failed with only a warning.
+- A `tone` waveform that doesn't exist, such as `"squar"`, throws, listing
+  the four waveforms and suggesting the nearest. It was ignored, and the
+  tone played as a sine wave.
+
+### Sandbox
+
+- The sandbox works when opened at `http://localhost:4173` as well as at
+  `http://127.0.0.1:4173`, the address it prints. At localhost the game
+  preview stayed blank while the status said "Running", because the preview
+  let only `http://127.0.0.1:4173` embed it.
+- The Docs tab includes the CLI guide, and links to other files in the
+  repository, such as `CONTRIBUTING.md`, `LICENSE` or an example's README,
+  open on GitHub. The CLI guide was missing, and those links opened the
+  sandbox in a new tab, showing "Not found".
+- Each card in the example gallery has a short description written for
+  learners. Cards showed the example's browser-test description with a
+  capital letter added, such as "Renders deterministic canvas primitives".
+  Sound And Tone is now Sound and Tone.
+
+### The docs
+
+- The hooks reference lists a game's settings (`WIDTH` and `HEIGHT`, which
+  default to 800 × 600, `TITLE`, `ICON`, `PIXEL_DENSITY` and
+  `TOUCH_CONTROLS`), says a hook whose one parameter is `event` receives
+  every value in one object, and gives `onKeyUp` all four values.
+- The runtime reference lists a `defineGame()` game's event fields and
+  services, the rest of `@js-game-zero/core/host` and
+  `@js-game-zero/core/node`, and every mistake that stops a game at startup.
+- Corrected: the clock reference on a callback that throws and on
+  `onFinished`; the loaders reference's top-level `await`, which a game file
+  can't use; the `…Ip` names in the rect reference; and the migration
+  guide's comparisons of tones, storage, tweens and `ZRect` with Pygame
+  Zero's. README and the tutorial count five complete games, and the Space
+  Shooter README describes its code as it is.
+
+### Images ready before a game starts
+
+- `loadImages(assetUrls)`, in `@js-game-zero/core/host` and on `window.JGZ`,
+  decodes every image in an asset map for `preloadedAssets`. `run()` starts
+  a game's code at once, so an image the run loads itself has no size while
+  the top level runs: `player.width` read 0 there, and an Actor placed by
+  `midBottom` and then moved landed as if it were 0×0, sunk by half its
+  height. Images handed over decoded are ready from the first line, as they
+  already were in `jgz` and the sandbox preview, which now use `loadImages`
+  themselves.
+- The Actor reference no longer suggests `await player.ready()` at a game's
+  top level, which a zero-boilerplate game can't do.
+
+### Late images
+
+- `screen.blit` and `screen.draw.image` draw nothing for an image that
+  hasn't loaded, and their `Promise` resolves once it has. They used to draw
+  it when it arrived, outside any frame and on top of whatever the frame drew
+  after it, while `$drawn` already listed it. The runtime holds the frames
+  that follow until it loads, so it shows from the next one, as before.
+- The reference says what a late image or font holds: whole frames, `update`
+  as well as `draw`, while `handle.step()` does nothing. It said only drawing
+  waited.
+
+### The CLI's sessions
+
+- `jgz` gives the game `--timeout` (15000 ms by default) to answer each call
+  into the browser, such as one `step`'s frames, a key press or an
+  `inspect`. A game stuck in an endless loop in `update` or `draw` fails the
+  request with `command_failed`, saying it may be stuck, and is restarted on
+  a new page, which a `restarted` event with `"source": "timeout"` reports.
+  The CLI used to wait forever, because Playwright gives `evaluate` and
+  input no timeout of their own.
+- A game that doesn't finish starting within `--timeout` fails with
+  `startup_failed`, saying it may be stuck. It failed with Playwright's
+  "page.waitForFunction: Timeout 15000ms exceeded."
+- Ctrl-C at the prompt, SIGINT, SIGTERM and SIGHUP all close the browser
+  and exit, mid-command too, with 130, 130, 143 and 129: 128 plus the
+  signal's number. Ctrl-C at an idle prompt exited with 0, and mid-command
+  it closed the prompt and left the CLI waiting. After a SIGHUP the CLI kept
+  running with its browser closed.
+- `jgz install-chromium` installs Chromium for the Playwright the CLI uses.
+  When that Chromium is missing, `jgz test` names that Playwright's version
+  and the exact command that installs it. A global install has a Playwright
+  of its own, so the documented `bunx playwright install chromium` could
+  install another version's Chromium in a project that pins Playwright, and
+  `jgz test` then failed with "Executable doesn't exist". The install docs
+  now add the CLI to the project, where `bunx playwright` runs the CLI's own
+  Playwright, and use `jgz install-chromium` for a global install.
+- `--watch` restarts the game only when `main.js` or a file in its
+  `images/`, `sounds/`, `music/` or `fonts/` folder changes, in `assets/` in
+  that layout. It restarted on any change in the project folder, including a
+  screenshot the CLI had just saved there.
+- `play` checks every action, key names included, before it runs any, and
+  its errors give the action's place: `actions[1]: Unsupported key: zz. …`.
+  An unknown key failed only when its action came up, after the actions
+  before it had moved the game on.
+- A `play` whose single `inspect` path can't be read answers
+  `{ "error": … }` in its place, as a list of paths already did, alongside
+  the status. The whole request failed after its actions had run.
+- Error messages are the game's own first line, such as
+  `Unknown game-state binding: nothere`, with the same `command_failed` code
+  from `inspect` as from `call`. `inspect` errors began with Playwright's
+  `evaluate: TypeError: ` and went on with the in-page stack and the
+  session's URL.
+- `status`'s `heldKeys` lists each key by one name: its name (`right`,
+  `ctrl`), else what it types (`b`), else its code (`Numpad1`). A `key tap`
+  of a held key, or a `mouse click` of a held button, leaves it released.
+  `heldKeys` echoed the key as given, lowercased (`keyb`), and a tapped key
+  or clicked button stayed listed as held.
+- At the prompt, `key tap '` and `key tap \` press the quote and backslash
+  keys, and `docs/cli.md` also shows `\'`, `\\`, `Quote` and `Backslash`.
+  Both failed with "Unterminated quote or escape.", though the guide listed
+  them as key names.
+- `docs/cli.md` has tables of `jgz test`'s flags, error codes and exit
+  codes, and says what `--timeout` covers. `jgz --help` says what each flag
+  does and gives `--timeout`'s default.
+
+### The CLI's keys
+
+- `jgz` presses a letter or digit by its key, as a keyboard does: `a` and `A`
+  both arrive with `unicode` `"a"`, and as `"A"` while Shift is held (`7`
+  with Shift is `"&"`). It used to send `"A"` with no Shift, which no
+  keyboard sends, so a typing game behaved differently under `jgz` than in a
+  browser.
+- `jgz` presses every key the engine knows: Backspace, Tab, Delete, Home,
+  End, Page Up and Down, the lock keys, punctuation (`,` or `Comma`), the
+  number pad, left and right modifiers, and any key by its `code`. It
+  pressed only the arrows, Space, Enter, Escape, the modifiers, letters,
+  digits and F-keys. F13 to F15, which Playwright can't press, are refused
+  up front instead of failing in the browser. `docs/cli.md` lists the names.
+
+### Where text is drawn
+
+- A `$drawn` text entry gives its box, `x`, `y`, `width` and `height`,
+  however the text was placed. Text placed by `center`, `midTop` or another
+  named point had no position at all, and text at a point with an `anchor`
+  gave the anchor point, so a check couldn't tell where a centred title was.
+
+### Inspecting Actors
+
+- An inspected Actor's `properties` are only the fields the game gave it.
+  Flip-book Actors also showed the engine's own `_images`, `_fps`, `_loop`,
+  `animationStart` and `clockSource`, the last as a whole clock. The CLI and
+  runtime references now name `properties`.
+- `docs/cli.md` gives a `step`'s limits: a `count` from 1 to 100,000 and a
+  `dt` of 0 or more.
 
 ### What a frame drew
 
@@ -286,8 +456,9 @@ to onMouseDown.` The `duplicate-hook-alias` diagnostic is gone, since a hook
   `undefined`/`[]` placeholder the examples used to need.
 - Readable text option names alongside Pygame Zero's: `size` (`fontsize`),
   `outline` (`owidth`), `outlineColor` (`ocolor`), `shadowColor`
-  (`scolor`), `gradientColor` (`gcolor`) and, for textboxes, `minSize`
-  (`minFontsize`). Giving both names for one option is an error.
+  (`scolor`) and `gradientColor` (`gcolor`). Textboxes' own `minFontsize`,
+  which Pygame Zero doesn't have, is also `minSize`. Giving both names for
+  one option is an error.
 - `actor.touches(target)` and `rect.touches(target)` test overlap with an
   actor, a rect, or an `[x, y]` point in one method.
 - `screen.draw.image(image, pos)` is a readable name for `screen.blit`.
