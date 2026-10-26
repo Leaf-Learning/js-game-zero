@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Leaf-Learning/js-game-zero/main/docs/media/logo-lockup-dark.svg">
+  <img src="https://raw.githubusercontent.com/Leaf-Learning/js-game-zero/main/docs/media/logo-lockup-light.svg" alt="js-game-zero" width="280">
+</picture>
+
 # @js-game-zero/browser-runtime
 
 The zero-boilerplate runtime for

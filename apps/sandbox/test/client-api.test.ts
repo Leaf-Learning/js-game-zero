@@ -237,6 +237,7 @@ describe("sandbox client API contracts", () => {
               title: "Movement",
               description: "Move around",
               expectsInput: "keyboard",
+              gallery: "start-here",
             },
           ],
         });

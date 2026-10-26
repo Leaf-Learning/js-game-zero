@@ -47,6 +47,28 @@ type RouteMatch = {
 export const REPO_ROOT = resolve(import.meta.dir, "../../..");
 const CLIENT_DIR = join(REPO_ROOT, "apps/sandbox/client");
 
+/**
+ * The sandbox's own typefaces, served from their npm packages so the editor
+ * looks the same offline. Each is a variable font split by script, as
+ * style.css's @font-face rules expect. All three are under the SIL Open Font
+ * License, which travels with each package.
+ */
+const clientFonts = new Map(
+  [
+    ["fredoka", "@fontsource-variable/fredoka/files/fredoka"],
+    ["nunito", "@fontsource-variable/nunito/files/nunito"],
+    [
+      "jetbrains-mono",
+      "@fontsource-variable/jetbrains-mono/files/jetbrains-mono",
+    ],
+  ].flatMap(([name, prefix]) =>
+    ["latin", "latin-ext"].map((subset) => [
+      `${name}-${subset}.woff2`,
+      Bun.resolveSync(`${prefix}-${subset}-wght-normal.woff2`, CLIENT_DIR),
+    ]),
+  ),
+);
+
 type CachedBuild = { readonly text: string; readonly contentType: string };
 const buildCache = new Map<string, Promise<CachedBuild>>();
 
@@ -149,6 +171,50 @@ export function createSandboxHandler(
         return new Response(Bun.file(join(CLIENT_DIR, "style.css")), {
           headers: { "content-type": "text/css; charset=utf-8" },
         });
+      }
+
+      if (
+        editorEnabled &&
+        url.pathname === "/client/favicon.svg" &&
+        request.method === "GET"
+      ) {
+        return new Response(Bun.file(join(CLIENT_DIR, "favicon.svg")), {
+          headers: { "content-type": "image/svg+xml" },
+        });
+      }
+
+      if (
+        editorEnabled &&
+        url.pathname.startsWith("/client/fonts/") &&
+        request.method === "GET"
+      ) {
+        const font = clientFonts.get(
+          url.pathname.slice("/client/fonts/".length),
+        );
+        if (!font) return null;
+        return new Response(Bun.file(font), {
+          headers: {
+            "content-type": "font/woff2",
+            "cache-control": "public, max-age=86400",
+          },
+        });
+      }
+
+      if (
+        editorEnabled &&
+        url.pathname.startsWith("/client/thumbnails/") &&
+        request.method === "GET"
+      ) {
+        const slug = /^([a-z][a-z0-9-]*)\.png$/.exec(
+          url.pathname.slice("/client/thumbnails/".length),
+        )?.[1];
+        if (!slug || !cloneableExamples().some((e) => e.slug === slug)) {
+          return null;
+        }
+        return new Response(
+          Bun.file(join(CLIENT_DIR, "thumbnails", `${slug}.png`)),
+          { headers: { "content-type": "image/png" } },
+        );
       }
 
       if (
@@ -354,6 +420,7 @@ function cloneableExamples(): readonly SandboxExampleSummary[] {
       title: example.title,
       description: example.description,
       expectsInput: example.expectsInput,
+      gallery: example.gallery,
     }));
 }
 
@@ -606,6 +673,10 @@ function previewShellPage(project: string, parentOrigin: string): string {
       canvas {
         display: block;
         background: #150f1c;
+      }
+      /* The editor rings the whole stage while the game has the keyboard. */
+      canvas:focus {
+        outline: none;
       }
     </style>
   </head>

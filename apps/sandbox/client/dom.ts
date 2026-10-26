@@ -34,6 +34,27 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+const CODE_IN_TEXT =
+  /("[^"\n]*"|[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?|[A-Za-z_$][\w$]*\(\))/g;
+
+/**
+ * A message as text with its code in `<code>`: dotted names
+ * (`screen.draw.circle`), calls (`draw()`) and quoted strings (`"blue"`),
+ * so learners can see which words to look for in their program.
+ */
+export function codeAwareText(text: string): (Node | string)[] {
+  const parts: (Node | string)[] = [];
+  let last = 0;
+  for (const match of text.matchAll(CODE_IN_TEXT)) {
+    const at = match.index;
+    if (at > last) parts.push(text.slice(last, at));
+    parts.push(h("code", { text: match[0] }));
+    last = at + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 /**
  * Attach a single delegated listener to a stable container. This is the
  * fix for the "clicks never register while a game is running" defect: the

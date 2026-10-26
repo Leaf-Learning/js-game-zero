@@ -426,6 +426,7 @@ describe("sandbox routes", () => {
         title: string;
         description: string;
         expectsInput: string;
+        gallery: string;
       }[];
     };
     expect(body.examples.length).toBeGreaterThan(0);
@@ -442,6 +443,7 @@ describe("sandbox routes", () => {
       title: "Sound and Tone",
       description: "Click to play a sound effect and a short generated tone.",
       expectsInput: "mouse",
+      gallery: "try-next",
     });
 
     const clone = await request("/api/projects", {
@@ -1013,6 +1015,33 @@ describe("sandbox routes", () => {
     const previewHtml = await preview.text();
     expect(previewHtml).toContain('data-jgz-entry="main.js"');
     expect(previewHtml).toContain('src="/client/preview.js"');
+  });
+
+  test("the favicon, typefaces, and gallery thumbnails are served", async () => {
+    const favicon = await request("/client/favicon.svg");
+    expect(favicon.status).toBe(200);
+    expect(favicon.headers.get("content-type")).toBe("image/svg+xml");
+
+    // style.css names every face it uses; each one must be served.
+    const styles = await (await request("/client/app.css")).text();
+    const faces = [...styles.matchAll(/url\("(\/client\/fonts\/[^"]+)"\)/g)];
+    expect(faces.length).toBe(6);
+    for (const [, path] of faces) {
+      const font = await request(path ?? "");
+      expect(font.status).toBe(200);
+      expect(font.headers.get("content-type")).toBe("font/woff2");
+      expect((await font.arrayBuffer()).byteLength).toBeGreaterThan(1000);
+    }
+    expect((await request("/client/fonts/comic-sans.woff2")).status).toBe(404);
+
+    for (const example of exampleManifest) {
+      const thumbnail = await request(`/client/thumbnails/${example.slug}.png`);
+      // Only the examples the gallery offers have thumbnails.
+      expect(thumbnail.status).toBe(example.mode === "global" ? 200 : 404);
+    }
+    expect((await request("/client/thumbnails/..%2Fstyle.css")).status).toBe(
+      404,
+    );
   });
 
   test("e2e fixture routes are gated behind testFixtures", async () => {

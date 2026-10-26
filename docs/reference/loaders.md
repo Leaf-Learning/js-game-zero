@@ -9,7 +9,7 @@ Games load four kinds of asset, each from its own conventional directory:
 | Music  | `music/`  | `wav`, `ogg`, `mp3`, `m4a`                        |
 | Fonts  | `fonts/`  | `ttf`, `otf`, `woff`, `woff2`                     |
 
-In the sandbox, these are the folders in the Assets panel; for examples and
+In the sandbox, these are the Images, Sounds, Music and Fonts panels; for examples and
 hand-written projects, they're plain directories next to your game's code.
 
 ## Asset name grammar

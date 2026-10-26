@@ -82,7 +82,11 @@ export function createDocumentationBrowser(): DocumentationBrowser {
   const content = qs<HTMLElement>(document, "[data-jgz-docs-content]");
 
   let documents: DocumentationSummary[] | null = null;
-  let currentDocument = DEFAULT_DOCUMENT;
+  // The sandbox links straight to a page, and a heading on it, with
+  // /docs?page=reference/screen#colors.
+  const requested = new URLSearchParams(window.location.search).get("page");
+  let currentDocument = requested ?? DEFAULT_DOCUMENT;
+  let initialHash = requested ? window.location.hash : "";
   let requestSequence = 0;
 
   function renderStatus(
@@ -155,6 +159,22 @@ export function createDocumentationBrowser(): DocumentationBrowser {
   }
 
   function decorateLinks(document: DocumentationDocument): void {
+    // A <picture> with a dark-mode source, like the README's logo, follows
+    // the sandbox's own light/dark switch rather than the computer's.
+    for (const picture of content.querySelectorAll("picture")) {
+      const dark = picture.querySelector<HTMLSourceElement>(
+        'source[media*="prefers-color-scheme: dark"]',
+      );
+      const light = picture.querySelector("img");
+      const darkSource = dark?.getAttribute("srcset");
+      if (!light || !darkSource) continue;
+      const darkImage = light.cloneNode() as HTMLImageElement;
+      darkImage.setAttribute("src", darkSource);
+      light.classList.add("docs-light-only");
+      darkImage.classList.add("docs-dark-only");
+      picture.replaceWith(light, darkImage);
+    }
+
     for (const image of content.querySelectorAll<HTMLImageElement>("img")) {
       const original = image.getAttribute("src");
       if (!original) continue;
@@ -253,12 +273,17 @@ export function createDocumentationBrowser(): DocumentationBrowser {
     try {
       documents = await api.listDocumentation();
       renderNavigation();
+      const found = documents.some(
+        (document) => document.id === currentDocument,
+      );
+      const hash = found ? initialHash : "";
+      initialHash = "";
       await selectDocument(
-        documents.some((document) => document.id === currentDocument)
+        found
           ? currentDocument
           : (documents.find((document) => document.navigation)?.id ??
               DEFAULT_DOCUMENT),
-        "",
+        hash,
         moveFocus,
       );
     } catch (error) {

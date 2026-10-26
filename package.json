@@ -22,6 +22,7 @@
     "release:pack": "bun scripts/release.ts",
     "test": "bun test packages apps scripts",
     "test:e2e": "playwright test",
+    "thumbnails": "bun scripts/capture-thumbnails.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

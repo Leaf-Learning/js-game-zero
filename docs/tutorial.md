@@ -14,13 +14,14 @@ full tour — this tutorial only explains what you need as you go.
 
 ## 1. Create the project
 
-On the sandbox's front page, choose **Start from an example**, then pick
-**Actor Movement**. Name the project `comet_catcher`.
+On the sandbox's first screen, under **Remix an example**, pick **Actor
+Movement**. (If you already have games, use **My game** in the top bar, then
+**New game** and **Remix an example**.) Name your copy `comet_catcher`.
 
-Why start from an example instead of a blank project? Actor Movement ships
+Why start from an example instead of a blank game? Actor Movement ships
 with an `images/player.svg` sprite, and we want a sprite to fly around the
-screen. Starting here means the asset is already sitting in your project's
-Assets panel, ready to use — no drawing or uploading required to get going.
+screen. Starting here means the asset is already in your game's **Images**,
+ready to use — no drawing or uploading required to get going.
 We're about to replace all of its _code_, but we're keeping its _sprite_.
 
 Open `main.js` in the editor and select all the existing code — you'll
@@ -107,8 +108,8 @@ are in `docs/reference/actor.md`.
 works; `"Player.svg"` or `"PLAYER.SVG"` will fail to load even though the
 file on disk is named `player.svg`, because asset names in this framework
 are always lowercase by convention. If you ever add your own image, drop it
-into the Assets panel's **Images** section (via the **Upload** button or by
-dragging it into the panel) and reference it the same way, in lowercase,
+into the **Images** panel (open it from the bar on the left, then use
+**Choose files** or drag it onto the panel) and reference it the same way, in lowercase,
 matching the filename you uploaded.
 
 ## 5. Move with the keyboard

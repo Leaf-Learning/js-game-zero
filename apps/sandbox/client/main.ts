@@ -1,20 +1,26 @@
 import * as api from "./api";
 import { ApiError, WriteConflictError } from "./api";
-import { createConsolePanel } from "./console-panel";
+import { createAssetPanel } from "./asset-panel";
 import { SandboxController } from "./controller";
 import { DocumentSession } from "./document-session";
 import { choiceDialog, toast } from "./dialogs";
 import { h, qs } from "./dom";
-import { createEditor } from "./editor";
+import { createEditor, type EditorProblem } from "./editor";
+import { createFileTabs } from "./file-tabs";
+import { hydrateIcons, icon } from "./icons";
 import { initPanelResizers } from "./layout";
+import { hydrateLogos } from "./logo";
+import { createMessagesPanel } from "./messages-panel";
 import {
   chooseNewProjectFlow,
   openExampleGallery,
   promptBlankProjectName,
-  renderEmptyState,
+  promptExampleName,
+  renderWelcome,
 } from "./onboarding";
 import { createPreview } from "./preview";
-import { createSidebar } from "./sidebar";
+import { describeProblem } from "./problem-fix";
+import { createProjectMenu } from "./project-menu";
 import { initThemeToggle } from "./theme";
 import {
   isAssetPath,
@@ -25,32 +31,36 @@ import {
 } from "./types";
 
 const LAST_PROJECT_KEY = "jgz-sandbox:last-project";
+/** The file the game runs, and so the one problem line numbers refer to. */
+const ENTRY_FILE = "main.js";
+
+hydrateIcons(document);
+hydrateLogos(document);
 
 const root = document.querySelector<HTMLDivElement>("[data-jgz-app]");
 if (!root) throw new Error("Missing app root.");
 
-const sidebarRoot = qs<HTMLElement>(root, "[data-jgz-sidebar]");
-const emptyStateEl = qs<HTMLDivElement>(document, "[data-jgz-empty-state]");
-const editorPaneEl = qs<HTMLElement>(document, "[data-jgz-editor-pane]");
-const editorMount = qs<HTMLDivElement>(document, "[data-jgz-editor-mount]");
-const selectedFileLabel = qs<HTMLSpanElement>(
-  document,
-  "[data-jgz-selected-file]",
-);
-const saveStatusEl = qs<HTMLSpanElement>(document, "[data-jgz-save-status]");
-const saveButton = qs<HTMLButtonElement>(document, "[data-jgz-save]");
-const previewRoot = qs<HTMLElement>(document, "[data-jgz-preview-pane]");
+const welcomeEl = qs<HTMLElement>(root, "[data-jgz-welcome]");
+const shellEl = qs<HTMLElement>(root, "[data-jgz-app-shell]");
+const codeEmptyEl = qs<HTMLDivElement>(root, "[data-jgz-empty-state]");
+const editorMount = qs<HTMLDivElement>(root, "[data-jgz-editor-mount]");
+const saveButton = qs<HTMLButtonElement>(root, "[data-jgz-save]");
+const saveStatusEl = qs<HTMLSpanElement>(root, "[data-jgz-save-status]");
+const previewRoot = qs<HTMLElement>(root, "[data-jgz-preview-pane]");
 const openExamplesButton = qs<HTMLButtonElement>(
-  document,
+  root,
   "[data-jgz-open-examples]",
 );
-const themeToggle = qs<HTMLButtonElement>(document, "[data-jgz-theme-toggle]");
+const newFileButton = qs<HTMLButtonElement>(root, "[data-jgz-new-file]");
+const themeToggle = qs<HTMLButtonElement>(root, "[data-jgz-theme-toggle]");
 
 const theme = initThemeToggle(themeToggle);
 
 let projects: ProjectSummary[] = [];
 let examples: ExampleSummary[] = [];
 let diagnostics: Diagnostic[] = [];
+/** The problem the game last stopped on, in ENTRY_FILE. */
+let currentProblem: EditorProblem | null = null;
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
@@ -58,15 +68,13 @@ function errorMessage(error: unknown): string {
 }
 
 function setSaveState(state: "saved" | "saving" | "unsaved" | "error"): void {
-  saveStatusEl.dataset.state = state;
+  saveButton.dataset.state = state;
   saveStatusEl.textContent =
     state === "saved"
       ? "Saved"
-      : state === "saving"
-        ? "Saving…"
-        : state === "unsaved"
-          ? "Unsaved changes"
-          : "Couldn't save";
+      : state === "error"
+        ? "Couldn't save"
+        : "Saving…";
   document.body.dataset.jgzDirty = String(state !== "saved");
 }
 
@@ -142,6 +150,21 @@ const selection = new SandboxController({
   readFile: api.readFile,
 });
 
+/** What the stage calls the game: its TITLE, or else the project's name. */
+function refreshStageTitle(): void {
+  const project = selection.selectedProject ?? "";
+  if (selection.selectedFile !== ENTRY_FILE) {
+    if (!currentProjectSummary()?.files.includes(ENTRY_FILE)) {
+      preview.setTitle(project);
+    }
+    return;
+  }
+  const declared = /^\s*TITLE\s*=\s*(["'`])([^"'`\n]+)\1/m.exec(
+    editor.getValue(),
+  )?.[2];
+  preview.setTitle(declared?.trim() || project);
+}
+
 const editor = createEditor(editorMount, {
   theme: theme.current(),
   onChange: (content) => {
@@ -151,9 +174,20 @@ const editor = createEditor(editorMount, {
       selection.selectedFile,
       content,
     );
+    if (selection.selectedFile === ENTRY_FILE) {
+      refreshStageTitle();
+      // Editing the problem's line clears its mark in the editor.
+      if (currentProblem && !editor.hasProblem()) {
+        currentProblem = null;
+        refreshChrome();
+      }
+    }
   },
   onSaveShortcut: () => {
     void flushSave();
+  },
+  onFixApplied: () => {
+    toast("Changed it. Press Play to try your game again.");
   },
 });
 theme.subscribe((nextTheme) => editor.setTheme(nextTheme));
@@ -161,7 +195,39 @@ saveButton.addEventListener("click", () => void flushSave());
 
 initPanelResizers(root);
 
-const consolePanel = createConsolePanel(previewRoot);
+/** Opens ENTRY_FILE if another file is open, then puts the cursor on `line`. */
+async function showLine(line: number): Promise<void> {
+  if (selection.selectedFile !== ENTRY_FILE) await selectFile(ENTRY_FILE);
+  if (selection.selectedFile === ENTRY_FILE) editor.revealLine(line);
+}
+
+function clearProblem(): void {
+  currentProblem = null;
+  editor.showProblem(null);
+  refreshChrome();
+}
+
+function noteProblem(message: string, line: number | undefined): void {
+  if (line === undefined || currentProblem) return;
+  currentProblem = { line, details: describeProblem(message) };
+  if (selection.selectedFile === ENTRY_FILE) {
+    editor.showProblem(currentProblem);
+  }
+  refreshChrome();
+}
+
+const messages = createMessagesPanel(previewRoot, {
+  onShowLine: (line) => void showLine(line),
+  onClear: clearProblem,
+});
+
+function addDiagnostic(diagnostic: Diagnostic): void {
+  diagnostics = [...diagnostics, diagnostic];
+  messages.setDiagnostics(diagnostics);
+  if (diagnostic.severity === "error") {
+    noteProblem(diagnostic.message, diagnostic.line);
+  }
+}
 
 const preview = createPreview(previewRoot, {
   ...(root.dataset.jgzPreviewOrigin
@@ -169,102 +235,118 @@ const preview = createPreview(previewRoot, {
     : {}),
   onMessage: (message) => {
     if (message.type === "console") {
-      consolePanel.appendConsole({ level: message.level, text: message.text });
-      return;
-    }
-    if (message.type === "diagnostic") {
-      diagnostics = [...diagnostics, message.diagnostic];
-      consolePanel.setDiagnostics(diagnostics);
-      return;
-    }
-    if (message.type === "runtime-error") {
-      diagnostics = [
-        ...diagnostics,
+      messages.appendConsole({ level: message.level, text: message.text });
+    } else if (message.type === "diagnostic") {
+      addDiagnostic(message.diagnostic);
+    } else if (message.type === "runtime-error") {
+      addDiagnostic(
         message.line === undefined
           ? { severity: "error", message: message.message }
           : { severity: "error", message: message.message, line: message.line },
-      ];
-      consolePanel.setDiagnostics(diagnostics);
+      );
     }
   },
   onPlayRequested: () => {
     void (async () => {
       if (!selection.selectedProject) return;
       if (!(await flushSave())) return;
-      diagnostics = [];
-      consolePanel.clear();
+      resetRun();
       preview.play(selection.selectedProject);
     })();
   },
   onRestartRequested: () => {
     void (async () => {
       if (!(await flushSave())) return;
-      diagnostics = [];
-      consolePanel.clear();
+      resetRun();
       preview.restart();
     })();
   },
+  onShowLine: (line) => void showLine(line),
 });
 
-function refreshSidebar(): void {
-  sidebar.update({
-    projects,
-    selectedProject: selection.selectedProject,
-    selectedFile: selection.selectedFile,
-  });
+/** A new run starts with no messages and no problem. */
+function resetRun(): void {
+  diagnostics = [];
+  messages.clear();
+  clearProblem();
+}
+
+function currentProjectSummary(): ProjectSummary | null {
+  return (
+    projects.find((project) => project.name === selection.selectedProject) ??
+    null
+  );
 }
 
 function currentCodeFiles(): string[] {
-  const project = projects.find(
-    (candidate) => candidate.name === selection.selectedProject,
-  );
+  const project = currentProjectSummary();
   return project
     ? project.files.filter((path) => !isAssetPath(path)).sort()
     : [];
 }
 
-function showBlankHero(): void {
-  renderEmptyState(document.body, {
-    onBlank: () => {
-      void (async () => {
-        const name = await promptBlankProjectName(projects.map((p) => p.name));
-        if (name) await createAndSelectProject(name);
-      })();
-    },
-    onExamples: () => {
-      void (async () => {
-        const choice = await openExampleGallery(
-          examples,
-          projects.map((p) => p.name),
-        );
-        if (choice) await createAndSelectProject(choice.name, choice.slug);
-      })();
-    },
+function refreshChrome(): void {
+  const project = currentProjectSummary();
+  projectMenu.update({ projects, selectedProject: selection.selectedProject });
+  fileTabs.update({
+    project,
+    selectedFile: selection.selectedFile,
+    problemFile: currentProblem ? ENTRY_FILE : null,
   });
+  assetPanel.update(project);
 }
 
-function showNoFileHint(): void {
-  emptyStateEl.replaceChildren(
-    h("div", { className: "empty-hero" }, [
-      h("p", { className: "empty-kicker", text: "Almost there" }),
-      h("h1", { text: "Pick or create a file" }),
-      h("p", {
-        className: "empty-copy",
-        text: "Choose a file on the left, or create a new one to start coding.",
-      }),
-    ]),
-  );
+function existingNames(): string[] {
+  return projects.map((project) => project.name);
+}
+
+async function remixExample(example: ExampleSummary): Promise<void> {
+  const name = await promptExampleName(example, existingNames());
+  if (name) await createAndSelectProject(name, example.slug);
+}
+
+async function openGallery(): Promise<void> {
+  const choice = await openExampleGallery(examples, existingNames());
+  if (choice) await createAndSelectProject(choice.name, choice.slug);
 }
 
 function refreshWorkspaceVisibility(): void {
-  const hasFile = Boolean(selection.selectedProject && selection.selectedFile);
-  editorPaneEl.hidden = !hasFile;
-  emptyStateEl.hidden = hasFile;
-  if (hasFile) return;
-  if (projects.length === 0) {
-    showBlankHero();
+  const welcoming = projects.length === 0;
+  welcomeEl.hidden = !welcoming;
+  shellEl.hidden = welcoming;
+  if (welcoming) {
+    renderWelcome(welcomeEl, examples, {
+      onBlank: () => {
+        void (async () => {
+          const name = await promptBlankProjectName(existingNames());
+          if (name) await createAndSelectProject(name);
+        })();
+      },
+      onAllExamples: () => void openGallery(),
+      onExample: (example) => void remixExample(example),
+    });
   } else {
-    showNoFileHint();
+    // The welcome screen's buttons share names with the "New game"
+    // dialog's, so it only exists while it's showing.
+    welcomeEl.replaceChildren();
+  }
+
+  const hasFile = Boolean(selection.selectedProject && selection.selectedFile);
+  editorMount.hidden = !hasFile;
+  codeEmptyEl.hidden = hasFile || !selection.selectedProject;
+  if (!hasFile && selection.selectedProject) {
+    codeEmptyEl.replaceChildren(
+      h("p", { text: "This game has no code yet." }),
+      h(
+        "button",
+        {
+          className: "btn btn-secondary",
+          attrs: { type: "button" },
+          onClick: () => newFileButton.click(),
+        },
+        [icon("plus", 18), "New file"],
+      ),
+    );
   }
 }
 
@@ -276,7 +358,7 @@ async function createAndSelectProject(
     const project = await api.createProject(name, exampleSlug);
     await reloadProjects();
     await selectProject(project.name);
-    toast(`Created "${project.name}".`);
+    toast(`Made "${project.name}". Press Play to try it!`);
   } catch (error) {
     toast(errorMessage(error), "error");
   }
@@ -291,9 +373,12 @@ async function selectFile(path: string): Promise<void> {
     const selected = await selection.selectFile(path);
     if (!selected) return;
     editor.setValue(selected.content);
-    selectedFileLabel.textContent = selected.path;
+    if (selected.path === ENTRY_FILE && currentProblem) {
+      editor.showProblem(currentProblem);
+    }
     setSaveState("saved");
-    refreshSidebar();
+    refreshStageTitle();
+    refreshChrome();
     refreshWorkspaceVisibility();
   } catch (error) {
     toast(errorMessage(error), "error");
@@ -303,8 +388,13 @@ async function selectFile(path: string): Promise<void> {
 async function selectProject(name: string): Promise<void> {
   if (!(await selection.selectProject(name))) return;
   diagnostics = [];
-  consolePanel.clear();
-  localStorage.setItem(LAST_PROJECT_KEY, name);
+  messages.clear();
+  currentProblem = null;
+  try {
+    localStorage.setItem(LAST_PROJECT_KEY, name);
+  } catch {
+    // Remembering the last game is a convenience.
+  }
   // A running preview belongs to whichever project started it. Switching to
   // a different project would otherwise leave a stale "Running" pill and
   // console output on screen for a game that's no longer the one you're
@@ -313,21 +403,20 @@ async function selectProject(name: string): Promise<void> {
     preview.stop();
   }
   preview.setSelectedProject(name);
-  refreshSidebar();
+  preview.setTitle(name);
+  refreshChrome();
   refreshWorkspaceVisibility();
   const codeFiles = currentCodeFiles();
-  const nextFile = codeFiles.includes("main.js") ? "main.js" : codeFiles[0];
+  const nextFile = codeFiles.includes(ENTRY_FILE) ? ENTRY_FILE : codeFiles[0];
   if (nextFile && selection.selectedProject === name)
     await selectFile(nextFile);
 }
 
-const sidebar = createSidebar(sidebarRoot, {
+const projectMenu = createProjectMenu(root, {
   onSelectProject: (name) => void selectProject(name),
-  onSelectFile: (path) => void selectFile(path),
   onRequestNewProject: () => {
     void (async () => {
-      const existing = projects.map((p) => p.name);
-      const result = await chooseNewProjectFlow(examples, existing);
+      const result = await chooseNewProjectFlow(examples, existingNames());
       if (result) await createAndSelectProject(result.name, result.exampleSlug);
     })();
   },
@@ -339,12 +428,22 @@ const sidebar = createSidebar(sidebarRoot, {
         // never fires against a path that just moved or disappeared.
         if (!(await flushSave())) return;
         await api.renameProject(name, nextName);
+        // A running game would restart under the name it no longer has.
+        if (preview.isRunning() && preview.currentProject() === name) {
+          preview.stop();
+        }
         await reloadProjects();
         if (selection.selectedProject === name) {
           selection.renameProject(name, nextName);
-          localStorage.setItem(LAST_PROJECT_KEY, nextName);
+          try {
+            localStorage.setItem(LAST_PROJECT_KEY, nextName);
+          } catch {
+            // Remembering the last game is a convenience.
+          }
+          preview.setSelectedProject(nextName);
+          refreshStageTitle();
         }
-        refreshSidebar();
+        refreshChrome();
       } catch (error) {
         toast(errorMessage(error), "error");
       }
@@ -358,22 +457,27 @@ const sidebar = createSidebar(sidebarRoot, {
         await reloadProjects();
         if (selection.selectedProject === name) {
           selection.clearProject(name);
+          if (preview.currentProject() === name) preview.stop();
           preview.setSelectedProject(null);
           const next = projects[0]?.name ?? null;
           if (next) {
             await selectProject(next);
           } else {
-            refreshSidebar();
+            refreshChrome();
             refreshWorkspaceVisibility();
           }
         } else {
-          refreshSidebar();
+          refreshChrome();
         }
       } catch (error) {
         toast(errorMessage(error), "error");
       }
     })();
   },
+});
+
+const fileTabs = createFileTabs(root, {
+  onSelectFile: (path) => void selectFile(path),
   onRequestCreateFile: (path) => {
     void (async () => {
       if (!selection.selectedProject) return;
@@ -396,7 +500,7 @@ const sidebar = createSidebar(sidebarRoot, {
         if (selection.selectedFile === path) {
           await selectFile(nextPath);
         } else {
-          refreshSidebar();
+          refreshChrome();
         }
       } catch (error) {
         toast(errorMessage(error), "error");
@@ -417,18 +521,20 @@ const sidebar = createSidebar(sidebarRoot, {
             await selectFile(next);
           } else {
             editor.setValue("");
-            selectedFileLabel.textContent = "No file selected";
-            refreshSidebar();
+            refreshChrome();
             refreshWorkspaceVisibility();
           }
         } else {
-          refreshSidebar();
+          refreshChrome();
         }
       } catch (error) {
         toast(errorMessage(error), "error");
       }
     })();
   },
+});
+
+const assetPanel = createAssetPanel(root, {
   onUploadFiles: (kind: AssetDirectory, files: FileList) => {
     void (async () => {
       if (!selection.selectedProject) return;
@@ -441,11 +547,11 @@ const sidebar = createSidebar(sidebarRoot, {
           );
         }
         await reloadProjects();
-        refreshSidebar();
+        refreshChrome();
         toast(
           files.length === 1
-            ? "Uploaded 1 file."
-            : `Uploaded ${files.length} files.`,
+            ? `Added ${files[0]?.name ?? "1 file"}.`
+            : `Added ${files.length} files.`,
         );
       } catch (error) {
         toast(errorMessage(error), "error");
@@ -459,7 +565,7 @@ const sidebar = createSidebar(sidebarRoot, {
         if (!(await flushSave())) return;
         await api.deleteAsset(selection.selectedProject, path);
         await reloadProjects();
-        refreshSidebar();
+        refreshChrome();
       } catch (error) {
         toast(errorMessage(error), "error");
       }
@@ -467,15 +573,7 @@ const sidebar = createSidebar(sidebarRoot, {
   },
 });
 
-openExamplesButton.addEventListener("click", () => {
-  void (async () => {
-    const choice = await openExampleGallery(
-      examples,
-      projects.map((p) => p.name),
-    );
-    if (choice) await createAndSelectProject(choice.name, choice.slug);
-  })();
-});
+openExamplesButton.addEventListener("click", () => void openGallery());
 
 window.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -499,8 +597,13 @@ async function bootstrap(): Promise<void> {
   } catch (error) {
     toast(errorMessage(error), "error");
   }
-  refreshSidebar();
-  const last = localStorage.getItem(LAST_PROJECT_KEY);
+  refreshChrome();
+  let last: string | null = null;
+  try {
+    last = localStorage.getItem(LAST_PROJECT_KEY);
+  } catch {
+    // Without storage, open the first game.
+  }
   const initial =
     projects.find((p) => p.name === last)?.name ?? projects[0]?.name ?? null;
   if (initial) {
@@ -508,6 +611,7 @@ async function bootstrap(): Promise<void> {
   } else {
     refreshWorkspaceVisibility();
   }
+  document.body.dataset.jgzReady = "true";
 }
 
 void bootstrap();

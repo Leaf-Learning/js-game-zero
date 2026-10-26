@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>js-game-zero Sandbox</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="/client/favicon.svg" type="image/svg+xml" />
     <script>
       try {
         const theme = localStorage.getItem("jgz-sandbox:theme");
@@ -18,220 +18,294 @@
   <body data-jgz-dirty="false">
     <div class="app" data-jgz-app>
       <header class="topbar">
-        <div class="topbar-brand">
-          <span class="topbar-mark" aria-hidden="true">🕹️</span>
-          <span class="topbar-title">js-game-zero</span>
+        <a class="brand" href="/">
+          <span data-jgz-logo="small" data-size="34"></span>
+          <span class="brand-name">js-game-zero</span>
+        </a>
+        <div class="project-switcher" data-jgz-project-switcher hidden>
+          <span class="topbar-divider" aria-hidden="true"></span>
+          <button
+            type="button"
+            class="project-button"
+            aria-controls="jgz-project-menu"
+            data-jgz-project-menu-button
+          >
+            <span class="project-button-label">My game</span>
+            <span class="project-button-name" data-jgz-current-project></span>
+            <span data-jgz-icon="chevron" data-size="18"></span>
+          </button>
+          <div
+            class="project-menu"
+            id="jgz-project-menu"
+            data-jgz-project-menu
+            hidden
+          >
+            <h2 class="project-menu-title">My games</h2>
+            <ul
+              class="project-list"
+              aria-label="My games"
+              data-jgz-project-list
+            ></ul>
+            <button type="button" class="project-menu-new" data-jgz-new-project>
+              <span data-jgz-icon="plus" data-size="18"></span>
+              New game
+            </button>
+          </div>
         </div>
-        <div class="topbar-actions">
+        <div class="topbar-spacer"></div>
+        <nav class="topbar-nav" aria-label="Main">
+          <button type="button" class="nav-button" data-jgz-open-examples>
+            <span data-jgz-icon="grid"></span>
+            Examples
+          </button>
           <a
-            class="btn btn-ghost"
+            class="nav-button"
             href="/docs"
             target="_blank"
             rel="noopener"
             data-jgz-open-docs
           >
+            <span data-jgz-icon="book"></span>
             Docs
             <span class="visually-hidden">(opens in a new tab)</span>
           </a>
-          <button type="button" class="btn btn-ghost" data-jgz-open-examples>
-            Examples
-          </button>
           <button
             type="button"
-            class="icon-button theme-toggle"
+            class="nav-button nav-button-icon theme-toggle"
             data-jgz-theme-toggle
             aria-label="Switch color mode"
             title="Switch color mode"
           ></button>
-        </div>
+        </nav>
       </header>
-      <div class="app-shell" data-jgz-app-shell>
-        <aside class="sidebar" aria-label="Projects and files" data-jgz-sidebar>
-          <div class="sidebar-section">
-            <div class="sidebar-heading">
-              <h2>Projects</h2>
-              <button
-                type="button"
-                class="icon-button icon-button-accent"
-                data-jgz-new-project
-                aria-label="New project"
-                title="New project"
-              >
-                +
-              </button>
-            </div>
-            <p class="sidebar-empty-note" data-jgz-project-empty>
-              No projects yet.
-            </p>
-            <ul
-              class="row-list"
-              data-jgz-project-list
-              aria-label="Projects"
-            ></ul>
+
+      <main class="welcome" aria-label="Welcome" data-jgz-welcome hidden></main>
+
+      <div
+        class="app-shell"
+        data-jgz-app-shell
+        data-asset-panel="closed"
+        hidden
+      >
+        <nav class="rail" aria-label="Game files" data-jgz-rail>
+          <button type="button" class="rail-button" data-jgz-rail="code">
+            <span data-jgz-icon="code" data-size="22"></span>
+            Code
+          </button>
+          <button type="button" class="rail-button" data-jgz-rail="images">
+            <span data-jgz-icon="images" data-size="22"></span>
+            Images
+            <span class="rail-count" data-jgz-rail-count="images" hidden></span>
+          </button>
+          <button type="button" class="rail-button" data-jgz-rail="sounds">
+            <span data-jgz-icon="sounds" data-size="22"></span>
+            Sounds
+            <span class="rail-count" data-jgz-rail-count="sounds" hidden></span>
+          </button>
+          <button type="button" class="rail-button" data-jgz-rail="music">
+            <span data-jgz-icon="music" data-size="22"></span>
+            Music
+            <span class="rail-count" data-jgz-rail-count="music" hidden></span>
+          </button>
+          <button type="button" class="rail-button" data-jgz-rail="fonts">
+            <span data-jgz-icon="fonts" data-size="22"></span>
+            Fonts
+            <span class="rail-count" data-jgz-rail-count="fonts" hidden></span>
+          </button>
+        </nav>
+
+        <aside
+          class="asset-panel"
+          aria-labelledby="jgz-asset-title"
+          data-jgz-asset-panel
+          hidden
+        >
+          <div class="asset-panel-header">
+            <h2 id="jgz-asset-title" data-jgz-asset-title>Images</h2>
+            <button
+              type="button"
+              class="icon-button icon-button-large"
+              aria-label="Close, back to your code"
+              data-jgz-asset-close
+            >
+              <span data-jgz-icon="close"></span>
+            </button>
           </div>
-          <div class="sidebar-section" data-jgz-file-section hidden>
-            <div class="sidebar-heading">
-              <h2>Files</h2>
-              <button
-                type="button"
-                class="icon-button icon-button-accent"
-                data-jgz-new-file
-                aria-label="New file"
-                title="New file"
-              >
-                +
-              </button>
-            </div>
-            <ul class="row-list" data-jgz-file-list aria-label="Files"></ul>
+          <p class="asset-hint" data-jgz-asset-hint></p>
+          <div class="drop-zone" data-jgz-asset-drop>
+            <span class="drop-zone-title" data-jgz-drop-title
+              >Drop images here</span
+            >
+            <label class="btn btn-secondary">
+              Choose files
+              <input
+                type="file"
+                multiple
+                class="visually-hidden"
+                data-jgz-asset-file
+              />
+            </label>
+            <span class="drop-zone-types" data-jgz-drop-types></span>
           </div>
-          <div class="sidebar-section" data-jgz-asset-section hidden>
-            <div class="sidebar-heading">
-              <h2>Assets</h2>
-            </div>
-            <div class="asset-upload" data-jgz-asset-drop>
-              <select
-                class="text-input select-input"
-                data-jgz-asset-kind
-                aria-label="Asset type"
-              >
-                <option value="images">Images</option>
-                <option value="sounds">Sounds</option>
-                <option value="music">Music</option>
-                <option value="fonts">Fonts</option>
-              </select>
-              <label class="btn btn-secondary btn-upload">
-                Upload
-                <input
-                  type="file"
-                  multiple
-                  data-jgz-asset-file
-                  class="visually-hidden"
-                  aria-label="Upload asset"
-                />
-              </label>
-              <p class="asset-upload-hint">
-                or drag files anywhere in this box
-              </p>
-              <ul
-                class="asset-grid"
-                data-jgz-asset-grid
-                aria-label="Assets"
-              ></ul>
-            </div>
-          </div>
+          <ul class="asset-grid" data-jgz-asset-grid></ul>
         </aside>
-        <div
-          class="pane-resizer"
-          data-jgz-resize="sidebar"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize projects sidebar"
-          tabindex="0"
-        ></div>
-        <main class="workspace" aria-label="Editor" data-jgz-workspace>
-          <div class="empty-state" data-jgz-empty-state></div>
-          <section class="editor-pane" data-jgz-editor-pane hidden>
-            <div class="editor-toolbar">
-              <div class="editor-file-label">
-                <span data-jgz-selected-file>No file selected</span>
-                <span class="save-status" data-jgz-save-status>Saved</span>
-              </div>
-              <button type="button" class="btn btn-ghost" data-jgz-save>
-                Save
+
+        <main class="workspace" aria-label="Your game" data-jgz-workspace>
+          <section class="code-panel" aria-label="Code" data-jgz-editor-pane>
+            <div class="code-toolbar">
+              <div class="file-tabs" data-jgz-file-list></div>
+              <button
+                type="button"
+                class="icon-button icon-button-large"
+                title="New file"
+                aria-label="New file"
+                data-jgz-new-file
+              >
+                <span data-jgz-icon="plus"></span>
+              </button>
+              <div class="toolbar-spacer"></div>
+              <button
+                type="button"
+                class="save-status"
+                title="Your work saves by itself. Click to save right now."
+                data-jgz-save
+              >
+                <span data-jgz-icon="check" data-size="16"></span>
+                <span data-jgz-save-status>Saved</span>
               </button>
             </div>
+            <div class="code-empty" data-jgz-empty-state hidden></div>
             <div class="editor-mount" data-jgz-editor-mount></div>
           </section>
-        </main>
-        <div
-          class="pane-resizer"
-          data-jgz-resize="preview"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize preview panel"
-          tabindex="0"
-        ></div>
-        <aside
-          class="preview-pane"
-          aria-label="Preview and console"
-          data-jgz-preview-pane
-        >
-          <div class="preview-toolbar">
-            <span class="preview-status" data-jgz-preview-status>Stopped</span>
-            <div class="preview-controls">
-              <button
-                type="button"
-                class="btn btn-primary"
-                data-jgz-play
-                disabled
-              >
-                ▶ Play
-              </button>
+
+          <div
+            class="pane-resizer"
+            data-jgz-resize="preview"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize the game panel"
+            tabindex="0"
+          ></div>
+
+          <section class="stage-panel" aria-label="Game" data-jgz-preview-pane>
+            <div class="stage-toolbar">
+              <h2 class="stage-title" data-jgz-stage-title></h2>
+              <span class="status-pill" data-jgz-preview-status>Stopped</span>
+              <div class="toolbar-spacer"></div>
               <button
                 type="button"
                 class="btn btn-secondary"
                 data-jgz-restart
+                hidden
                 disabled
               >
-                ⟳ Restart
+                <span data-jgz-icon="restart" data-size="18"></span>
+                Restart
+              </button>
+              <button type="button" class="btn btn-play" data-jgz-play disabled>
+                <span data-jgz-icon="play" data-size="18"></span>
+                Play
               </button>
               <button
                 type="button"
-                class="btn btn-ghost"
+                class="btn btn-stop"
                 data-jgz-stop
+                hidden
                 disabled
               >
-                ■ Stop
+                <span data-jgz-icon="stop" data-size="18"></span>
+                Stop
               </button>
             </div>
-          </div>
-          <div class="preview-frame-wrap" data-jgz-preview-frame-wrap>
-            <div class="preview-frame-host" data-jgz-preview-frame-host></div>
-            <div class="focus-overlay" data-jgz-focus-overlay hidden>
-              <p>Click the game to use your keyboard</p>
-            </div>
-          </div>
-          <div
-            class="pane-resizer pane-resizer-row"
-            data-jgz-resize="console"
-            role="separator"
-            aria-orientation="horizontal"
-            aria-label="Resize console panel"
-            tabindex="0"
-          ></div>
-          <div class="console-panel" data-jgz-console-panel>
-            <div class="console-tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                class="console-tab"
-                aria-selected="true"
-                data-jgz-console-tab
-              >
-                Console
-              </button>
-              <button
-                type="button"
-                role="tab"
-                class="console-tab"
-                aria-selected="false"
-                data-jgz-problems-tab
-              >
-                Problems
-                <span class="problems-badge" data-jgz-problems-badge hidden
-                  >0</span
+
+            <div
+              class="stage"
+              data-jgz-preview-frame-wrap
+              data-state="stopped"
+              data-focused="false"
+            >
+              <div class="preview-frame-host" data-jgz-preview-frame-host></div>
+              <div class="stage-idle" data-jgz-stage-idle>
+                <button
+                  type="button"
+                  class="stage-idle-play"
+                  aria-label="Play your game"
+                  data-jgz-stage-play
+                  disabled
                 >
+                  <span data-jgz-icon="play" data-size="34"></span>
+                </button>
+                <p>Press Play to see your game</p>
+              </div>
+              <button
+                type="button"
+                class="focus-overlay"
+                data-jgz-focus-overlay
+                hidden
+              >
+                <span>Click the game to use your keyboard</span>
               </button>
+              <div class="stage-problem" data-jgz-stage-problem hidden>
+                <div class="stage-problem-card" role="status">
+                  <h3>Your game stopped</h3>
+                  <p data-jgz-stage-problem-text></p>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-jgz-stage-show-line
+                  ></button>
+                </div>
+              </div>
             </div>
-            <div class="console-output" data-jgz-console-output></div>
-            <ul
-              class="diagnostics-output"
-              data-jgz-diagnostics
-              hidden
-              data-count="0"
-            ></ul>
-          </div>
-        </aside>
+            <p class="stage-hint" data-jgz-stage-hint hidden></p>
+
+            <div
+              class="pane-resizer pane-resizer-row"
+              data-jgz-resize="console"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Resize Messages"
+              tabindex="0"
+            ></div>
+
+            <section
+              class="messages"
+              aria-labelledby="jgz-messages-title"
+              data-jgz-console-panel
+            >
+              <div class="messages-header">
+                <h3 id="jgz-messages-title">Messages</h3>
+                <span
+                  class="problem-count"
+                  data-jgz-problems-badge
+                  hidden
+                ></span>
+                <div class="toolbar-spacer"></div>
+                <button
+                  type="button"
+                  class="btn btn-quiet btn-small"
+                  data-jgz-clear-messages
+                >
+                  Clear
+                </button>
+              </div>
+              <div class="messages-body">
+                <ul
+                  class="diagnostics-output"
+                  data-jgz-diagnostics
+                  data-count="0"
+                  hidden
+                ></ul>
+                <div
+                  class="console-output"
+                  data-jgz-console-output
+                  hidden
+                ></div>
+                <p class="messages-empty" data-jgz-messages-empty></p>
+              </div>
+            </section>
+          </section>
+        </main>
       </div>
     </div>
     <div class="toast-host" data-jgz-toast-host></div>

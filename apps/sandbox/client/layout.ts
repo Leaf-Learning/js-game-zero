@@ -3,17 +3,16 @@ import { qs } from "./dom";
 const LAYOUT_KEY = "jgz-sandbox:layout";
 const KEYBOARD_STEP = 16;
 
-/** Must match the minmax() minimum on the editor column in style.css. */
-const WORKSPACE_MIN = 340;
-/** Smallest height the game frame is allowed to be squeezed to. */
-const FRAME_MIN = 140;
+/** Must match the minmax() minimum on the code column in style.css. */
+const CODE_MIN = 280;
+/** Smallest height the game stage is allowed to be squeezed to. */
+const FRAME_MIN = 160;
 
-type PanelName = "sidebar" | "preview" | "console";
-const panelNames: readonly PanelName[] = ["sidebar", "preview", "console"];
+type PanelName = "preview" | "console";
+const panelNames: readonly PanelName[] = ["preview", "console"];
 
 type PanelSpec = {
   readonly cssVar: string;
-  readonly defaultSize: number;
   readonly min: number;
   readonly max: number;
   readonly axis: "x" | "y";
@@ -22,26 +21,17 @@ type PanelSpec = {
 };
 
 const specs: Record<PanelName, PanelSpec> = {
-  sidebar: {
-    cssVar: "--jgz-sidebar-width",
-    defaultSize: 224,
-    min: 160,
-    max: 480,
-    axis: "x",
-    direction: 1,
-  },
   preview: {
+    // Unset, the game takes 5/9 of the room beside the code (style.css).
     cssVar: "--jgz-preview-width",
-    defaultSize: 400,
-    min: 280,
-    max: 960,
+    min: 300,
+    max: 1600,
     axis: "x",
     direction: -1,
   },
   console: {
     cssVar: "--jgz-console-height",
-    defaultSize: 200,
-    min: 72,
+    min: 88,
     max: 600,
     axis: "y",
     direction: -1,
@@ -75,17 +65,16 @@ function loadSizes(): LayoutSizes {
 }
 
 /**
- * Draggable dividers for the three adjustable panels: the projects
- * sidebar, the preview column, and the console (which trades height with
- * the game frame above it). Sizes land in CSS custom properties consumed
- * by style.css and persist across sessions in localStorage.
+ * Draggable dividers for the two adjustable panels: the game column, and
+ * Messages (which trades height with the game stage above it). Sizes land
+ * in CSS custom properties consumed by style.css and persist across
+ * sessions in localStorage. Double-clicking a divider puts it back.
  */
 export function initPanelResizers(root: HTMLElement): void {
   const shell = qs<HTMLElement>(root, "[data-jgz-app-shell]");
-  const workspace = qs<HTMLElement>(root, "[data-jgz-workspace]");
+  const codePanel = qs<HTMLElement>(root, "[data-jgz-editor-pane]");
   const frameWrap = qs<HTMLElement>(root, "[data-jgz-preview-frame-wrap]");
   const panels: Record<PanelName, HTMLElement> = {
-    sidebar: qs<HTMLElement>(root, "[data-jgz-sidebar]"),
     preview: qs<HTMLElement>(root, "[data-jgz-preview-pane]"),
     console: qs<HTMLElement>(root, "[data-jgz-console-panel]"),
   };
@@ -102,12 +91,17 @@ export function initPanelResizers(root: HTMLElement): void {
     if (name === "console") {
       return Math.max(0, frameWrap.getBoundingClientRect().height - FRAME_MIN);
     }
-    return Math.max(0, workspace.getBoundingClientRect().width - WORKSPACE_MIN);
+    return Math.max(0, codePanel.getBoundingClientRect().width - CODE_MIN);
   }
 
   function apply(name: PanelName, size: number): void {
     shell.style.setProperty(specs[name].cssVar, `${Math.round(size)}px`);
     sizes[name] = Math.round(size);
+  }
+
+  function reset(name: PanelName): void {
+    shell.style.removeProperty(specs[name].cssVar);
+    delete sizes[name];
   }
 
   function persist(): void {
@@ -180,7 +174,7 @@ export function initPanelResizers(root: HTMLElement): void {
     });
 
     handle.addEventListener("dblclick", () => {
-      apply(name, spec.defaultSize);
+      reset(name);
       persist();
     });
   }

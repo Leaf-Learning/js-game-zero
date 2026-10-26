@@ -24,8 +24,8 @@ bun install
 
 ## The sandbox — the primary way to learn and build
 
-The sandbox is a local web app: a code editor, an asset panel, and a live
-preview, all in your browser, backed by a small Bun server that saves your
+The sandbox is a local web app: a code editor, your game's images and
+sounds, and the game itself, all in your browser, backed by a small Bun server that saves your
 project files to disk as you type.
 
 ```sh
@@ -34,11 +34,11 @@ bun run dev:sandbox
 
 Then open **http://127.0.0.1:4173**, the address the server prints
 (`http://localhost:4173` works too). On first run you'll see two ways to
-start: **Start from an example** clones one of the shipped example games
-into a new project you can edit freely, and **Blank project** starts from a
-tiny working game (an arrow-key-controlled circle) so you have something on
+start: **Remix an example** copies one of the shipped example games into a
+new game you can edit freely, and **Make a blank game** starts from a tiny
+working game (an arrow-key-controlled circle) so you have something on
 screen immediately. See [`docs/sandbox.md`](sandbox.md) for the full guided
-tour of the editor, asset panel, and console.
+tour of the editor, the asset panels, and Messages.
 
 Projects are written to a `.jgz-projects` directory next to wherever you ran
 the command, so nothing is lost between sessions — close the terminal,
@@ -54,7 +54,7 @@ bun run dev:sandbox -- --projects-root /tmp/workshop-projects
 
 The sandbox also serves the example games listed in
 [`docs/examples.md`](examples.md) — they're the same games offered in the
-"Start from an example" gallery, and they're a good way to see idiomatic
+sandbox's example gallery, and they're a good way to see idiomatic
 code before writing your own. With the sandbox running, open the **Examples**
 button in the top bar, or browse to `http://127.0.0.1:4173/examples`.
 
@@ -102,7 +102,7 @@ disappear) before pressing movement keys.
 **My game stopped with "… is not defined".** A name in your code doesn't
 match anything your game or js-game-zero defines — usually a typo. The
 message suggests the closest real name (`scren is not defined. Did you mean
-screen?`) and the Problems panel shows the line. Browser features games
+screen?`), and the sandbox marks the line and offers to make the change. Browser features games
 can't use, such as `setTimeout` or `document`, say what to use instead. A
 misspelled library method, such as `screen.draw.cirlce`, fails the same way
 with "doesn't exist. Did you mean screen.draw.circle?".

@@ -3,11 +3,14 @@ export type ProjectSummary = {
   readonly files: readonly string[];
 };
 
+export type ExampleGalleryGroup = "start-here" | "try-next" | "full-game";
+
 export type ExampleSummary = {
   readonly slug: string;
   readonly title: string;
   readonly description: string;
   readonly expectsInput: "keyboard" | "mouse" | "none";
+  readonly gallery: ExampleGalleryGroup;
 };
 
 export type DocumentationSummary = {
@@ -336,12 +339,16 @@ function decodeExampleSummary(value: unknown): ExampleSummary | null {
     typeof value.description === "string" &&
     (value.expectsInput === "keyboard" ||
       value.expectsInput === "mouse" ||
-      value.expectsInput === "none")
+      value.expectsInput === "none") &&
+    (value.gallery === "start-here" ||
+      value.gallery === "try-next" ||
+      value.gallery === "full-game")
     ? {
         slug: value.slug,
         title: value.title,
         description: value.description,
         expectsInput: value.expectsInput,
+        gallery: value.gallery,
       }
     : null;
 }

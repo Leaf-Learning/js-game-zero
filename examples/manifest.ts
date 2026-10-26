@@ -14,7 +14,12 @@ export type ExampleManifestEntry = {
   readonly e2eScenario: string;
   readonly expectsInput: "keyboard" | "mouse" | "none";
   readonly visual: boolean;
+  /** Where the sandbox's example gallery lists it: short programs that each
+   * show one idea, then sounds and saving, then whole games. */
+  readonly gallery: ExampleGalleryGroup;
 };
+
+export type ExampleGalleryGroup = "start-here" | "try-next" | "full-game";
 
 export const exampleManifest = [
   {
@@ -30,6 +35,7 @@ export const exampleManifest = [
     e2eScenario: "renders deterministic canvas primitives",
     expectsInput: "none",
     visual: true,
+    gallery: "start-here",
   },
   {
     slug: "actor-movement",
@@ -43,6 +49,7 @@ export const exampleManifest = [
     e2eScenario: "moves the actor with the keyboard",
     expectsInput: "keyboard",
     visual: true,
+    gallery: "start-here",
   },
   {
     slug: "sound-tone",
@@ -56,6 +63,7 @@ export const exampleManifest = [
     e2eScenario: "plays a loaded sound and schedules a tone on click",
     expectsInput: "mouse",
     visual: true,
+    gallery: "try-next",
   },
   {
     slug: "animation-basics",
@@ -70,6 +78,7 @@ export const exampleManifest = [
     e2eScenario: "runs top-level animate on the game clock",
     expectsInput: "none",
     visual: true,
+    gallery: "start-here",
   },
   {
     slug: "sandbox-starter",
@@ -84,6 +93,7 @@ export const exampleManifest = [
     e2eScenario: "runs explicit imports and responds to keyboard input",
     expectsInput: "keyboard",
     visual: true,
+    gallery: "try-next",
   },
   {
     slug: "storage-save",
@@ -98,6 +108,7 @@ export const exampleManifest = [
     e2eScenario: "edits, saves, and loads a score with visible buttons",
     expectsInput: "mouse",
     visual: true,
+    gallery: "try-next",
   },
   {
     slug: "tappy-plane",
@@ -121,6 +132,7 @@ export const exampleManifest = [
       "flies a plane through scrolling mountain gaps and saves a high score",
     expectsInput: "mouse",
     visual: true,
+    gallery: "full-game",
   },
   {
     slug: "breakout",
@@ -145,6 +157,7 @@ export const exampleManifest = [
     e2eScenario: "bounces a ball off a mouse-controlled paddle to clear bricks",
     expectsInput: "mouse",
     visual: true,
+    gallery: "full-game",
   },
   {
     slug: "space-shooter",
@@ -172,6 +185,7 @@ export const exampleManifest = [
       "flies a ship through descending enemy waves with lasers and escalating difficulty",
     expectsInput: "keyboard",
     visual: true,
+    gallery: "full-game",
   },
   {
     slug: "snake",
@@ -187,6 +201,7 @@ export const exampleManifest = [
       "steers a grid snake with the clock-driven schedule and persists a high score",
     expectsInput: "keyboard",
     visual: true,
+    gallery: "full-game",
   },
   {
     slug: "platformer",
@@ -212,6 +227,7 @@ export const exampleManifest = [
       "runs and jumps a hand-built tile level to collect gems and reach the flag",
     expectsInput: "keyboard",
     visual: true,
+    gallery: "full-game",
   },
 ] as const satisfies readonly ExampleManifestEntry[];
 

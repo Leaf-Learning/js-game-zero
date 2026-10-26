@@ -122,8 +122,8 @@ function onMouseDown() {
 }
 ```
 
-`sounds.<name>.play()` plays an asset from `sounds/` (upload one through the
-Assets panel, e.g. `sounds/tap.wav`, then reference it as `sounds.tap`).
+`sounds.<name>.play()` plays an asset from `sounds/` (add one in the sandbox's
+**Sounds** panel, e.g. `sounds/tap.wav`, then reference it as `sounds.tap`).
 `tone.play(note, duration)` generates a short beep with no asset needed at
 all. Both require a prior click or key press somewhere on the page — see
 the audio-unlock note in the tutorial's [sound and tone

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>js-game-zero Documentation</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="/client/favicon.svg" type="image/svg+xml" />
     <script>
       try {
         const theme = localStorage.getItem("jgz-sandbox:theme");
@@ -18,20 +18,26 @@
   <body class="docs-page">
     <div class="docs-page-shell" data-jgz-docs-page>
       <header class="docs-page-header">
-        <div>
-          <p class="docs-kicker">Learn js-game-zero</p>
-          <h1>Documentation</h1>
-        </div>
-        <div class="docs-page-actions">
-          <a class="btn btn-ghost" href="/">Sandbox</a>
+        <a class="brand" href="/">
+          <span data-jgz-logo="small" data-size="34"></span>
+          <span class="brand-name">js-game-zero</span>
+        </a>
+        <span class="topbar-divider" aria-hidden="true"></span>
+        <h1 class="docs-page-title">Documentation</h1>
+        <div class="topbar-spacer"></div>
+        <nav class="docs-page-actions" aria-label="Main">
+          <a class="nav-button" href="/">
+            <span data-jgz-icon="code"></span>
+            <span class="nav-button-label">Sandbox</span>
+          </a>
           <button
             type="button"
-            class="icon-button theme-toggle"
+            class="nav-button nav-button-icon theme-toggle"
             data-jgz-theme-toggle
             aria-label="Switch color mode"
             title="Switch color mode"
           ></button>
-        </div>
+        </nav>
       </header>
       <div class="docs-layout">
         <nav

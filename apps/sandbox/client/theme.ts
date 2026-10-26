@@ -1,3 +1,5 @@
+import { icon } from "./icons";
+
 export type Theme = "light" | "dark";
 
 const THEME_KEY = "jgz-sandbox:theme";
@@ -26,7 +28,7 @@ function setButtonState(button: HTMLButtonElement, theme: Theme): void {
   button.setAttribute("aria-pressed", String(theme === "dark"));
   button.setAttribute("aria-label", `Switch to ${next} mode`);
   button.title = `Switch to ${next} mode`;
-  button.textContent = theme === "dark" ? "☀️" : "🌙";
+  button.replaceChildren(icon(theme === "dark" ? "sun" : "moon", 20));
 }
 
 export function initThemeToggle(button: HTMLButtonElement): ThemeController {

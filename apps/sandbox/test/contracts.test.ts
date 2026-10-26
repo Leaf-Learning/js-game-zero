@@ -79,6 +79,7 @@ describe("shared sandbox contracts", () => {
       title: "Movement",
       description: "Move around",
       expectsInput: "keyboard",
+      gallery: "start-here",
     } as const;
     expect(decodeExamplesResponse({ examples: [example] })).toEqual({
       examples: [example],
@@ -86,6 +87,11 @@ describe("shared sandbox contracts", () => {
     expect(
       decodeExamplesResponse({
         examples: [{ ...example, expectsInput: "voice" }],
+      }),
+    ).toBeNull();
+    expect(
+      decodeExamplesResponse({
+        examples: [{ ...example, gallery: "somewhere" }],
       }),
     ).toBeNull();
     expect(decodeExamplesResponse({})).toBeNull();

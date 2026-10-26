@@ -25,6 +25,35 @@ All notable changes to `js-game-zero` are recorded here.
   hooks reference covers it.
 - The Flappy Bird example is now Tappy Plane.
 
+### A logo, and a sandbox made for beginners
+
+- js-game-zero has a logo: a ball in flight over a hill, seen through a
+  rounded window. It heads the README, the package READMEs, the sandbox and
+  its documentation, and is the sandbox's tab icon. `docs/media` has the
+  mark and a light and a dark lockup with the wordmark.
+- The sandbox is redesigned, with the game at the center:
+  - A first screen for when there are no games yet: remix one of three
+    first examples, or make a blank game.
+  - The example gallery shows a picture of each game, groups them into
+    **Start here**, **Try next** and **Full games**, and says whether each
+    plays with the keyboard, the mouse, or by itself.
+  - **My game** in the top bar switches, renames and deletes games, and
+    makes new ones. Code files are tabs above the editor.
+  - A bar down the left opens panels for the game's images, sounds, music
+    and fonts, each saying how to use one in code and flagging a name that
+    can't be.
+  - Play and Stop share one big button. Play hands the keyboard to the
+    game, ringed in teal while it has it.
+  - Console and Problems are one **Messages** panel. When a problem stops
+    the game, its line is marked in the editor with the message under it,
+    a button makes the change when the message names the right spelling,
+    and a link opens the reference page for it.
+  - The editor colors js-game-zero's own names and hooks, wraps long
+    lines, and saves without a Save button.
+  - Light mode is warm paper and dark mode a deep plum, both set in
+    Fredoka, Nunito and JetBrains Mono, which the sandbox serves itself so
+    it looks the same offline.
+
 ### MIT license
 
 - `js-game-zero` is now released under the MIT License instead of

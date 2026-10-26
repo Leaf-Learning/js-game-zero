@@ -7,6 +7,15 @@ import {
   canvasIsNonblank,
   collectPageErrors,
 } from "./fixtures/harness-helpers";
+import {
+  cloneExampleProject,
+  createBlankProject,
+  expectCurrentProject,
+  openAssetPanel,
+  submitDialogName,
+  switchProject,
+  waitForSandbox,
+} from "./fixtures/sandbox-ui";
 
 // A well-known 1x1 transparent PNG, used to verify binary assets survive
 // upload byte-for-byte.
@@ -23,43 +32,6 @@ function previewCanvas(page: Page): Locator {
   return page
     .frameLocator("[data-jgz-preview]")
     .locator("[data-jgz-preview-canvas]");
-}
-
-/** Opens the "new project" chooser from the always-present sidebar button,
- * independent of whether other projects already exist (unlike the
- * first-run empty state, which only shows with zero projects). */
-async function openNewProjectChooser(page: Page): Promise<void> {
-  await page.locator("[data-jgz-new-project]").click();
-}
-
-async function submitDialogName(page: Page, name: string): Promise<void> {
-  await page.locator("[data-jgz-dialog-input]").fill(name);
-  await page.locator("[data-jgz-dialog-submit]").click();
-}
-
-async function createBlankProject(page: Page, name: string): Promise<void> {
-  await openNewProjectChooser(page);
-  await page.locator("[data-jgz-choose-blank]").click();
-  await submitDialogName(page, name);
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-}
-
-async function cloneExampleProject(
-  page: Page,
-  slug: string,
-  name: string,
-): Promise<void> {
-  await openNewProjectChooser(page);
-  await page.locator("[data-jgz-choose-example]").click();
-  await page.locator(`[data-jgz-use-example="${slug}"]`).click();
-  await submitDialogName(page, name);
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
 }
 
 async function setEditorContent(page: Page, source: string): Promise<void> {
@@ -293,10 +265,7 @@ test("documentation opens in a separate tab without disturbing the editor or pre
   await expect(
     page.locator("[data-jgz-editor-mount] .cm-content"),
   ).toContainText("EDITED_WITH_DOCS_OPEN");
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectCurrentProject(page, name);
   await expect(docsPage).toHaveURL(/\/docs$/);
 });
 
@@ -416,7 +385,7 @@ test("human-speed clicks on another project while a game is running still switch
   // Go back to project A and start it running so the preview iframe is
   // actively posting status/diagnostic messages (previously every
   // animation frame, ~60x/sec) while we try to click project B.
-  await page.locator(`[data-jgz-project="${projectA}"]`).click();
+  await switchProject(page, projectA);
   await page.locator("[data-jgz-play]").click();
   await expect(previewCanvas(page)).toBeVisible();
   await expect
@@ -430,14 +399,12 @@ test("human-speed clicks on another project while a game is running still switch
   // synthetic click, to catch the DOM-teardown race the old UI had.
   await page.waitForTimeout(1200);
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    await page.locator(`[data-jgz-project="${projectB}"]`).click({ delay: 80 });
-    await page.locator(`[data-jgz-project="${projectA}"]`).click({ delay: 80 });
+    await switchProject(page, projectB, { delay: 80 });
+    await switchProject(page, projectA, { delay: 80 });
   }
-  await page.locator(`[data-jgz-project="${projectB}"]`).click({ delay: 80 });
+  await switchProject(page, projectB, { delay: 80 });
 
-  await expect(
-    page.locator(`[data-jgz-project="${projectB}"]`),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expectCurrentProject(page, projectB);
   await expect(page.locator("[data-jgz-selected-file]")).toHaveText("main.js");
 });
 
@@ -456,10 +423,7 @@ test("editing autosaves and survives a reload", async ({ page }) => {
   });
 
   await page.reload();
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectCurrentProject(page, name);
   await expect(
     page.locator("[data-jgz-editor-mount] .cm-content"),
   ).toContainText(marker);
@@ -607,7 +571,7 @@ test("a syntax error shows exactly one friendly diagnostic entry", async ({
   );
   await expect(page.locator("[data-jgz-diagnostics] li")).toHaveCount(1);
   await expect(page.locator("[data-jgz-preview-status]")).toHaveText(
-    "Something went wrong",
+    "Needs a fix",
   );
 });
 
@@ -676,6 +640,10 @@ test("cloning an asset-heavy game copies its assets and runs", async ({
     "sounds/score.ogg",
   ];
   for (const asset of expectedAssets) {
+    await openAssetPanel(
+      page,
+      asset.startsWith("images/") ? "images" : "sounds",
+    );
     await expect(page.locator(`[data-jgz-asset="${asset}"]`)).toBeVisible();
     const copied = await readFile(resolve(projectsRoot, name, asset));
     const original = await readFile(
@@ -716,9 +684,7 @@ test("naming an example project opens above the gallery dialog", async ({
   // fill + click hit-test the prompt: both fail if the gallery covers it.
   const exampleName = uniqueName("zorder_snake");
   await submitDialogName(page, exampleName);
-  await expect(
-    page.locator(`[data-jgz-project="${exampleName}"]`),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expectCurrentProject(page, exampleName);
 });
 
 test("viewport 1024x700 shows Play with no clipped controls", async ({
@@ -807,6 +773,9 @@ async function dragHandle(
 test("panel dividers resize the layout, scale the game, and persist", async ({
   page,
 }) => {
+  // Tall enough that the game's width, not its height, sets its size, so a
+  // wider panel shows a bigger game.
+  await page.setViewportSize({ width: 1280, height: 960 });
   const name = uniqueName("resize");
   await page.goto("/");
   await createBlankProject(page, name);
@@ -853,8 +822,9 @@ test("panel dividers resize the layout, scale the game, and persist", async ({
   const consoleAfter = (await consolePanel.boundingBox())?.height ?? 0;
   expect(consoleAfter).toBeCloseTo(consoleBefore + 60, 0);
 
-  // Sizes survive a reload.
+  // Sizes survive a reload. The workspace appears once the games load.
   await page.reload();
+  await waitForSandbox(page);
   expect((await pane.boundingBox())?.width ?? 0).toBeCloseTo(paneAfter, 0);
   expect((await consolePanel.boundingBox())?.height ?? 0).toBeCloseTo(
     consoleAfter,
@@ -967,7 +937,7 @@ test("the tutorial's finished game runs from a clean sandbox project", async ({
   // The finished game, its uploaded asset, and its source all survive a
   // reload of the shared sandbox.
   await page.reload();
-  await expect(page.locator(`[data-jgz-project="${name}"]`)).toBeVisible();
+  await expectCurrentProject(page, name);
   await expect(
     page.locator('[data-jgz-asset="images/player.svg"]'),
   ).toBeVisible();

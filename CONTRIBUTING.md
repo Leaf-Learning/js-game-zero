@@ -45,6 +45,12 @@ projects under `.jgz-projects`.
 Pass `-- --projects-root <path>` for a disposable project directory while
 iterating.
 
+A new example goes in `examples/manifest.ts`, whose `gallery` field puts it
+under **Start here**, **Try next** or **Full games** in the sandbox's
+example gallery. `bun run thumbnails` then draws its card's picture into
+`apps/sandbox/client/thumbnails/`, by running a short example in `jgz` or
+copying a full game's gameplay screenshot from `docs/media`.
+
 ## Tests
 
 ```sh

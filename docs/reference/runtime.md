@@ -462,5 +462,5 @@ is placed the same way where the engine gives no position (JavaScriptCore): on
 the one line that reads it, when only one does. `handle.failure.line` is the
 same number. Errors thrown inside the library have no `line`.
 
-The sandbox surfaces these in its Problems panel; import-mode hosts can pass
+The sandbox shows these under Messages, and marks a problem's line in the editor; import-mode hosts can pass
 a `diagnostics` callback to log or display them however they like.

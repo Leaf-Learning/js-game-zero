@@ -12,61 +12,69 @@ bun run dev:sandbox
 
 Then open `http://127.0.0.1:4173`, the address the server prints.
 
-![The sandbox running a game, with the editor, asset panel, and live preview visible](media/main-view-running-game.png)
+![The sandbox running a game, with the code, the game, and Messages visible](media/main-view-running-game.png)
 
 ## Layout
 
-The window is three columns:
+The code is on the left and the game is on the right, as big as the window
+allows. Drag the divider between them to give either one more room, and
+the divider above **Messages** to trade height with the game.
+Double-click a divider to put it back.
 
-- **Sidebar** (left) — your projects, the files inside the selected
-  project, and its assets.
-- **Editor** (center) — the code editor for whichever file is selected.
-- **Preview** (right) — the Play/Stop/Restart controls, the live game
-  preview, and a Console/Problems panel underneath it.
+- **The top bar** has the logo, the **My game** menu for switching between
+  your games, **Examples**, **Docs**, and the sun/moon button.
+- **The bar down the left** switches between your **Code** and the
+  game's **Images**, **Sounds**, **Music**, and **Fonts**. A number on a
+  button counts the files of that kind.
+- **The game panel** has Play, Stop and Restart, the game itself, and
+  **Messages** underneath it.
 
-The top bar also keeps three tools within reach:
+**Docs** opens the project documentation in a separate browser tab, so you
+can keep it visible while editing and running your game in the sandbox. Use
+the grouped navigation to move between the getting-started guide, tutorial,
+cookbook, sandbox guide, examples, migration guide, verification CLI guide,
+and API reference. Links between these pages, and their images, stay in the
+documentation tab. A link to another file in the repository, such as an
+example's README, opens that file on GitHub in a new tab, and links to
+other websites open in a new tab too.
 
-- **Docs** opens the project documentation in a separate browser tab, so you
-  can keep it visible while editing and running your game in the sandbox. Use
-  the grouped navigation to move between the getting-started guide, tutorial,
-  cookbook, sandbox guide, examples, migration guide, verification CLI guide,
-  and API reference. Links between these pages, and their images, stay in the
-  documentation tab. A link to another file in the repository, such as an
-  example's README, opens that file on GitHub in a new tab, and links to
-  other websites open in a new tab too.
-- **Examples** opens the cloneable example gallery described below.
-- The sun/moon button switches between light and dark mode. The sandbox
-  follows your operating system on first use, then remembers whichever mode
-  you choose. Changing the sandbox theme does not change the colors drawn by
-  your game.
+The sun/moon button switches between light and dark mode. The sandbox
+starts light, or dark if your computer is set to dark mode, then remembers
+whichever mode you choose. Changing the sandbox theme does not change the
+colors drawn by your game.
 
-## Projects
+## Your games
 
-Click **+** next to "Projects" to create a new one. You're asked how to
-start:
+The first time you open the sandbox there are no games yet, so it offers
+two ways to start:
 
-- **Start from an example** opens a gallery of the shipped example games
-  (see [`docs/examples.md`](examples.md)) — picking one clones its code and
-  assets into a brand-new project of your own, which you're then free to
-  edit however you like.
-- **Blank project** starts from a small working game (an arrow-key-controlled
-  circle with the label "Use the arrow keys!") so there's something on
-  screen immediately, rather than a blank file.
+- **Remix an example** copies one of the shipped example games (see
+  [`docs/examples.md`](examples.md)) into a brand-new game of your own,
+  which you're then free to change however you like. Pick one of the three
+  shown, or **See all examples** for the whole gallery.
+- **Make a blank game** starts from a small working game (an
+  arrow-key-controlled circle with the label "Use the arrow keys!") so
+  there's something on screen immediately, rather than a blank file.
 
-Project names must start with a lowercase letter and contain only lowercase
-letters, digits, `-`, and `_`. Each project in the list has a rename (✎) and
-delete (✕) action; deleting a project removes every file inside it and
-can't be undone.
+After that, **My game** in the top bar names the game you have open. Click
+it for a list of every game: pick one to switch to it, or use its pencil to
+rename it or its bin to delete it. Deleting a game removes every file inside
+it and can't be undone. **New game**, at the bottom of the list, offers the
+same two ways to start.
 
-The same example gallery is reachable any time via the **Examples** button
-in the top bar, without going through project creation.
+Game names must start with a lowercase letter and contain only lowercase
+letters, digits, `-`, and `_`.
 
-## Editor and files
+## Code
 
-Selecting a file in the **Files** section opens it in the editor (a
-CodeMirror-based JavaScript editor with syntax highlighting). New projects
-start with `main.js` selected automatically. Use **+** next to "Files" to
-add another file, for example to keep notes or alternate versions.
+Each code file has a tab above the editor (a CodeMirror-based JavaScript
+editor). A game opens with `main.js` selected. Use **+** beside the tabs to
+add another file, for example to keep notes or alternate versions, and the
+**⋯** on the open tab to rename or delete it.
+
+The editor colors the names js-game-zero gives you, such as `screen`,
+`Actor`, `keyboard` and `WIDTH`, in blue, and the hooks it calls, such as
+`draw` and `update`, in bold orange. Everything else is yours.
 
 The preview evaluates `main.js` as one zero-boilerplate script. It does not
 bundle other JavaScript files or resolve `import` statements. Organize a
@@ -75,79 +83,99 @@ For a game split into modules, use a browser bundler and the scoped
 `defineGame()` / `run()` API shown in
 [`Sandbox Starter`](../examples/sandbox-starter/README.md).
 
-Changes save automatically about half a second after you stop typing; the
-save status next to the editor toolbar reads "Unsaved changes" while a save
-is pending, then "Saving…", then "Saved" (or "Couldn't save" with a toast
-explaining why, if something went wrong). Press **Ctrl/Cmd+S**, or the
-**Save** button, to save immediately instead of waiting.
+Changes save automatically about half a second after you stop typing. The
+status at the right of the tabs reads "Saving…" until your work is on disk,
+then "Saved" (or "Couldn't save" with a message explaining why, if something
+went wrong). Press **Ctrl/Cmd+S**, or click the status, to save
+immediately instead of waiting.
 
-## Assets
+## Images, sounds, music and fonts
 
-The **Assets** panel manages four kinds of file, matching the framework's
-asset directories: **Images**, **Sounds**, **Music**, and **Fonts**, chosen
-from the dropdown at the top of the panel.
+**Images**, **Sounds**, **Music**, and **Fonts** on the left each open a
+panel for that kind of asset, matching the framework's asset directories.
+**Code**, or the panel's ✕, closes it again.
 
-![The asset panel showing uploaded images](media/asset-panel.png)
+![The Images panel showing a game's images](media/asset-panel.png)
 
-- Click **Upload** to pick files from your computer, or drag files directly
-  into the panel — dropped files are automatically sorted into the right
-  asset directory by file type (audio files with "music" in the name go to
-  Music, other audio to Sounds, fonts by extension, everything else to
-  Images).
-- Each uploaded asset gets a small preview (a thumbnail for images, a
-  player for sounds/music) and a delete (✕) action.
-- Reference an uploaded asset from code by its filename, lowercase, without
-  the directory prefix — a file uploaded as `images/hero.png` is
-  `new Actor("hero.png")` or `images.hero` in your code. See
+- The top of the panel shows how to use one in code, with the name of one
+  of your own files: `new Actor("gem")`, `sounds.jump.play()`,
+  `music.play("theme")`, or `fontname: "pixel"`.
+- Click **Choose files** to pick files from your computer, or drop them on
+  the panel. Dropped files are sorted by type: pictures go to Images and
+  font files to Fonts. Audio goes to the open Sounds or Music panel, or else
+  to Sounds (Music if "music" is in its name).
+- Each file shows a preview (the picture, a play button for sounds and
+  music, or "Aa" in the font) and its name in code, and a delete button
+  when you point at it.
+- Code uses an asset's name in lowercase, without its folder or ending: a
+  file uploaded as `images/hero.png` is `new Actor("hero")` or
+  `images.hero`. Names can only use lowercase letters, digits and `_`, so a
+  file whose name can't be used in code says **Rename to use**; upload it
+  again under a name like `hero_2.png`. See
   [`docs/reference/loaders.md`](reference/loaders.md) for the full naming
   grammar.
 
 ## Play, Stop, Restart
 
-- **▶ Play** runs the selected project's `main.js` in the preview pane,
-  flushing any unsaved edits first.
-- **⟳ Restart** reloads the same project from scratch — use it after
-  editing code while the game keeps running, since editing doesn't
-  hot-reload the preview by itself.
-- **■ Stop** ends the preview.
+- **Play** runs the open game's `main.js`, saving any changes first.
+- **Restart** runs the same game again from the beginning. Use it after
+  changing code while the game keeps running, since editing doesn't change
+  the running game by itself.
+- **Stop** ends the game.
 
-The status pill above the preview reads **Stopped**, **Running**, or
-**Something went wrong** (if the game throws an uncaught error).
+While the game is stopped, the big play button in the middle of the game
+panel does the same as **Play**.
+
+The pill beside the game's title reads **Stopped**, **Running**, or
+**Needs a fix** (when the game stopped on a problem). The title is the
+game's `TITLE`, or its name if it doesn't set one.
 
 ### Keyboard focus
 
-The game preview runs inside an embedded frame, and browsers only deliver
-keyboard events to whichever frame currently has focus. While a game is
-running and the preview isn't focused, an overlay reading **"Click the game
-to use your keyboard"** appears over it — click anywhere on the preview to
-dismiss it and start sending it your key presses.
+The game runs inside an embedded frame, and browsers only deliver keyboard
+events to whichever frame has focus. **Play** hands the keyboard to the
+game: a teal ring goes round it, and the line underneath says "Your keys go
+to the game. Click your code to type again." When you click somewhere else,
+the ring goes and the game shows **"Click the game to use your keyboard"**;
+click anywhere on the game to give it the keys again.
 
-## Console and Problems
+## Messages and problems
 
-Below the preview, two tabs:
+**Messages**, under the game, shows anything your game prints with
+`console.log`/`info`/`warn`/`error`, in order, and the problems the runtime
+finds (see [`docs/reference/runtime.md`](reference/runtime.md#diagnostics)),
+above them. A count beside the heading says how many problems there are.
+Click a problem's **Line** to go to that line in your code.
 
-- **Console** shows anything your game logs with `console.log`/`info`/
-  `warn`/`error`, in order, color-coded by level.
-- **Problems** lists diagnostics from the runtime (see
-  [`docs/reference/runtime.md`](reference/runtime.md#diagnostics)) and any
-  uncaught errors, each with a line number when one is available. A badge
-  on the tab shows the current count; the panel switches to Problems
-  automatically the moment one appears.
+When a problem stops the game:
 
-Both are cleared each time you press Play or Restart, and when you switch
-projects.
+- the game says **Your game stopped**, with a button to show you the line;
+- the line is marked in red in the editor, with the problem's message
+  under it;
+- the `main.js` tab gets a red dot.
+
+When the message names the right spelling, such as "`screen.draw.fillRect`
+doesn't exist. Did you mean `screen.draw.filledRect`?", a button under it
+makes that change for you (**Change it to filledRect**). A link beside it
+opens the reference page for the thing the message is about. Editing the
+marked line clears the mark; press **Play** to try again.
+
+Messages are cleared each time you press Play or Restart, when you switch
+games, and when you click **Clear**.
 
 ## Example gallery
 
 ![The example gallery, showing every shipped example game](media/example-gallery.png)
 
-Opened from the **Examples** button in the top bar, or from **Start from an
-example** during project creation. Each card shows the game's title, a short
-description of what it does, and an icon for how you interact with it
-(keyboard, mouse, or none — it just plays). Clicking **Use this example**
-prompts for a project name and clones the example's code and assets into a
-new project. See [`docs/examples.md`](examples.md) for what each example
-teaches.
+Opened from the **Examples** button in the top bar, from **See all
+examples** on the first screen, or from **Remix an example** under **New
+game**. The examples are grouped: **Start here** has short programs that
+each show one idea, **Try next** adds sounds and saving, and **Full games**
+are whole games to play, read and change. Each card shows a picture of the
+game, a sentence about what it does, and how you play it (keyboard, mouse,
+or watch — it just plays). Click a card, name your copy, and the example's
+code and assets are copied into a new game of your own. See
+[`docs/examples.md`](examples.md) for what each example teaches.
 
 ## Command-line options
 

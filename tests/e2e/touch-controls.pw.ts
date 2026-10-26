@@ -4,6 +4,7 @@ import {
   collectPageErrors,
   waitForExampleStatus,
 } from "./fixtures/harness-helpers";
+import { createBlankProject } from "./fixtures/sandbox-ui";
 
 declare global {
   interface Window {
@@ -541,14 +542,7 @@ test.describe("mobile touch input", () => {
   }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto("/");
-    await page.locator("[data-jgz-new-project]").click();
-    await page.locator("[data-jgz-choose-blank]").click();
-    const name = `touch_${Date.now().toString(36)}`;
-    await page.locator("[data-jgz-dialog-input]").fill(name);
-    await page.locator("[data-jgz-dialog-submit]").click();
-    await expect(
-      page.getByText(`Created "${name}".`, { exact: true }),
-    ).toBeVisible();
+    await createBlankProject(page, `touch_${Date.now().toString(36)}`);
     const editor = page.locator("[data-jgz-editor-mount] .cm-content");
     await editor.click();
     await page.keyboard.press("ControlOrMeta+A");

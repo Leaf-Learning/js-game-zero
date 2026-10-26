@@ -28,6 +28,15 @@ test("example manifest exposes complete smoke metadata", async () => {
     );
     expect(["global", "import"]).toContain(example.mode);
     expect(["keyboard", "mouse", "none"]).toContain(example.expectsInput);
+    expect(["start-here", "try-next", "full-game"]).toContain(example.gallery);
+    // `bun scripts/capture-thumbnails.ts` draws each gallery card's picture.
+    if (example.mode === "global") {
+      expect(
+        await Bun.file(
+          `apps/sandbox/client/thumbnails/${example.slug}.png`,
+        ).exists(),
+      ).toBe(true);
+    }
 
     const entry = Bun.file(example.entryPoint);
     const tutorial = Bun.file(example.tutorial);

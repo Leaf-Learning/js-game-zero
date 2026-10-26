@@ -1,4 +1,9 @@
-# js-game-zero
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/logo-lockup-dark.svg">
+    <img src="docs/media/logo-lockup-light.svg" alt="js-game-zero" width="420">
+  </picture>
+</h1>
 
 [![CI](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml)
 
@@ -36,7 +41,7 @@ add `TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT, a: keys.SPACE }`
 to show buttons on touch devices, using the same keyboard actions. Canvas
 taps and drags work with the existing mouse hooks too.
 
-![The sandbox running a game, with the editor, asset panel, and live preview visible](docs/media/main-view-running-game.png)
+![The sandbox running a game, with the code, the game, and Messages visible](docs/media/main-view-running-game.png)
 
 ## Quickstart
 
@@ -117,7 +122,10 @@ public domain (CC0).
 
 Example games use free [CC0-licensed assets from kenney.nl](https://kenney.nl/),
 which requires no attribution but is credited here out of respect for the
-work.
+work. The sandbox is set in [Fredoka](https://github.com/hafontia/Fredoka-One),
+[Nunito](https://github.com/googlefonts/nunito) and
+[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), each under the
+SIL Open Font License 1.1, and the logo's wordmark is drawn from Fredoka.
 
 Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev
 setup, test commands, and PR expectations.
