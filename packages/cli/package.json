@@ -1,6 +1,6 @@
 {
   "name": "@js-game-zero/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "license": "MIT",
   "description": "jgz: drive, inspect and screenshot js-game-zero games from the terminal in headless Chromium.",

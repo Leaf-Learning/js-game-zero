@@ -6,6 +6,7 @@
 </h1>
 
 [![CI](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@js-game-zero/browser-runtime)](https://www.npmjs.com/package/@js-game-zero/browser-runtime)
 
 `js-game-zero` teaches kids and other beginners how to build browser games
 in JavaScript, with as little boilerplate as possible. Declare `WIDTH` and
@@ -56,6 +57,56 @@ Then open **http://127.0.0.1:4173**, the address it prints, in your browser —
 that's the sandbox, a local code editor and live preview with no account or
 internet connection required after install.
 
+## A game in one web page
+
+To try it with nothing to install, save this as `my-game.html`, open it in
+your browser, and press the arrow keys. It loads js-game-zero from
+[jsDelivr](https://www.jsdelivr.com/package/npm/@js-game-zero/browser-runtime),
+so it needs an internet connection.
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>My game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js"></script>
+  </head>
+  <body>
+    <script id="game" type="text/plain">
+      WIDTH = 480;
+      HEIGHT = 360;
+
+      let x = 240;
+
+      function update(dt) {
+        if (keyboard.left) x -= 200 * dt;
+        if (keyboard.right) x += 200 * dt;
+      }
+
+      function draw() {
+        screen.fill("navy");
+        screen.draw.filledCircle([x, 180], 30, "gold");
+      }
+    </script>
+    <pre id="problems"></pre>
+    <script>
+      JGZ.run(document.getElementById("game").textContent, {
+        // Anything that goes wrong shows up on the page.
+        diagnostics(problem) {
+          document.getElementById("problems").textContent +=
+            problem.message + "\n";
+        },
+      });
+    </script>
+  </body>
+</html>
+```
+
+Change the game's code and reload the page to try it. [Getting
+started](docs/getting-started.md#a-game-in-one-web-page) says more, including
+how to use images and sounds.
+
 ## Learn more
 
 - [**Getting started**](docs/getting-started.md) — install/run paths for
@@ -99,12 +150,28 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development workflow.
 
 ## Packages
 
-- `packages/core` — rendering, actors, geometry, input, animation, audio,
+Three packages are on npm, released together at one version:
+
+- [`@js-game-zero/core`](https://www.npmjs.com/package/@js-game-zero/core)
+  (`packages/core`) — rendering, actors, geometry, input, animation, audio,
   and storage: the framework itself, with its API reference
   (`@js-game-zero/core/reference`).
-- `packages/browser-runtime` — the zero-boilerplate wrapper that injects
-  globals and runs learner code.
-- `packages/cli` — the browser-backed `jgz` verification and automation CLI.
+- [`@js-game-zero/browser-runtime`](https://www.npmjs.com/package/@js-game-zero/browser-runtime)
+  (`packages/browser-runtime`) — the zero-boilerplate wrapper that injects
+  globals and runs learner code, with the script-tag build used above.
+- [`@js-game-zero/cli`](https://www.npmjs.com/package/@js-game-zero/cli)
+  (`packages/cli`) — the browser-backed `jgz` verification and automation CLI.
+
+To use one in a project of your own:
+
+```sh
+bun add @js-game-zero/browser-runtime
+# or
+npm install @js-game-zero/browser-runtime
+```
+
+The rest of the repository isn't published:
+
 - `apps/sandbox` — the Bun-backed local project editor and preview server.
 - `examples` — playable example games and their assets.
 

@@ -298,8 +298,9 @@ Everything above uses zero-boilerplate globals (`screen`, `keyboard`, `draw`
 as a bare top-level function, ...), which is how the sandbox runs your code
 and the fastest way to start. If you'd rather work with normal JavaScript
 imports and no injected globals — publishing to npm, using a bundler, or
-just personal preference — import from `@js-game-zero/core` and call `run()`
-yourself:
+just personal preference — install `@js-game-zero/core` from npm
+(`npm install @js-game-zero/core` or `bun add @js-game-zero/core`), import
+from it, and call `run()` yourself:
 
 ```js
 import { run, screen, keyboard } from "@js-game-zero/core";

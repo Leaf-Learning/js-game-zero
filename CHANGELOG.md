@@ -2,6 +2,28 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## 0.2.1 — 2026-10-26
+
+### Published from GitHub
+
+- This is the first release the release workflow publishes, through npm's
+  trusted publishing, so each package carries a provenance statement. The
+  packages' code is the same as 0.2.0's.
+
+### The docs
+
+- The README and Getting started show a game in one web page, which loads
+  the script-tag build from jsDelivr, so there's nothing to install.
+  Getting started says where its problems appear, and how such a page uses
+  images and sounds.
+- The README links each package's npm page, shows how to install one, and
+  has an npm badge. The browser-runtime README's script-tag example loads the
+  build from jsDelivr. The runtime reference says where the build is, and that
+  only a `diagnostics` callback hears about a page's problems. The cookbook's
+  explicit-imports recipe says to install core first.
+- The docs check accepts README commands that install this repo's own
+  packages.
+
 ## 0.2.0 — 2026-10-26
 
 ### Ready for npm

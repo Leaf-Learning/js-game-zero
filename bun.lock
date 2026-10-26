@@ -32,14 +32,14 @@
     },
     "packages/browser-runtime": {
       "name": "@js-game-zero/browser-runtime",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@js-game-zero/core": "workspace:*",
       },
     },
     "packages/cli": {
       "name": "@js-game-zero/cli",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "bin": {
         "jgz": "./dist/cli.js",
       },
@@ -52,7 +52,7 @@
     },
     "packages/core": {
       "name": "@js-game-zero/core",
-      "version": "0.2.0",
+      "version": "0.2.1",
     },
   },
   "packages": {

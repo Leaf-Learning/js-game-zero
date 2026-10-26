@@ -151,7 +151,14 @@ failed halfway can be rerun. A prerelease version such as `0.3.0-beta.1` is
 published under the `next` tag, leaving `latest` alone.
 
 npm trusts the workflow to publish (trusted publishing), so no token is
-stored anywhere and each version carries a provenance statement. To see
+stored anywhere and each version carries a provenance statement.
+
+A new package's first version is published by hand, since npm only lets a
+package that exists trust a workflow. Then trust the workflow with
+`npm trust github <package> --repository Leaf-Learning/js-game-zero --file release.yml --allow-publish`,
+and release through it within two days: npm expires a trusted publisher that
+hasn't published by then, and an expired one has to be deleted and added
+again. To see
 what a release would publish, run `bun run build`, `bun run package:check`
 and `bun run release:pack`: the tarballs are left in `.release/`.
 

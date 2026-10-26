@@ -367,7 +367,10 @@ predict. A seed that isn't a string or a finite number fails at startup.
 
 ### Driving a game from a host page
 
-The script-tag build (`window.JGZ`) carries `loadImages`, `getGameInspector`,
+The script-tag build is `dist/browser/browser.js` in
+`@js-game-zero/browser-runtime`, which jsDelivr also serves, at
+`https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js`.
+Its `window.JGZ` carries `loadImages`, `getGameInspector`,
 `serializeGameValue`, `parseStatePath` and `createSeededRandom` beside the
 learner-facing API, so a page can run a game it drives itself, the way the CLI
 does, without a bundler:
@@ -463,4 +466,7 @@ the one line that reads it, when only one does. `handle.failure.line` is the
 same number. Errors thrown inside the library have no `line`.
 
 The sandbox shows these under Messages, and marks a problem's line in the editor; import-mode hosts can pass
-a `diagnostics` callback to log or display them however they like.
+a `diagnostics` callback to log or display them however they like. Apart
+from the startup failures that `run()` also throws, nothing else reports
+them: without a callback, a page shows no message, and a game that fails
+while running removes its canvas.

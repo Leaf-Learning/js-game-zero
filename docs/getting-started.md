@@ -1,8 +1,10 @@
 # Getting Started
 
-This page gets you from a fresh clone to a running game. If you're brand new
-to `js-game-zero`, the [tutorial](tutorial.md) is the next stop after this —
-it walks through building a small game step by step.
+This page gets you to a running game: in the sandbox, which runs from a
+clone of this repository, or in [a single web page](#a-game-in-one-web-page)
+with nothing to install. If you're brand new to `js-game-zero`, the
+[tutorial](tutorial.md) is the next stop after this — it walks through
+building a small game step by step.
 
 ## Requirements
 
@@ -57,6 +59,87 @@ The sandbox also serves the example games listed in
 sandbox's example gallery, and they're a good way to see idiomatic
 code before writing your own. With the sandbox running, open the **Examples**
 button in the top bar, or browse to `http://127.0.0.1:4173/examples`.
+
+## A game in one web page
+
+A game can also live in one HTML file, with no Bun and no clone: the page
+loads js-game-zero from [jsDelivr](https://www.jsdelivr.com/package/npm/@js-game-zero/browser-runtime),
+so all it needs is a browser and an internet connection. Save this as
+`my-game.html` and open it in your browser:
+
+```html
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>My game</title>
+    <script src="https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js"></script>
+  </head>
+  <body>
+    <script id="game" type="text/plain">
+      WIDTH = 480;
+      HEIGHT = 360;
+
+      let x = 240;
+
+      function update(dt) {
+        if (keyboard.left) x -= 200 * dt;
+        if (keyboard.right) x += 200 * dt;
+      }
+
+      function draw() {
+        screen.fill("navy");
+        screen.draw.filledCircle([x, 180], 30, "gold");
+      }
+    </script>
+    <pre id="problems"></pre>
+    <script>
+      JGZ.run(document.getElementById("game").textContent, {
+        // Anything that goes wrong shows up on the page.
+        diagnostics(problem) {
+          document.getElementById("problems").textContent +=
+            problem.message + "\n";
+        },
+      });
+    </script>
+  </body>
+</html>
+```
+
+- **Your game** goes in the `<script id="game">` block. It's the same code
+  as a sandbox game's `main.js`, so the tutorial's and the cookbook's code
+  works there as it is. Save the file and reload the page to see a change.
+- **Problems** appear under the game, in the same words the sandbox uses
+  (`draw failed: screen.fil doesn't exist. Did you mean screen.fill?`). A
+  game that fails stops and disappears, and only the message is left. The
+  sandbox does more for you here: it marks the line and offers to fix it.
+- **`@0.2`** in the address loads the newest 0.2 release. Write a full
+  version, such as `@0.2.1`, to keep a page on one release.
+
+### Images and sounds in a web page
+
+Put the files in `images/` and `sounds/` folders next to the page, and list
+them in an `assetUrls` map, so `JGZ.run` knows where each one is. The game
+names them as usual: `new Actor("ship")`, `sounds.laser.play()`.
+
+```js
+JGZ.run(document.getElementById("game").textContent, {
+  assetUrls: {
+    "images/ship.png": "images/ship.png",
+    "sounds/laser.wav": "sounds/laser.wav",
+  },
+  diagnostics(problem) {
+    document.getElementById("problems").textContent += problem.message + "\n";
+  },
+});
+```
+
+Images load in a page opened from your disk, but browsers don't let such a
+page load sounds. For sounds, open the page from a web server instead: run
+one in the page's folder, such as `python3 -m http.server`, and open
+`http://localhost:8000/my-game.html`. A file that doesn't load is reported under the game.
+[Assets without a server](reference/loaders.md#assets-without-a-server)
+covers the map in full.
 
 ## For teachers: running a classroom session
 

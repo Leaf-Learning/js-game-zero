@@ -115,11 +115,37 @@ async function checkReadmeCommands(): Promise<void> {
 
   if (commands.length === 0) fail("README.md must document shell commands.");
 
+  const publishedPackages = new Set<string>();
+  for (const manifest of packageManifests.filter((path) =>
+    path.startsWith("packages/"),
+  )) {
+    const { name } = await readPackageJson(manifest);
+    if (name) publishedPackages.add(name);
+  }
+
   for (const command of commands) {
     const [binary, subcommand, script] = command.split(/\s+/);
     if (binary === "git" || binary === "cd") continue;
+    // Installing one of this repo's packages from npm, in a project of your
+    // own: `bun add -d @js-game-zero/cli`, `npm install @js-game-zero/core`.
+    if (
+      (binary === "npm" && subcommand === "install") ||
+      (binary === "bun" && subcommand === "add")
+    ) {
+      const names = command
+        .split(/\s+/)
+        .slice(2)
+        .filter((word) => !word.startsWith("-"));
+      const unknown = names.filter((name) => !publishedPackages.has(name));
+      if (names.length === 0 || unknown.length > 0) {
+        fail(`README installs a package this repo doesn't publish: ${command}`);
+      }
+      continue;
+    }
     if (binary !== "bun" && binary !== "bunx") {
-      fail(`README command must start with bun, bunx, git, or cd: ${command}`);
+      fail(
+        `README command must start with bun, bunx, git, cd or npm install: ${command}`,
+      );
     }
     if (binary === "bunx") {
       if (!command.startsWith("bunx playwright install")) {
