@@ -2,7 +2,7 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## 0.2.0 — 2026-10-25
+## 0.2.0 — 2026-10-26
 
 ### Ready for npm
 
