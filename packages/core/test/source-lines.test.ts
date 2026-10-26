@@ -23,26 +23,70 @@ const thrown = (
   });
 
 describe("an error's line in the game source", () => {
-  test("V8: from the frame whose file token the calibration throw had", () => {
+  test("V8: from the frames compiled where the calibration throw was", () => {
     const calibration = readCalibration(
       thrown(
-        "Error: calibrate\n    at eval (eval at calibrateFrames (https://x/jgz.js:10:5), <anonymous>:5:15)\n    at https://x/jgz.js:12:3",
+        "Error: calibrate\n    at eval (eval at compileSource (https://x/jgz.js:10:5), <anonymous>:5:15)\n    at calibrateFrames (https://x/jgz.js:20:3)",
         {},
         "calibrate",
       ),
     );
     expect(calibration).toEqual({
       kind: "stack",
-      marker: "<anonymous>",
+      marker: "eval at compileSource (https://x/jgz.js:10:5), <anonymous>",
       offset: 4,
     });
     const error = thrown(
-      "ReferenceError: O is not defined\n    at update (eval at run (https://x/jgz.js:1:1), <anonymous>:11:30)\n    at https://x/jgz.js:40:7",
+      "ReferenceError: O is not defined\n    at update (eval at compileSource (https://x/jgz.js:10:5), <anonymous>:11:30)\n    at https://x/jgz.js:40:7",
     );
     expect(lineWith(calibration!, error)).toBe(7);
     // Thrown in the library: no game frame.
     expect(
       lineWith(calibration!, thrown("Error\n    at https://x/jgz.js:40:7")),
+    ).toBeUndefined();
+    // Thrown in the library for a caller that is `<anonymous>` code too, as
+    // a devtools console's is: compiled somewhere else, so not the game.
+    expect(
+      lineWith(
+        calibration!,
+        thrown(
+          "SyntaxError: missing ) after argument list\n    at new Function (<anonymous>)\n    at Object.run (https://x/jgz.js:7113:19)\n    at eval (eval at evaluate (:311:30), <anonymous>:14:11)",
+        ),
+      ),
+    ).toBeUndefined();
+  });
+
+  test("SpiderMonkey: from the frames compiled where the calibration throw was", () => {
+    const at =
+      "https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js";
+    const calibration = readCalibration(
+      thrown(
+        `@${at} line 10 > Function:5:15\ncalibrateFrames@${at}:20:3`,
+        {},
+        "calibrate",
+      ),
+    );
+    expect(calibration).toEqual({
+      kind: "stack",
+      marker: `${at} line 10 > Function`,
+      offset: 4,
+    });
+    expect(
+      lineWith(
+        calibration!,
+        thrown(
+          `anonymous/<@${at} line 10 > Function:7:1\nrun@${at}:7114:45\nanonymous@debugger eval code line 2 > Function:3:12`,
+        ),
+      ),
+    ).toBe(3);
+    // The caller's own `new Function` code is not the game's.
+    expect(
+      lineWith(
+        calibration!,
+        thrown(
+          `run@${at}:7113:19\nanonymous@debugger eval code line 2 > Function:9:12`,
+        ),
+      ),
     ).toBeUndefined();
   });
 

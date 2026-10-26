@@ -2,6 +2,17 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### The runtime
+
+- A game started by `run()` from code that wasn't loaded from a file, such
+  as a devtools console's, a `new Function`'s or a test's `page.evaluate`,
+  has its mistakes put on their own lines in Chrome and Firefox. A syntax
+  error got the line of that code's call to `run()`, sometimes past the end
+  of the game, and so did a mistake in what was passed to `run()`, like a
+  `projectId` it won't take, which is on no line of the game.
+
 ## 0.2.2 — 2026-10-26
 
 ### Plain web pages

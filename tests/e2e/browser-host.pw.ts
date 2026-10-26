@@ -246,3 +246,57 @@ let atStart = [box.width, box.height, box.bottom];
   expect(errors).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
+
+test("a host page that calls run() from code it compiled itself still hears the game's own lines", async ({
+  page,
+}) => {
+  const { errors, pageErrors } = collectPageErrors(page);
+  await page.goto("/fixtures/browser-host");
+  await page.waitForFunction(() => Boolean(window.JGZ?.run));
+
+  const lines = await page.evaluate(() => {
+    // Code made with new Function, as a devtools console's is, which V8 names
+    // <anonymous> just as it does the game's. The blank lines put its call
+    // to run() below every line of the games.
+    const start = new Function(
+      "JGZ",
+      "source",
+      "projectId",
+      `${"\n".repeat(12)}
+      const lines = [];
+      try {
+        JGZ.run(source, {
+          canvas: document.createElement("canvas"),
+          projectId,
+          diagnostics: (d) => {
+            if (d.severity === "error") lines.push(d.line ?? null);
+          },
+        });
+      } catch {}
+      return lines;`,
+    ) as (jgz: unknown, source: string, projectId: string) => (number | null)[];
+    const JGZ = window.JGZ!;
+    return {
+      syntaxError: start(
+        JGZ,
+        'let x = 0;\n\nfunction draw() {\n  screen.fill("navy";\n}',
+        "lines-syntax",
+      ),
+      thrownAtTopLevel: start(
+        JGZ,
+        "let a = 1;\nlet b = 2;\nnull.boom;",
+        "lines-top",
+      ),
+      // Thrown by run() itself, before any of the game runs.
+      notTheGames: start(JGZ, "function draw() {}", "Not A Project Id"),
+    };
+  });
+
+  expect(lines).toEqual({
+    syntaxError: [4],
+    thrownAtTopLevel: [3],
+    notTheGames: [null],
+  });
+  expect(errors).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});

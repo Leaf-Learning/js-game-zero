@@ -422,13 +422,10 @@ export function executeZeroBoilerplateSource(
 
   let factory: (scope: unknown) => unknown;
   try {
-    factory = new Function(
-      "scope",
-      wrapSource(source, String(sourceResultFields), [
-        ...bindingNames,
-        ...callableNames,
-      ]),
-    ) as (scope: unknown) => unknown;
+    factory = compileSource(source, String(sourceResultFields), [
+      ...bindingNames,
+      ...callableNames,
+    ]);
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
     throw gameSyntaxError(source, error);
@@ -544,8 +541,25 @@ function wrapSource(
 }
 
 /**
- * How this engine numbers lines in `new Function` code: from the file token of
- * a stack frame (V8, SpiderMonkey), or, where a frame there has no location
+ * Compiles a zero-boilerplate source in its wrapper. The calibration below
+ * compiles here too, and must: V8 and SpiderMonkey name `new Function` code
+ * after the place that compiled it, so this one call is what tells a game's
+ * frames from code anyone else compiled.
+ */
+function compileSource(
+  source: string,
+  resultFields: string,
+  bindingNames: readonly string[],
+): (scope: unknown) => unknown {
+  return new Function(
+    "scope",
+    wrapSource(source, resultFields, bindingNames),
+  ) as (scope: unknown) => unknown;
+}
+
+/**
+ * How this engine numbers lines in `new Function` code: from the place of a
+ * stack frame (V8, SpiderMonkey), or, where a frame there has no location
  * (JavaScriptCore), from the error's own `line`.
  */
 export type FrameCalibration =
@@ -558,14 +572,22 @@ export type FrameCalibration =
     };
 let calibration: FrameCalibration | null | undefined;
 
-/** `file:line:col` at the end of a stack frame, with or without a closing paren. */
-const FRAME_RE = /([^\s()]+):(\d+):(\d+)\)?\s*$/;
+/**
+ * A stack frame's `place:line:col`: V8's `at name (place:line:col)` or
+ * `at place:line:col`, or SpiderMonkey's and JavaScriptCore's
+ * `name@place:line:col`. The whole place is kept. For `new Function` code it
+ * is V8's `eval at compileSource (…), <anonymous>` or SpiderMonkey's
+ * `… line 7 > Function`, and without the part naming where it was compiled
+ * every such script looks the same, like the caller's own `<anonymous>` code
+ * when run() is called from a devtools console or another `new Function`.
+ */
+const FRAME_RE = /^\s*(?:at (?:.*? \()?|[^@]*@)(.+):(\d+):(\d+)\)?\s*$/;
 
-function frames(stack: string): { file: string; line: number }[] {
-  const out: { file: string; line: number }[] = [];
+function frames(stack: string): { place: string; line: number }[] {
+  const out: { place: string; line: number }[] = [];
   for (const raw of stack.split("\n")) {
     const match = FRAME_RE.exec(raw);
-    if (match) out.push({ file: match[1]!, line: Number(match[2]) });
+    if (match) out.push({ place: match[1]!, line: Number(match[2]) });
   }
   return out;
 }
@@ -585,7 +607,7 @@ const ownLine = (error: Error) => {
 /**
  * The calibration a throw from the first line of game source gives. The
  * throwing frame is the stack's first frame, after V8's `Error: message` line:
- * when it has a location, its file token marks game frames; when it has none
+ * when it has a location, its place marks game frames; when it has none
  * (JavaScriptCore's `anonymous@`), the error's own `line` is used instead.
  */
 export function readCalibration(error: unknown): FrameCalibration | null {
@@ -611,11 +633,7 @@ export function readCalibration(error: unknown): FrameCalibration | null {
  */
 function calibrateFrames(): FrameCalibration | null {
   try {
-    const factory = new Function(
-      "scope",
-      wrapSource('throw new Error("calibrate");', "", []),
-    );
-    factory({});
+    compileSource('throw new Error("calibrate");', "", [])({});
   } catch (error) {
     return readCalibration(error);
   }
@@ -631,7 +649,7 @@ export function lineWith(
   let line: number | undefined;
   if (calibration.kind === "stack") {
     const frame = frames(error.stack).find(
-      (candidate) => candidate.file === calibration.marker,
+      (candidate) => candidate.place === calibration.marker,
     );
     line = frame && frame.line - calibration.offset;
   } else {
