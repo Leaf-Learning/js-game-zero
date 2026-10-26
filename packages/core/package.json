@@ -1,6 +1,6 @@
 {
   "name": "@js-game-zero/core",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "license": "MIT",
   "description": "A beginner-friendly framework for browser games in the spirit of Pygame Zero: actors, drawing, input, sound, animation and storage.",

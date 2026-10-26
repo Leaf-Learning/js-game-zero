@@ -1,6 +1,6 @@
 {
   "name": "@js-game-zero/browser-runtime",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "license": "MIT",
   "description": "Run zero-boilerplate js-game-zero games: set WIDTH and HEIGHT, write draw(), and the runtime does the rest. Includes a script-tag build.",
