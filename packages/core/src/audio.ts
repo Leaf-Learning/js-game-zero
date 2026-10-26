@@ -468,7 +468,7 @@ export class MusicPlayer {
   ): Promise<void> {
     const asset = await this.loader.load(name);
     if (generation !== this.operationGeneration) return;
-    const element = this.createElement(asset.url);
+    const element = this.createElement(musicPlaybackUrl(asset));
     if (generation !== this.operationGeneration) return;
     element.volume = this.volumeValue;
     element.loop = mode === "loop";
@@ -619,6 +619,39 @@ export const music = createActiveServiceProxy(getActiveMusicPlayer);
 export function clampVolume(volume: number): number {
   if (typeof volume !== "number" || Number.isNaN(volume)) return 1;
   return Math.min(1, Math.max(0, volume));
+}
+
+const musicPlaybackUrls = new WeakMap<MusicAsset, string>();
+
+/**
+ * Music plays from the bytes it was loaded as, through a blob URL, rather
+ * than from the server again: Chromium seeks a track it streams only by
+ * asking the server for part of the file, which many servers can't do, so
+ * `music.position = 30` would jump back to the start.
+ */
+function musicPlaybackUrl(asset: MusicAsset): string {
+  if (
+    !asset.bytes ||
+    typeof Blob !== "function" ||
+    typeof URL.createObjectURL !== "function"
+  ) {
+    return asset.url;
+  }
+  let url = musicPlaybackUrls.get(asset);
+  if (url === undefined) {
+    const extension = /\.([a-z0-9]+)(?:[?#]|$)/i
+      .exec(asset.url)?.[1]
+      ?.toLowerCase();
+    const type =
+      extension === undefined
+        ? ""
+        : extension === "mp3"
+          ? "audio/mpeg"
+          : `audio/${extension}`;
+    url = URL.createObjectURL(new Blob([asset.bytes], { type }));
+    musicPlaybackUrls.set(asset, url);
+  }
+  return url;
 }
 
 function createHtmlAudioElement(url: string): AudioElementLike {

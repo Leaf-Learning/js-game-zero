@@ -767,8 +767,14 @@ function errorResponse(error: unknown): Response {
   if (error instanceof SandboxConflictError) {
     return apiError(error.message, "conflict", 409);
   }
+  if ((error as { code?: unknown } | null)?.code === "ENAMETOOLONG") {
+    return apiError("That name is too long.", "invalid_request", 400);
+  }
+  // The details stay in the server's log: a file system error names the
+  // folders on the machine the sandbox runs on.
+  console.error(error);
   return apiError(
-    error instanceof Error ? error.message : String(error),
+    "Something went wrong in the sandbox. Try again, or restart it.",
     "internal_error",
     500,
   );

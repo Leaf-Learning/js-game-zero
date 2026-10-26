@@ -25,7 +25,9 @@ function resolvedTheme(): Theme {
 
 function setButtonState(button: HTMLButtonElement, theme: Theme): void {
   const next = theme === "dark" ? "light" : "dark";
-  button.setAttribute("aria-pressed", String(theme === "dark"));
+  // The label says what pressing it does, so it isn't also a toggle that's
+  // "pressed" in dark mode.
+  button.removeAttribute("aria-pressed");
   button.setAttribute("aria-label", `Switch to ${next} mode`);
   button.title = `Switch to ${next} mode`;
   button.replaceChildren(icon(theme === "dark" ? "sun" : "moon", 20));

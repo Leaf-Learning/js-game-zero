@@ -1,4 +1,5 @@
 import { createActiveServiceProxy } from "./active-service";
+import { closestName } from "./util";
 
 const baseKeys = {
   BACKSPACE: 8,
@@ -272,6 +273,17 @@ export class KeyboardState {
         const key = keyCodesByAttribute.get(property.toLowerCase());
         if (key !== undefined) return target.isPressed(key);
         if (isSafeUnknownKeyboardProperty(property)) return undefined;
+        // A misspelled key names the one it's closest to, in the words the
+        // other misspelled names use, so the sandbox can offer the fix.
+        const meant = closestName(
+          property.toLowerCase(),
+          keyCodesByAttribute.keys(),
+        );
+        if (meant !== undefined) {
+          throw new Error(
+            `keyboard.${property} doesn't exist. Did you mean keyboard.${meant}?`,
+          );
+        }
         // Matches pgzero's Keyboard.__getattr__, which raises
         // AttributeError('The key "%s" does not exist') for unknown
         // attributes (see pgzero/keyboard.py).

@@ -294,22 +294,27 @@ class ProblemLens extends WidgetType {
         }),
       );
     }
-    return h(
-      "div",
-      {
-        className: "problem-lens",
-        attrs: { role: "alert", "data-jgz-problem-lens": "" },
-      },
-      [
-        h("div", { className: "problem-lens-message" }, [
-          icon("alert", 20),
-          h("span", {}, codeAwareText(details.text)),
-        ]),
-        ...(actions.length > 0
-          ? [h("div", { className: "problem-lens-actions" }, actions)]
-          : []),
-      ],
-    );
+    // The space around the card is padding on a row, not margin on the
+    // card: CodeMirror measures a block widget without its margins, and
+    // clicks below it would land a line low.
+    return h("div", { className: "problem-lens-row" }, [
+      h(
+        "div",
+        {
+          className: "problem-lens",
+          attrs: { role: "alert", "data-jgz-problem-lens": "" },
+        },
+        [
+          h("div", { className: "problem-lens-message" }, [
+            icon("alert", 20),
+            h("span", {}, codeAwareText(details.text)),
+          ]),
+          ...(actions.length > 0
+            ? [h("div", { className: "problem-lens-actions" }, actions)]
+            : []),
+        ],
+      ),
+    ]);
   }
 
   override ignoreEvent(): boolean {
@@ -371,6 +376,8 @@ export type EditorHandle = {
   showProblem(problem: EditorProblem | null): void;
   /** False once the marked line has been edited, which clears the mark. */
   hasProblem(): boolean;
+  /** The line the problem is on now, after edits above it moved it. */
+  problemLine(): number | null;
   /** Moves the cursor to a line and scrolls it into the middle. */
   revealLine(line: number): void;
 };
@@ -386,14 +393,15 @@ export function createEditor(
   container: HTMLElement,
   options: EditorOptions,
 ): EditorHandle {
-  let suppressChange = false;
   let problemKey = 0;
+  let theme = options.theme;
   const themeCompartment = new Compartment();
+  const editorTheme = (current: Theme) =>
+    current === "dark" ? darkEditorTheme : lightEditorTheme;
 
-  const view = new EditorView({
-    parent: container,
-    state: EditorState.create({
-      doc: "",
+  const createState = (doc: string) =>
+    EditorState.create({
+      doc,
       extensions: [
         basicSetup,
         javascript(),
@@ -403,9 +411,7 @@ export function createEditor(
         syntaxHighlighting(highlightStyle),
         gameNames,
         problemExtensions(() => options.onFixApplied()),
-        themeCompartment.of(
-          options.theme === "dark" ? darkEditorTheme : lightEditorTheme,
-        ),
+        themeCompartment.of(editorTheme(theme)),
         keymap.of([
           indentWithTab,
           {
@@ -417,31 +423,28 @@ export function createEditor(
           },
         ]),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged && !suppressChange) {
+          if (update.docChanged) {
             options.onChange(update.state.doc.toString());
           }
         }),
       ],
-    }),
-  });
+    });
+
+  const view = new EditorView({ parent: container, state: createState("") });
 
   return {
     setValue(content: string): void {
-      suppressChange = true;
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: content },
-        effects: setProblem.of(null),
-      });
-      suppressChange = false;
+      // A file opens with an undo history of its own, so Undo can't reach
+      // back into the file or game shown before it (or the empty editor).
+      view.setState(createState(content));
     },
     getValue(): string {
       return view.state.doc.toString();
     },
-    setTheme(theme: Theme): void {
+    setTheme(next: Theme): void {
+      theme = next;
       view.dispatch({
-        effects: themeCompartment.reconfigure(
-          theme === "dark" ? darkEditorTheme : lightEditorTheme,
-        ),
+        effects: themeCompartment.reconfigure(editorTheme(theme)),
       });
     },
     showProblem(problem: EditorProblem | null): void {
@@ -454,6 +457,9 @@ export function createEditor(
     },
     hasProblem(): boolean {
       return view.state.field(problemField) !== null;
+    },
+    problemLine(): number | null {
+      return view.state.field(problemField)?.line ?? null;
     },
     revealLine(lineNumber: number): void {
       const { doc } = view.state;

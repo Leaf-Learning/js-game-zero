@@ -75,7 +75,9 @@ export class GameSession {
   readonly #browser: Browser;
   readonly #context: BrowserContext;
   #page: Page;
-  readonly #artifactsRoot: string;
+  /** Where screenshots taken without a path go: made on the first one, so
+   * a session that takes none leaves no empty folder behind. */
+  #artifactsRoot: string | null = null;
   /** The held keys, as Playwright presses them. */
   readonly #heldKeys = new Set<string>();
   readonly #heldMouseButtons = new Set<"left" | "middle" | "right">();
@@ -91,14 +93,12 @@ export class GameSession {
     browser: Browser,
     context: BrowserContext,
     page: Page,
-    artifactsRoot: string,
   ) {
     this.#options = options;
     this.#server = server;
     this.#browser = browser;
     this.#context = context;
     this.#page = page;
-    this.#artifactsRoot = artifactsRoot;
   }
 
   static async create(options: SessionOptions): Promise<GameSession> {
@@ -137,15 +137,7 @@ export class GameSession {
         }, options.seed);
       }
       const page = await context.newPage();
-      const artifactsRoot = await mkdtemp(join(tmpdir(), "js-game-zero-cli-"));
-      const session = new GameSession(
-        options,
-        server,
-        browser,
-        context,
-        page,
-        artifactsRoot,
-      );
+      const session = new GameSession(options, server, browser, context, page);
       await session.#preparePage();
       return session;
     } catch (error) {
@@ -230,6 +222,22 @@ export class GameSession {
     return status;
   }
 
+  /** An uncaught error reaches the session twice, from the driver page and
+   * from the browser: the copy arriving within a moment of the first isn't
+   * reported again. */
+  #recentErrors = new Map<string, number>();
+  #reportedAlready(event: SessionEvent): boolean {
+    const message = String(event.message ?? "");
+    const now = Date.now();
+    const seen = this.#recentErrors.get(message);
+    this.#recentErrors.set(message, now);
+    if (this.#recentErrors.size > 50) {
+      const oldest = this.#recentErrors.keys().next().value;
+      if (oldest !== undefined) this.#recentErrors.delete(oldest);
+    }
+    return seen !== undefined && now - seen < 1000;
+  }
+
   async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
@@ -250,6 +258,9 @@ export class GameSession {
         typeof event === "object" &&
         typeof event.event === "string"
       ) {
+        if (event.event === "runtime-error" && this.#reportedAlready(event)) {
+          return;
+        }
         this.#options.onEvent(event);
       }
     });
@@ -263,7 +274,11 @@ export class GameSession {
     });
     page.on("pageerror", (error) => {
       pushBounded(this.#pageErrors, error.message);
-      this.#options.onEvent({ event: "runtime-error", message: error.message });
+      const event: SessionEvent = {
+        event: "runtime-error",
+        message: error.message,
+      };
+      if (!this.#reportedAlready(event)) this.#options.onEvent(event);
     });
     await page.goto(this.#server.url, { waitUntil: "load" });
     await this.#waitForInitialization(page);
@@ -370,9 +385,14 @@ export class GameSession {
       await this.#drive((page) => page.mouse.up({ button }));
       this.#heldMouseButtons.delete(button);
     } else if (command.action === "click") {
-      const [x, y] = await this.#logicalPoint(command.x!, command.y!);
-      // A click ends with the button up, held before or not.
-      await this.#drive((page) => page.mouse.click(x, y, { button }));
+      // The pointer is already there, so the button goes down and up in
+      // place: page.mouse.click() would move it there again, and the game
+      // would see a second, zero-length onMouseMove. A click ends with the
+      // button up, held before or not.
+      if (!this.#heldMouseButtons.has(button)) {
+        await this.#drive((page) => page.mouse.down({ button }));
+      }
+      await this.#drive((page) => page.mouse.up({ button }));
       this.#heldMouseButtons.delete(button);
     }
     return this.status();
@@ -520,10 +540,15 @@ export class GameSession {
     const status = (await this.status()) as { canvas: DriverStatus["canvas"] };
     if (inline) return { data, ...status.canvas, pixels: shot.pixels };
     this.#screenshotNumber += 1;
+    if (requestedPath === undefined) {
+      this.#artifactsRoot ??= await mkdtemp(
+        join(tmpdir(), "js-game-zero-cli-"),
+      );
+    }
     const path = resolveScreenshotPath(
       requestedPath,
       this.#options.cwd ?? process.cwd(),
-      this.#artifactsRoot,
+      this.#artifactsRoot ?? "",
       this.#screenshotNumber,
     );
     await mkdir(dirname(path), { recursive: true });

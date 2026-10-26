@@ -96,6 +96,10 @@ describe("tone note and frequency parsing", () => {
     });
     expect(() => generator.create("A4", 0)).toThrow(RangeError);
     expect(() => generator.create("A4", 4.1)).toThrow(RangeError);
+    // play() throws at once, in the hook that called it, rather than
+    // rejecting a Promise the game never waits for.
+    expect(() => generator.play("A4", 10)).toThrow(RangeError);
+    expect(() => generator.play("H4")).toThrow(TypeError);
   });
 
   test("rejects options tone doesn't have", () => {

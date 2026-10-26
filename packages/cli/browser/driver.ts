@@ -159,6 +159,9 @@ async function boot(): Promise<void> {
     startupError = messageOf(error);
     driver.initialized = true;
     emit({ event: "runtime-error", message: startupError, phase: "startup" });
+    // The session is up even though the game isn't: it takes commands, its
+    // status carries startupError, and --watch reloads a fixed main.js.
+    emit({ event: "ready", status: status() });
   }
 }
 

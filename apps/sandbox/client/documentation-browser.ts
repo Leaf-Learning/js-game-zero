@@ -234,13 +234,30 @@ export function createDocumentationBrowser(): DocumentationBrowser {
     scrollToHash(content, hash, moveFocus);
   }
 
+  /** Puts the open page in the address bar, so Back, reload and a copied
+   * link all come back to it. */
+  function recordPage(
+    id: string,
+    hash: string,
+    mode: "push" | "replace",
+  ): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", id);
+    url.hash = hash;
+    if (url.href === window.location.href) return;
+    if (mode === "push") window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  }
+
   async function selectDocument(
     id: string,
     hash = "",
     moveFocus = false,
+    history: "push" | "replace" | "none" = "push",
   ): Promise<void> {
     const summary = documents?.find((document) => document.id === id);
     if (!summary) return;
+    if (history !== "none") recordPage(id, hash, history);
     currentDocument = id;
     updateNavigationSelection();
     renderStatus("Loading documentation…");
@@ -255,14 +272,14 @@ export function createDocumentationBrowser(): DocumentationBrowser {
       renderStatus(
         "Documentation couldn't be loaded",
         errorMessage(error),
-        () => void selectDocument(id, hash, true),
+        () => void selectDocument(id, hash, true, "none"),
       );
     }
   }
 
   async function load(moveFocus = false): Promise<void> {
     if (documents) {
-      await selectDocument(currentDocument, "", moveFocus);
+      await selectDocument(currentDocument, "", moveFocus, "none");
       return;
     }
     navigation.replaceChildren(
@@ -285,6 +302,7 @@ export function createDocumentationBrowser(): DocumentationBrowser {
               DEFAULT_DOCUMENT),
         hash,
         moveFocus,
+        "replace",
       );
     } catch (error) {
       navigation.replaceChildren();
@@ -295,6 +313,14 @@ export function createDocumentationBrowser(): DocumentationBrowser {
       );
     }
   }
+
+  // Back and Forward move between the pages read.
+  window.addEventListener("popstate", () => {
+    const page =
+      new URLSearchParams(window.location.search).get("page") ??
+      DEFAULT_DOCUMENT;
+    void selectDocument(page, window.location.hash, false, "none");
+  });
 
   return { load };
 }

@@ -81,7 +81,24 @@ async function fetchBytes(url: string): Promise<ArrayBuffer> {
   if (typeof globalThis.fetch !== "function") {
     throw new Error("fetch is not available");
   }
-  const response = await globalThis.fetch(url);
+  let response: Response;
+  try {
+    response = await globalThis.fetch(url);
+  } catch (error) {
+    // A page opened from the disk can show images but not fetch files, so
+    // its sounds, music and fonts fail although they're there.
+    const page = globalThis.location?.href;
+    if (page && new URL(url, page).protocol === "file:") {
+      throw Object.assign(
+        new Error(
+          "A page opened from your disk can't load sounds, music or fonts: open it from a web server instead.",
+          { cause: error },
+        ),
+        { fromDiskPage: true },
+      );
+    }
+    throw error;
+  }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.arrayBuffer();
 }

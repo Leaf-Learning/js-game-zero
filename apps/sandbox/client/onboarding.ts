@@ -1,4 +1,4 @@
-import { promptDialog } from "./dialogs";
+import { holdFocus, promptDialog } from "./dialogs";
 import { h, validateProjectName } from "./dom";
 import { icon, type IconName } from "./icons";
 import { logoMark } from "./logo";
@@ -113,6 +113,7 @@ export function promptBlankProjectName(
     title: "Name your game",
     body: "Names use lowercase letters, numbers, - and _.",
     placeholder: "my_game",
+    initialValue: suggestedName("my_game", existing),
     confirmLabel: "Make my game",
     validate: (candidate) => validateProjectName(candidate, existing),
   });
@@ -227,9 +228,7 @@ export function openExampleGallery(
         ...groups.filter((group) => group.id === "full-game").map(groupSection),
       ],
     );
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") finish(null);
-    });
+    holdFocus(dialog, () => finish(null));
     const backdrop = h("div", { className: "dialog-backdrop" });
     backdrop.addEventListener("click", () => finish(null));
     host.replaceChildren(
@@ -438,9 +437,7 @@ export function chooseNewProjectFlow(
         ]),
       ],
     );
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") cancel();
-    });
+    holdFocus(dialog, cancel);
     const backdrop = h("div", { className: "dialog-backdrop" });
     backdrop.addEventListener("click", cancel);
     host.replaceChildren(backdrop, dialog);

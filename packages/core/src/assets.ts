@@ -139,13 +139,17 @@ export class MissingAssetError extends Error {
     options: {
       readonly attemptedUrls?: readonly string[];
       readonly cause?: unknown;
+      /** Why a file that's there couldn't be loaded, when that's known. */
+      readonly why?: string;
     } = {},
   ) {
     const attemptedUrls = [...(options.attemptedUrls ?? [])];
     const attemptedMessage =
       attemptedUrls.length === 0 ? "" : ` (tried ${attemptedUrls.join(", ")})`;
     super(
-      `Missing ${kind} asset: ${name}${attemptedMessage}`,
+      options.why === undefined
+        ? `Missing ${kind} asset: ${name}${attemptedMessage}`
+        : `Couldn't load ${kind} asset ${name}${attemptedMessage}. ${options.why}`,
       options.cause === undefined ? undefined : { cause: options.cause },
     );
     this.name = "MissingAssetError";
@@ -844,9 +848,15 @@ async function loadFirstMatchingAsset<T>(
           causes,
           `Every candidate for ${options.kind} asset ${context.requested} failed.`,
         );
+  // The file is there, but the page can't fetch it: say why.
+  const fromDiskPage = causes.find(
+    (failure) =>
+      (failure as { fromDiskPage?: boolean } | null)?.fromDiskPage === true,
+  ) as Error | undefined;
   throw new MissingAssetError(options.kind, context.requested, {
     attemptedUrls,
     cause,
+    ...(fromDiskPage ? { why: fromDiskPage.message } : {}),
   });
 }
 

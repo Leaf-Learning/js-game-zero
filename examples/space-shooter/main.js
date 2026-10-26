@@ -136,7 +136,9 @@ function movePlayer(dt) {
     fireLaser();
     fireCooldown = FIRE_COOLDOWN;
   }
+}
 
+function blinkPlayer(dt) {
   if (invulnerableTime > 0) {
     invulnerableTime = Math.max(0, invulnerableTime - dt);
     // Blink by flicking opacity a few times a second.
@@ -213,6 +215,9 @@ function update(dt) {
   moveStars(dt);
   // Finished explosions disappear, even after game over.
   explosions = explosions.filter((explosion) => !explosion.finished);
+  // The last hit's flashing runs out after game over too, and the ship
+  // goes with it.
+  blinkPlayer(dt);
   if (state !== "playing") return;
   movePlayer(dt);
   moveLasers(dt);

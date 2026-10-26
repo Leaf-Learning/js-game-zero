@@ -12,6 +12,9 @@ import {
   parseStatePath,
   serializeGameValue,
 } from "@js-game-zero/core/host";
+import { quietConsoleReports } from "./quiet-console-reports";
+
+quietConsoleReports();
 
 class MockCanvas extends EventTarget {
   width = 0;

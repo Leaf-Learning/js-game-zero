@@ -49,6 +49,7 @@
       "default": "./dist/index.js"
     },
     "./iife": {
+      "types": "./dist/browser.d.ts",
       "default": "./dist/browser/browser.js"
     }
   },

@@ -2,6 +2,130 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Plain web pages
+
+- A run with no `diagnostics` callback reports its problems to the browser
+  console: warnings with `console.warn` and errors with `console.error`,
+  each starting `js-game-zero:` and ending with its line. A game that
+  failed while running, or whose image wouldn't load, used to vanish from
+  such a page without a word. A mistake that makes `run()` throw is still
+  thrown, and not logged as well.
+- `JGZ.run` (or `run()`) called from a script in the page's `<head>`, before
+  there's a `<body>`, starts the game and adds its canvas to the `<body>`
+  once the page has been read, touch controls included. It used to throw
+  "Cannot read properties of null (reading 'append')". A page that has been
+  read and still has no `<body>` gets an error that says so.
+- The arrow keys, Space, Page Up/Down, Home and End no longer scroll the
+  page while a game is playing with them. Typing in a form field and
+  shortcuts with Ctrl, Alt or Cmd still reach the browser.
+- A sound, music file or font that a page opened from the disk can't load
+  says so, and to open the page from a web server, rather than calling the
+  file missing.
+- `@js-game-zero/browser-runtime/iife` has types: a TypeScript page gets
+  `window.JGZ` with `/// <reference types="@js-game-zero/browser-runtime/iife" />`.
+
+### The runtime
+
+- `@js-game-zero/core/host` shares one runtime with `@js-game-zero/core`. In
+  an app built with a bundler, it had its own copy, so `getGameInspector`
+  returned null for every game, and a `createStorage` storage lost its data.
+- Music plays from the bytes it was loaded as, so `music.position = 30` and
+  `music.setPos(30)` seek on any server. They jumped back to the start on a
+  server that can't send part of a file, the sandbox's and the CLI's among
+  them.
+- A seeded game's `randomInt` and `randomChoice` follow its seed when called
+  outside its hooks too, as the CLI's `call` does.
+- `mod` says which Shift, Ctrl, Alt or Cmd is held: `mod & keymods.LSHIFT` is
+  only true for the left one. `mod & keymods.SHIFT` is still true for either.
+- `tone.play()` with a bad note or duration throws at once, on its line, as
+  Pygame Zero's does, rather than rejecting a Promise the game never waits
+  for.
+- Storage saves within a second even while a game changes it every frame.
+  A change every frame used to put the save off until the game stopped. A
+  custom adapter whose `load()` returns its text, rather than a Promise, is
+  read before the game's top level runs, as one with `loadSync()` is.
+- A missing `}` (or `)` or `]`) says "Something isn't closed", on the line
+  where the open part starts, rather than "Unexpected token ')'", a `)` the
+  learner never typed. An extra one is reported in the game's own terms.
+- `Actor("ship")`, `Rect(…)` and `ZRect(…)` without `new`, as Pygame Zero
+  code writes them, say to put `new` in front.
+- `draw()` declaring parameters is one problem, not a warning and an error,
+  and it's on the line that declares `draw`. A misspelled hook or setting
+  (`function updte()`, `WIDHT = 800`) is pointed at its line too.
+- A misspelled key (`keyboard.rigth`) says which key it's closest to.
+- `onMouseMove`'s `button` is the button held, or `null`. It always read as
+  the left button.
+- TypeScript: a plain module game's `update(dt)` gets `dt` as a number, and
+  `draw()` takes no parameters. Input hook parameters, which are matched by
+  name, take the types the game gives them instead of `unknown`.
+
+### The sandbox
+
+- Undo can't reach past the file that's open. Right after opening a game, it
+  emptied `main.js` and saved it.
+- With a problem showing in the editor, a click below it lands on the line
+  clicked. It landed a line low.
+- Editing above a problem's line keeps "Show me line N", the Messages "Line
+  N" button and the editor's mark on that line.
+- Uploading several files uploads every one it can and lists them, and the
+  panel shows them. A name with spaces or brackets is stored with `_` in
+  their place rather than refused. A file that isn't an image, sound, music
+  or font is turned away with a message rather than filed as an image.
+- Messages lists errors before warnings, follows new `console.log` output
+  while scrolled to the bottom, and shows logged values the way the browser
+  console does: `undefined`, `NaN`, `[1, 2]`, `Map(1) {…}`, an Actor by its
+  image and position.
+- A double-click on Play no longer stops the game it started. On a touch
+  screen, the keyboard overlay no longer covers the game's touch buttons.
+- Dialogs keep the keyboard in them and close on Escape, even after a click
+  on their text; they're named for screen readers and put focus back where
+  it was. A delete confirmation starts on Cancel.
+- A save that failed while the server was away is tried again until it
+  goes through. A server error no longer shows the server's folders.
+- New file names are checked as the server checks them, renaming or
+  deleting `main.js` warns that the game won't start without it, and game
+  name messages say "game", not "project".
+- The docs page keeps the open page in the address bar, so Back, reload and
+  a copied link come back to it.
+- The stage title shows a `TITLE` with the other quote mark in it, such as
+  `"Bob's Game"`.
+- Code is shown without font ligatures, so `=>` and `===` look like the keys
+  to press. Asset names wrap instead of being cut off, the open file's tab is
+  always in view, long names and messages fit, the light theme's line
+  numbers are easier to read, and the resize dividers say their position to
+  screen readers.
+
+### The CLI
+
+- In `--json` mode, a game that fails to start still ends startup with a
+  `ready` event, after the `runtime-error`, so a client waiting for it
+  doesn't hang.
+- Each uncaught error is reported once, not twice. `mouse click` presses in
+  place, without a second `onMouseMove`. A session that takes no screenshot
+  leaves no empty temporary folder behind. In text mode, the "Testing …"
+  banner comes before `[ready]`.
+
+### The examples and the docs
+
+- Tappy Plane scores a gap as soon as the plane is through it, even if it
+  crashes straight after, and a crashed plane keeps its wheels on screen.
+- The Platformer slides a jump off the corner of a block above it, so a jump
+  from the very end of a ledge works. Space Shooter's ship goes once the
+  game is over. Snake's "You win!" is green, Breakout's wall is centred, and
+  Sound and Tone's circle no longer reaches its caption.
+- The tutorial's finished game can't lose a life it doesn't have or score
+  past the win when two comets land together, names the Images panel, and
+  says that "Best" now changes when a round ends.
+- The docs no longer say the CLI runs import-style games, that problems on
+  the one-page game appear under it, or that `tone.play()` returns a
+  rejected Promise. They say how one-page games keep their saved data
+  apart, what `inspect` paths read on an actor, when `dt` is clamped, and
+  that `restart()` returns the new handle.
+- The release script asks jsDelivr to refresh `@0.2`-style addresses after
+  publishing, which it otherwise keeps on the last release for up to a week.
+
 ## 0.2.1 — 2026-10-26
 
 ### Published from GitHub

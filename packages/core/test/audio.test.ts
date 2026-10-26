@@ -374,6 +374,36 @@ describe("music player", () => {
     });
   });
 
+  test("music loaded as bytes plays from them, so it can seek on any server", async () => {
+    const bytes = new TextEncoder().encode("not really an ogg").buffer;
+    const elements: MockAudioElement[] = [];
+    const loader = createMusicLoader({
+      projectId: "test_project",
+      async loadAsset(_url, name) {
+        return { kind: "music", name, url: "/music/theme.ogg", bytes };
+      },
+    });
+    const player = createMusicPlayer({
+      loader,
+      createAudioElement(url) {
+        const element = new MockAudioElement(url);
+        elements.push(element);
+        return element;
+      },
+    });
+
+    await player.playOnce("theme");
+    await player.playOnce("theme");
+
+    const [first, second] = elements.map((element) => element.src);
+    expect(first).toStartWith("blob:");
+    // One blob URL per track, however often it plays.
+    expect(second).toBe(first!);
+    const played = await fetch(first!);
+    expect(played.headers.get("content-type")).toBe("audio/ogg");
+    expect(await played.text()).toBe("not really an ogg");
+  });
+
   test("stop invalidates queued-track advancement that is still loading", async () => {
     const next = deferred<MusicAsset>();
     const elements: MockAudioElement[] = [];

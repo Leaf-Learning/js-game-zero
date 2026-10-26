@@ -7,6 +7,9 @@ import {
 } from "@js-game-zero/core";
 import { createSeededRandom, getGameInspector } from "@js-game-zero/core/host";
 import { hashSeed } from "../src/random";
+import { quietConsoleReports } from "./quiet-console-reports";
+
+quietConsoleReports();
 
 class MockCanvas extends EventTarget {
   width = 0;
@@ -116,6 +119,27 @@ describe("seeded randomness", () => {
     const choice = ["a", "b", "c", "d"][Math.floor(reference() * 4)];
     expect(first.rolls).toEqual([a, b, roll, choice]);
     expect(first.later).toEqual([reference(), reference()]);
+  });
+
+  test("a seeded game's helpers follow its seed outside its hooks too, as in the CLI's call", () => {
+    const probe = (seed: string) => {
+      const handle = run(
+        "function roll() { return [randomInt(1, 1000), randomChoice([1, 2, 3])]; }\nfunction draw() {}",
+        { canvas: canvas(), autostart: false, seed },
+      );
+      const roll = getGameInspector(handle)!.read("roll") as () => unknown;
+      const rolls = [roll(), roll()];
+      handle.stop();
+      return rolls;
+    };
+    const first = probe("fixed");
+    expect(probe("fixed")).toEqual(first);
+    const reference = createSeededRandom("fixed");
+    const draw = () => [
+      1 + Math.floor(reference() * 1000),
+      1 + Math.floor(reference() * 3),
+    ];
+    expect(first).toEqual([draw(), draw()]);
   });
 
   test("a restart starts the same sequence again", async () => {

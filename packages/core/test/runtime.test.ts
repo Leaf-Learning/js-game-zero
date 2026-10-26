@@ -32,6 +32,9 @@ import {
   type RuntimeDiagnostic,
   type RuntimeScheduler,
 } from "@js-game-zero/core/host";
+import { quietConsoleReports } from "./quiet-console-reports";
+
+quietConsoleReports();
 
 class MockContext {
   fillStyle: unknown = "";
@@ -725,10 +728,112 @@ function draw(context) {}
     ).toThrow(TypeError);
     expect(() =>
       run(
-        { draw: (context: unknown) => context },
+        // TypeScript stops this too; plain JavaScript gets the error.
+        { draw: (context: unknown) => context } as unknown as GameModule,
         { autostart: false, canvas: canvas() },
       ),
     ).toThrow(/draw\(\) must not take any arguments\./);
+  });
+
+  test("draw's parameters are one problem, on the line that declares it", () => {
+    const diagnostics: RuntimeDiagnostic[] = [];
+    expect(() =>
+      run("WIDTH = 100;\n\nfunction draw(x) {}", {
+        autostart: false,
+        canvas: canvas(),
+        storage: new MemoryAdapter(),
+        diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+      }),
+    ).toThrow(TypeError);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        phase: "startup",
+        message: "startup failed: draw() must not take any arguments.",
+        line: 3,
+      }),
+    ]);
+  });
+
+  test("a misspelled hook or setting is pointed at the line that declares it", () => {
+    const diagnostics: RuntimeDiagnostic[] = [];
+    const handle = run("WIDHT = 100;\nlet x = 0;\nfunction updte() {}", {
+      autostart: false,
+      canvas: canvas(),
+      storage: new MemoryAdapter(),
+      diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+    });
+    handle.stop();
+    expect(
+      diagnostics.map(({ code, name, line }) => ({ code, name, line })),
+    ).toEqual(
+      expect.arrayContaining([
+        { code: "constant-typo", name: "WIDHT", line: 1 },
+        { code: "hook-typo", name: "updte", line: 3 },
+      ]),
+    );
+    expect(diagnostics).toHaveLength(2);
+  });
+
+  test("a missing or extra } is reported in the game's own terms, on its line", () => {
+    const startup = (source: string) => {
+      const diagnostics: RuntimeDiagnostic[] = [];
+      try {
+        run(source, {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          diagnostics: (diagnostic) => diagnostics.push(diagnostic),
+        }).stop();
+      } catch {
+        // The diagnostic says what the thrown error does.
+      }
+      const failure = diagnostics.find((d) => d.phase === "startup");
+      return { message: failure?.message, line: failure?.line };
+    };
+    expect(
+      startup('WIDTH = 100;\nfunction draw() {\n  screen.fill("navy");\n'),
+    ).toEqual({
+      message:
+        "startup failed: Something isn't closed: a {, ( or [ is missing its }, ) or ].",
+      line: 2,
+    });
+    // Not the runtime's own wrapper: no ")" or ";" the learner never typed.
+    const extra = startup("function draw() {}\n}\n");
+    expect(extra.message).not.toMatch(/[);]/);
+    expect(extra.line).toBe(2);
+  });
+
+  test("a class called without new, as Pygame Zero code calls it, says to add new", () => {
+    const startup = (source: string) => {
+      try {
+        run(`${source}\nfunction draw() {}`, {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          diagnostics: () => {},
+        }).stop();
+        return null;
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
+    expect(startup('let ship = Actor("ship");')).toBe(
+      'Actor needs new in front of it: new Actor("alien").',
+    );
+    expect(startup("let box = Rect(0, 0, 10, 10);")).toBe(
+      "Rect needs new in front of it: new Rect(x, y, width, height).",
+    );
+    // Made properly, they're the classes they always were.
+    expect(
+      startup(
+        [
+          'class Ship extends Actor { constructor() { super("ship"); } }',
+          "let box = new ZRect(0, 0, 10, 10);",
+          "if (!(new Ship() instanceof Actor) || !(box instanceof Rect)) throw new Error('lost a class');",
+        ].join("\n"),
+      ),
+    ).toBeNull();
   });
 
   test("does not throw for a zero-argument draw or a missing draw", () => {
@@ -752,7 +857,7 @@ function draw() {}
           return unused;
         },
         on_key_down() {},
-      } as GameModule,
+      } as unknown as GameModule,
       {
         WIDTH: 120,
       },
@@ -1897,6 +2002,253 @@ export const start = (options, pressed) =>
         value: originalDocument,
       });
     }
+  });
+
+  describe("a run started from a script in the page's <head>", () => {
+    function pageStillLoading(readyState = "loading") {
+      const createdCanvas = new MockCanvas();
+      const appended: unknown[] = [];
+      const fakeDocument = Object.assign(new EventTarget(), {
+        body: null as { append(node: unknown): void } | null,
+        readyState,
+        createElement: () => createdCanvas,
+        visibilityState: "visible",
+        title: "",
+        querySelector: () => null,
+        head: { append() {} },
+      });
+      const originalDocument = globalThis.document;
+      Object.defineProperty(globalThis, "document", {
+        configurable: true,
+        value: fakeDocument,
+      });
+      return {
+        createdCanvas,
+        appended,
+        /** The parser reaches <body> and finishes reading the page. */
+        finishLoading() {
+          fakeDocument.body = { append: (node) => appended.push(node) };
+          fakeDocument.readyState = "interactive";
+          fakeDocument.dispatchEvent(new Event("DOMContentLoaded"));
+        },
+        restore() {
+          Object.defineProperty(globalThis, "document", {
+            configurable: true,
+            value: originalDocument,
+          });
+        },
+      };
+    }
+
+    test("starts at once, and its canvas joins the page's <body> once there is one", async () => {
+      const page = pageStillLoading();
+      try {
+        let draws = 0;
+        const handle = run(
+          {
+            draw() {
+              draws += 1;
+            },
+          },
+          { autostart: false, storage: new MemoryAdapter() },
+        );
+        await handle.ready;
+        handle.step(0);
+        expect(draws).toBe(1);
+        expect(page.appended).toEqual([]);
+
+        page.finishLoading();
+        await Promise.resolve();
+        expect(page.appended).toEqual([page.createdCanvas]);
+        expect(handle.state).not.toBe("failed");
+        await handle.dispose();
+        expect(page.createdCanvas.removed).toBe(true);
+      } finally {
+        page.restore();
+      }
+    });
+
+    test("a run stopped before the page is read never adds its canvas", async () => {
+      const page = pageStillLoading();
+      try {
+        const handle = run(
+          { draw() {} },
+          { autostart: false, storage: new MemoryAdapter() },
+        );
+        await handle.dispose();
+        page.finishLoading();
+        expect(page.appended).toEqual([]);
+      } finally {
+        page.restore();
+      }
+    });
+
+    test("a page that has been read but has no <body> gets an error that says so", () => {
+      const page = pageStillLoading("complete");
+      try {
+        expect(() =>
+          run(
+            { draw() {} },
+            { autostart: false, storage: new MemoryAdapter() },
+          ),
+        ).toThrow(
+          "run() has nowhere to put the game: the page has no <body>. Pass it a canvas or a container.",
+        );
+      } finally {
+        page.restore();
+      }
+    });
+  });
+
+  test("the keys a browser scrolls with stay with the game, apart from typing and shortcuts", () => {
+    const target = new EventTarget();
+    const handle = run(
+      { draw() {} },
+      {
+        autostart: false,
+        canvas: canvas(),
+        keyboardTarget: target,
+        storage: new MemoryAdapter(),
+      },
+    );
+    const press = (
+      code: string,
+      extra: { ctrlKey?: boolean; from?: { tagName: string } } = {},
+    ) => {
+      const event = new Event("keydown", { cancelable: true });
+      Object.defineProperties(event, {
+        code: { value: code },
+        key: { value: code === "Space" ? " " : code },
+        ctrlKey: { value: extra.ctrlKey ?? false },
+        target: { value: extra.from ?? target },
+      });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(press("ArrowDown")).toBe(true);
+    expect(press("Space")).toBe(true);
+    expect(press("KeyA")).toBe(false);
+    expect(press("ArrowDown", { ctrlKey: true })).toBe(false);
+    expect(press("Space", { from: { tagName: "INPUT" } })).toBe(false);
+    handle.stop();
+  });
+
+  describe("with no diagnostics callback, problems go to the console", () => {
+    function captureConsole() {
+      const original = { warn: console.warn, error: console.error };
+      const lines: { level: "warn" | "error"; text: string }[] = [];
+      console.warn = (text: string) => lines.push({ level: "warn", text });
+      console.error = (text: string) => lines.push({ level: "error", text });
+      return {
+        lines,
+        restore() {
+          console.warn = original.warn;
+          console.error = original.error;
+        },
+      };
+    }
+
+    test("a warning is a console warning, and a failure a console error with its line", async () => {
+      const output = captureConsole();
+      try {
+        const handle = run(
+          [
+            "function updte() {}",
+            "function draw() {",
+            '  screen.fil("navy");',
+            "}",
+          ].join("\n"),
+          { autostart: false, canvas: canvas(), storage: new MemoryAdapter() },
+        );
+        await handle.ready;
+        handle.step(0);
+        await handle.done;
+
+        expect(output.lines).toEqual([
+          {
+            level: "warn",
+            text: expect.stringMatching(/^js-game-zero: .*updte/),
+          },
+          {
+            level: "error",
+            text: "js-game-zero: draw failed: screen.fil doesn't exist. Did you mean screen.fill? (line 3)",
+          },
+        ]);
+      } finally {
+        output.restore();
+      }
+    });
+
+    test("a failure at startup is thrown, not also logged", () => {
+      const output = captureConsole();
+      try {
+        expect(() =>
+          run("function draw(x) {}", {
+            autostart: false,
+            canvas: canvas(),
+            storage: new MemoryAdapter(),
+          }),
+        ).toThrow("draw() must not take any arguments.");
+        expect(output.lines.filter((line) => line.level === "error")).toEqual(
+          [],
+        );
+      } finally {
+        output.restore();
+      }
+    });
+
+    test("an image the game needs that fails to load is logged, since nothing throws it", async () => {
+      const output = captureConsole();
+      try {
+        const { loader, reject } = controllableImageLoader();
+        const handle = run(
+          defineGame(({ Actor }) => {
+            void new Actor("missing.svg");
+            return { draw() {} };
+          }),
+          {
+            autostart: false,
+            canvas: canvas(),
+            loaders: { images: loader },
+            storage: new MemoryAdapter(),
+          },
+        );
+        reject("missing.svg", new Error("404"));
+        await handle.ready.catch(() => {});
+        await handle.done;
+
+        expect(handle.failure?.phase).toBe("startup");
+        expect(output.lines).toContainEqual({
+          level: "error",
+          text: expect.stringMatching(/^js-game-zero: startup failed: /),
+        });
+      } finally {
+        output.restore();
+      }
+    });
+
+    test("a diagnostics callback takes them instead", async () => {
+      const output = captureConsole();
+      try {
+        const reported: RuntimeDiagnostic[] = [];
+        const handle = run("function updte() {}\nfunction draw() { boom(); }", {
+          autostart: false,
+          canvas: canvas(),
+          storage: new MemoryAdapter(),
+          diagnostics: (diagnostic) => reported.push(diagnostic),
+        });
+        await handle.ready;
+        handle.step(0);
+        await handle.done;
+        expect(reported.map((diagnostic) => diagnostic.severity)).toEqual([
+          "warning",
+          "error",
+        ]);
+        expect(output.lines).toEqual([]);
+      } finally {
+        output.restore();
+      }
+    });
   });
 
   test("a late audio load never freezes update or drawing", async () => {

@@ -3,7 +3,8 @@
 Short, standalone recipes for common tasks. Unlike the
 [tutorial](tutorial.md), each recipe here is independent — copy the one you
 need into a project and adapt it, rather than following them in order. Every
-snippet is a complete, runnable `main.js`. Full option lists live in
+snippet but the last is a complete, runnable `main.js`; the last is for a
+project of your own that imports the library. Full option lists live in
 [`docs/reference/`](reference/); this page is about getting something
 working fast.
 
@@ -108,7 +109,7 @@ let clicks = 0;
 
 function draw() {
   screen.fill("#1f2937");
-  screen.draw.filledCircle([160, 82], 28 + clicks * 4, "#38bdf8");
+  screen.draw.filledCircle([160, 74], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click to play a sound", [76, 134], {
     size: 16,
     color: "#f8fafc",
@@ -247,7 +248,7 @@ function spawnEnemy() {
 }
 
 clock.schedule(spawnEnemy, 1); // once, after 1 second
-clock.scheduleInterval(spawnEnemy, 2); // then again every 2 seconds
+clock.scheduleInterval(spawnEnemy, 2); // and every 2 seconds: 2, 4, 6, ...
 
 function draw() {
   screen.fill("#1c1330");

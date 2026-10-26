@@ -77,8 +77,10 @@ function update(dt: number): void;
 Called once per frame, before `draw`. Declare zero parameters if you don't
 need frame timing, or one parameter (conventionally named `dt`) to receive the
 seconds elapsed since the previous frame — use it to make movement
-frame-rate-independent. `dt` is clamped to at most `0.25` seconds so a dropped
-frame (e.g. the tab was backgrounded) can't cause a huge jump.
+frame-rate-independent. When the game runs on its own, `dt` is clamped to at
+most `0.25` seconds so a dropped frame (e.g. the tab was backgrounded) can't
+cause a huge jump. A host stepping the game itself, as `handle.step(dt)` and
+the CLI's `step` do, passes its `dt` through unchanged.
 
 ```js
 function update(dt) {
@@ -294,7 +296,8 @@ function update(dt) {
 Accessing an attribute that isn't a real key name throws an error (`The key
 "..." does not exist`) instead of silently returning `false` — this catches
 typos like `keyboard.lfet` immediately rather than letting your character
-quietly fail to move. `keyboard.pressed()` returns a sorted array of every
+quietly fail to move. A misspelling says which key it's closest to:
+`keyboard.lfet doesn't exist. Did you mean keyboard.left?`. `keyboard.pressed()` returns a sorted array of every
 currently-held key constant, for debugging.
 
 ## `keys`

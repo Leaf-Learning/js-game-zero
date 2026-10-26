@@ -141,7 +141,12 @@ const numberPart = /[0-9A-Za-z_.]/;
  * become `literal` tokens (the code inside template substitutions is
  * tokenized normally, one brace deeper than the template).
  */
-export function tokenizeSource(source: string): SourceToken[] | null {
+export function tokenizeSource(
+  source: string,
+  /** Return the tokens of source that leaves a bracket open at the end,
+   * rather than null, to find out what's open. */
+  { allowUnclosed = false }: { readonly allowUnclosed?: boolean } = {},
+): SourceToken[] | null {
   const tokens: SourceToken[] = [];
   const templateDepths: number[] = [];
   let depth = 0;
@@ -353,10 +358,8 @@ export function tokenizeSource(source: string): SourceToken[] | null {
   }
 
   if (
-    templateDepths.length > 0 ||
-    depth !== 0 ||
-    parens !== 0 ||
-    brackets !== 0
+    !allowUnclosed &&
+    (templateDepths.length > 0 || depth !== 0 || parens !== 0 || brackets !== 0)
   )
     return null;
   return tokens;

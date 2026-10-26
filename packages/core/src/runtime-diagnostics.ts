@@ -66,6 +66,9 @@ export function diagnoseGameModule(
   options: RunOptions,
   emit: (diagnostic: RuntimeDiagnostic) => void,
   mode: RuntimeMode,
+  /** run() stops a game whose draw() takes parameters, and says so: a
+   * warning as well would be the same mistake twice. */
+  drawArityIsFatal = false,
 ): void {
   const keys = Object.keys(module);
   const defined = new Set(keys);
@@ -81,7 +84,7 @@ export function diagnoseGameModule(
     }
   }
   warnHookParameters(module, emit);
-  warnHookArity("draw", module.draw, 0, emit);
+  if (!drawArityIsFatal) warnHookArity("draw", module.draw, 0, emit);
   warnHookArity("update", module.update, 1, emit);
   if (module.WIDTH !== undefined && !isValidRuntimeDimension(module.WIDTH)) {
     emit({
@@ -120,17 +123,41 @@ export function diagnoseSource(
       ...scan.topLevelAssignments,
     ]);
     const functions = new Set(scan.topLevelFunctions);
+    // A misspelled name is pointed at where it's declared.
+    const emitWithLine = (diagnostic: RuntimeDiagnostic): void => {
+      const line =
+        diagnostic.name === undefined
+          ? undefined
+          : declarationLine(source, diagnostic.name);
+      emit(line === undefined ? diagnostic : { ...diagnostic, line });
+    };
     for (const name of functions)
-      diagnoseIdentifier(name, "function", defined, emit);
+      diagnoseIdentifier(name, "function", defined, emitWithLine);
     for (const name of scan.topLevelAssignments) {
       if (!functions.has(name))
-        diagnoseIdentifier(name, "assignment", defined, emit);
+        diagnoseIdentifier(name, "assignment", defined, emitWithLine);
     }
   }
   for (const match of source.matchAll(/["'`]([^"'`]+)["'`]/g)) {
     const name = match[1];
     if (name) diagnoseAssetName(name, emit);
   }
+}
+
+/**
+ * The 1-based line where a game's source declares `name` at the start of a
+ * line: `function name(`, `name = ` or `let name = `.
+ */
+export function declarationLine(
+  source: string,
+  name: string,
+): number | undefined {
+  const escaped = name.replace(/[$]/g, "\\$&");
+  const declaration = new RegExp(
+    `^\\s*(?:(?:async\\s+)?function\\s*\\*?\\s*${escaped}\\s*\\(|(?:(?:let|const|var)\\s+)?${escaped}\\s*=(?!=))`,
+  );
+  const index = source.split("\n").findIndex((line) => declaration.test(line));
+  return index === -1 ? undefined : index + 1;
 }
 
 export function createDiagnosticEmitter(

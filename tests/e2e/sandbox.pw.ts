@@ -101,7 +101,6 @@ test("theme follows the system, toggles without losing editor state, and persist
 
   const toggle = page.locator("[data-jgz-theme-toggle]");
   await expect(toggle).toHaveAttribute("aria-label", "Switch to light mode");
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await expect
     .poll(() =>
       page.evaluate(
@@ -119,7 +118,6 @@ test("theme follows the system, toggles without losing editor state, and persist
   await toggle.click();
 
   await expect(toggle).toHaveAttribute("aria-label", "Switch to dark mode");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("html")).toHaveAttribute("data-jgz-theme", "light");
   // CodeMirror marks its light and dark facets with generated class names.
   // A compartment reconfiguration must therefore change the actual editor
@@ -141,7 +139,6 @@ test("theme follows the system, toggles without losing editor state, and persist
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-jgz-theme", "light");
   await expect(toggle).toHaveAttribute("aria-label", "Switch to dark mode");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await expect(content).toContainText("THEME_STATE_PRESERVED");
 });
 
@@ -168,7 +165,8 @@ test("documentation opens in a separate tab without disturbing the editor or pre
     page.waitForEvent("popup"),
     docsButton.click(),
   ]);
-  await expect(docsPage).toHaveURL(/\/docs$/);
+  // The docs open at their first page, which the address bar then names.
+  await expect(docsPage).toHaveURL(/\/docs(\?page=[\w/-]+)?$/);
   await expect
     .poll(() => docsPage.evaluate(() => window.opener === null))
     .toBe(true);
@@ -266,7 +264,8 @@ test("documentation opens in a separate tab without disturbing the editor or pre
     page.locator("[data-jgz-editor-mount] .cm-content"),
   ).toContainText("EDITED_WITH_DOCS_OPEN");
   await expectCurrentProject(page, name);
-  await expect(docsPage).toHaveURL(/\/docs$/);
+  // The docs tab's address names the page it was left on.
+  await expect(docsPage).toHaveURL(/\/docs\?page=getting-started$/);
 });
 
 test("documentation load failures offer a working retry", async ({
@@ -570,9 +569,62 @@ test("a syntax error shows exactly one friendly diagnostic entry", async ({
     { timeout: 8_000 },
   );
   await expect(page.locator("[data-jgz-diagnostics] li")).toHaveCount(1);
+  // In the learner's terms, not the runtime wrapper's "Unexpected token ')'".
+  await expect(page.locator("[data-jgz-diagnostics] li")).toContainText(
+    "Something isn't closed",
+  );
   await expect(page.locator("[data-jgz-preview-status]")).toHaveText(
     "Needs a fix",
   );
+});
+
+test("undo right after opening a game leaves its code alone", async ({
+  page,
+}) => {
+  const name = uniqueName("undo");
+  await page.goto("/");
+  await cloneExampleProject(page, "snake", name);
+  const code = page.locator("[data-jgz-editor-mount] .cm-content");
+  await expect(code).toContainText("TITLE");
+  const opened = await code.textContent();
+
+  await code.click();
+  await page.keyboard.press("ControlOrMeta+Z");
+  await page.keyboard.press("ControlOrMeta+Z");
+  await expect(code).toHaveText(opened!);
+  await expect(page.locator("[data-jgz-save-status]")).toHaveText("Saved");
+});
+
+test("with a problem showing, a click lands on the line clicked, and its line number follows edits", async ({
+  page,
+}) => {
+  const name = uniqueName("lensclick");
+  await page.goto("/");
+  await createBlankProject(page, name);
+  await setEditorContent(
+    page,
+    'function draw() {\n  screen.fil("navy");\n}\nlet a = 1;\nlet b = 2;\n',
+  );
+  await page.locator("[data-jgz-play]").click();
+  const lens = page.locator("[data-jgz-problem-lens]");
+  await expect(lens).toBeVisible({ timeout: 8_000 });
+
+  // Below the box: the click goes to the line under the pointer.
+  await page.locator(".cm-line", { hasText: "let a = 1;" }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" // here");
+  await expect(page.locator(".cm-line", { hasText: "// here" })).toHaveText(
+    "let a = 1; // here",
+  );
+
+  // A line added above moves the problem, and every "line N" with it.
+  await page.locator(".cm-line").first().click();
+  await page.keyboard.press("Home");
+  await page.keyboard.type("// a note\n");
+  await expect(page.locator("[data-jgz-stage-show-line]")).toHaveText(
+    "Show me line 3",
+  );
+  await expect(page.locator("[data-jgz-problem-line]")).toHaveText(/3/);
 });
 
 test("cloning an example produces a running game", async ({ page }) => {

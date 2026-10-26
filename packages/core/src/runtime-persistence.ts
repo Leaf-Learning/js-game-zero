@@ -1,6 +1,8 @@
 import { hasUnsavedChanges, Storage } from "./storage";
 
 const AUTOSAVE_DEBOUNCE_MS = 250;
+/** However often a game writes, a change is saved within this long. */
+const AUTOSAVE_MAX_WAIT_MS = 1000;
 
 type PersistenceDiagnostic = {
   readonly code: "runtime-error";
@@ -32,6 +34,8 @@ export function attachAutosave(
   emit: PersistenceDiagnosticEmitter,
 ): Autosave {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  /** When the oldest change not yet saved was made. */
+  let pendingSince: number | null = null;
   let dirty = false;
   let writing: Promise<void> | null = null;
 
@@ -44,6 +48,7 @@ export function attachAutosave(
       clearTimeout(timer);
       timer = null;
     }
+    pendingSince = null;
     if (writing) return writing;
     writing = (async () => {
       // Compares the JSON instead of trusting `dirty` alone, which only a
@@ -59,13 +64,21 @@ export function attachAutosave(
     return writing;
   };
 
+  // Each change waits for a quiet moment before saving, but a game that
+  // writes every frame never has one, so the wait is capped.
   const unsubscribe = storage.onChange(() => {
     dirty = true;
+    const now = Date.now();
+    pendingSince ??= now;
     if (timer !== null) clearTimeout(timer);
+    const delay = Math.max(
+      0,
+      Math.min(AUTOSAVE_DEBOUNCE_MS, pendingSince + AUTOSAVE_MAX_WAIT_MS - now),
+    );
     timer = setTimeout(() => {
       timer = null;
       void flush().catch(reportSaveFailure);
-    }, AUTOSAVE_DEBOUNCE_MS);
+    }, delay);
   });
 
   const hasWindow =

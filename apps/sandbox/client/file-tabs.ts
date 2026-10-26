@@ -35,6 +35,16 @@ function validateFileName(
   if (value.startsWith("/") || value.includes("..")) {
     return "File names can't start with / or contain ..";
   }
+  const parts = value.split("/");
+  if (parts.some((part) => part.length === 0)) {
+    return "File names can't have two slashes together, or end with one.";
+  }
+  if (parts.some((part) => part.startsWith("."))) {
+    return "File and folder names can't start with a dot.";
+  }
+  if (parts.some((part) => part.length > 64)) {
+    return "Keep each name under 64 characters.";
+  }
   if (isAssetPath(value)) {
     return "That folder is for images, sounds, music and fonts. Add those from the bar on the left instead.";
   }
@@ -59,6 +69,11 @@ export function createFileTabs(
     const others = latest.project?.files.filter((file) => file !== path) ?? [];
     const value = await promptDialog({
       title: `Rename "${path}"`,
+      ...(path === "main.js"
+        ? {
+            body: "Your game runs main.js, so with another name it won't start until a file is called main.js again.",
+          }
+        : {}),
       initialValue: path,
       confirmLabel: "Rename",
       validate: (candidate) => validateFileName(candidate, others),
@@ -69,7 +84,10 @@ export function createFileTabs(
   async function deleteFile(path: string): Promise<void> {
     const ok = await confirmDialog({
       title: `Delete "${path}"?`,
-      body: "This can't be undone.",
+      body:
+        path === "main.js"
+          ? "Your game runs main.js, so it won't start without it. This can't be undone."
+          : "This can't be undone.",
       confirmLabel: "Delete file",
       danger: true,
     });
@@ -181,6 +199,10 @@ export function createFileTabs(
         );
       }),
     );
+    // The open file's tab is always in view, ⋯ button and all.
+    tabs
+      .querySelector<HTMLElement>(".file-tab-active")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   return {

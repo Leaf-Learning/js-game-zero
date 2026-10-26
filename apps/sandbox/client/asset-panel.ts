@@ -86,7 +86,20 @@ function usableInCode(path: string): boolean {
     .every((segment) => /^[a-z][a-z0-9_]*$/.test(segment));
 }
 
-function inferAssetKind(file: File, fallback: AssetDirectory): AssetDirectory {
+/** A name that may wrap after its `_` and `-`, so `ground_fill` breaks as
+ * "ground_" and "fill" rather than mid-word. */
+function breakableName(name: string): (string | HTMLElement)[] {
+  return name
+    .split(/(?<=[_-])/)
+    .flatMap((part, index) =>
+      index === 0 ? [part] : [document.createElement("wbr"), part],
+    );
+}
+
+function inferAssetKind(
+  file: File,
+  fallback: AssetDirectory,
+): AssetDirectory | null {
   if (file.type.startsWith("image/") || /\.svg$/i.test(file.name)) {
     return "images";
   }
@@ -100,7 +113,7 @@ function inferAssetKind(file: File, fallback: AssetDirectory): AssetDirectory {
     if (fallback === "sounds" || fallback === "music") return fallback;
     return file.name.toLowerCase().includes("music") ? "music" : "sounds";
   }
-  return fallback;
+  return null;
 }
 
 function storedKind(): AssetDirectory | null {
@@ -116,6 +129,8 @@ function storedKind(): AssetDirectory | null {
 
 export type AssetPanelCallbacks = {
   readonly onUploadFiles: (kind: AssetDirectory, files: FileList) => void;
+  /** Files that aren't an image, sound, music or font. */
+  readonly onUnusableFiles: (names: readonly string[]) => void;
   readonly onRequestDeleteAsset: (path: string) => void;
 };
 
@@ -254,7 +269,7 @@ export function createAssetPanel(
       },
       [
         preview(path, kind, url),
-        h("span", { className: "asset-name", text: nameInCode(path) }),
+        h("span", { className: "asset-name" }, breakableName(nameInCode(path))),
         ...(usable
           ? []
           : [
@@ -287,7 +302,25 @@ export function createAssetPanel(
     );
   }
 
+  /** Redraws the panel, and keeps keyboard focus on the control it was on,
+   * such as a sound's play button. */
   function render(): void {
+    const active = document.activeElement;
+    const key =
+      active instanceof HTMLElement && root.contains(active)
+        ? [...active.attributes].find((attribute) =>
+            attribute.name.startsWith("data-jgz-"),
+          )
+        : undefined;
+    renderPanel();
+    if (key && !root.contains(document.activeElement)) {
+      root
+        .querySelector<HTMLElement>(`[${key.name}="${CSS.escape(key.value)}"]`)
+        ?.focus();
+    }
+  }
+
+  function renderPanel(): void {
     const files = project?.files ?? [];
     const counts = new Map<AssetDirectory, number>();
     for (const path of files) {
@@ -342,10 +375,13 @@ export function createAssetPanel(
     fallback: AssetDirectory,
   ): void {
     const byKind = new Map<AssetDirectory, File[]>();
+    const unusable: string[] = [];
     for (const file of Array.from(files)) {
       const kind = inferAssetKind(file, fallback);
-      byKind.set(kind, [...(byKind.get(kind) ?? []), file]);
+      if (kind) byKind.set(kind, [...(byKind.get(kind) ?? []), file]);
+      else unusable.push(file.name);
     }
+    if (unusable.length > 0) callbacks.onUnusableFiles(unusable);
     for (const [kind, kindFiles] of byKind) {
       const transfer = new DataTransfer();
       for (const file of kindFiles) transfer.items.add(file);

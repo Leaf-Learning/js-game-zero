@@ -9,7 +9,7 @@ let clicks = 0;
 
 function draw() {
   screen.fill("#1f2937");
-  screen.draw.filledCircle([160, 82], 28 + clicks * 4, "#38bdf8");
+  screen.draw.filledCircle([160, 74], 28 + clicks * 4, "#38bdf8");
   screen.draw.text("click for sound + tone", [82, 134], {
     size: 18,
     color: "#f8fafc",

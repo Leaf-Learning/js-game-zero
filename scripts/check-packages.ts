@@ -1,7 +1,7 @@
 import { chromium } from "@playwright/test";
 import { mkdtemp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { licenseBanner } from "./license-banner";
 
 const repoRoot = resolve(import.meta.dir, "..");
@@ -182,7 +182,8 @@ async function checkPackedConsumer(): Promise<void> {
     );
     await Bun.write(
       join(consumerDir, "consumer.ts"),
-      `import { Actor, defineGame, run, type RuntimeDiagnostic } from "@js-game-zero/core";
+      `/// <reference types="@js-game-zero/browser-runtime/iife" />
+import { Actor, defineGame, run, type RuntimeDiagnostic } from "@js-game-zero/core";
 import { createAssetLoaders } from "@js-game-zero/core/host";
 import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
 import { reference } from "@js-game-zero/core/reference";
@@ -220,19 +221,44 @@ run(game, { autostart: false });
 
 // @ts-expect-error update receives elapsed seconds as a number
 defineGame(() => ({ update(_dt: string) {} }));
+
+// A plain module game's update gets its dt as a number, and an input hook's
+// parameters, matched by name, take whatever types the game gives them.
+let shipX = 0;
+run(
+  {
+    update(dt) {
+      shipX += 120 * dt;
+    },
+    onMouseDown(pos: [number, number]) {
+      shipX = pos[0];
+    },
+    draw() {},
+  },
+  { autostart: false },
+);
+// @ts-expect-error draw takes no parameters
+run({ draw(_unused: number) {} }, { autostart: false });
+
+// A page using the script-tag build gets window.JGZ's types this way.
+const scriptTagRun: ((source: string) => unknown) | undefined = window.JGZ?.run;
+void scriptTagRun;
 // @ts-expect-error autostart is boolean
 run(game, { autostart: "yes" });
 `,
     );
     await Bun.write(
       join(consumerDir, "consumer.mjs"),
-      `import { Actor } from "@js-game-zero/core";
-import { createAssetLoaders } from "@js-game-zero/core/host";
+      `import { Actor, audioUnlock, createStorage } from "@js-game-zero/core";
+import * as host from "@js-game-zero/core/host";
 import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
 import { Actor as RuntimeActor } from "@js-game-zero/browser-runtime";
 
 if (Actor !== RuntimeActor) throw new Error("browser-runtime duplicated core");
-if (typeof createAssetLoaders !== "function") throw new Error("host export missing");
+if (typeof host.createAssetLoaders !== "function") throw new Error("host export missing");
+if (host.audioUnlock !== audioUnlock || host.createStorage !== createStorage) {
+  throw new Error("core/host has its own copy of the runtime");
+}
 if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node export missing");
 `,
     );
@@ -346,15 +372,20 @@ async function checkBrowserArtifacts(): Promise<void> {
     port: 0,
     fetch(request) {
       const pathname = new URL(request.url).pathname;
-      if (pathname === "/core.js")
-        return new Response(Bun.file(artifacts.core));
+      // Core's entry points share chunks of the runtime, served beside them.
+      const coreFile = /^\/core\/([\w-]+\.js)$/.exec(pathname)?.[1];
+      if (coreFile) {
+        return new Response(Bun.file(join(dirname(artifacts.core), coreFile)), {
+          headers: { "content-type": "text/javascript" },
+        });
+      }
       if (pathname === "/runtime.js") {
         return new Response(Bun.file(artifacts.runtime));
       }
       if (pathname === "/iife.js")
         return new Response(Bun.file(artifacts.iife));
       return new Response(
-        `<!doctype html><script type="importmap">{"imports":{"@js-game-zero/core":"/core.js"}}</script>`,
+        `<!doctype html><script type="importmap">{"imports":{"@js-game-zero/core":"/core/index.js"}}</script>`,
         { headers: { "content-type": "text/html" } },
       );
     },
@@ -364,7 +395,7 @@ async function checkBrowserArtifacts(): Promise<void> {
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.port}/`);
     const esmResult = await page.evaluate(async () => {
-      const coreUrl = "/core.js";
+      const coreUrl = "/core/index.js";
       const runtimeUrl = "/runtime.js";
       const core = await import(coreUrl);
       const runtime = await import(runtimeUrl);

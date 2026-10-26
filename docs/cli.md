@@ -156,7 +156,10 @@ Each request has a `command` and may have a string, number, or null `id`:
 Responses repeat the request ID and use `ok: true` with a `result`, or
 `ok: false` with a stable error `code` and human-readable `message` (see
 [Errors and exit codes](#errors-and-exit-codes)). Separate event records
-report readiness, restarts, diagnostics, console output, and runtime errors. A
+report readiness, restarts, diagnostics, console output, and runtime errors.
+`ready` comes once the session takes commands, even when the game's code
+failed to start: then a `runtime-error` event with `"phase": "startup"` comes
+first, and `ready`'s `status` carries the `startupError`. A
 `restarted` event's `source` says what restarted the game: `command` (a
 `restart`, or a `play` with `"restart": true`), `watch`, or `timeout` (see
 [Timeouts](#timeouts)). In JSON mode every stdout line is JSON; operational
@@ -235,7 +238,9 @@ access are rejected.
 
 Actors are represented by stable summaries containing their image, position,
 size, angle, opacity, anchor and rectangle, and under `properties` the fields
-the game gave them: `bug.speed = 40` is `properties.speed`. Other
+the game gave them: `bug.speed = 40` is `properties.speed`. A path reads the
+actor itself rather than its summary, so it's `inspect bug.speed` for that
+field and `inspect bug.left` for an edge of its rectangle. Other
 framework objects, sets, maps, undefined or special numeric values, circular
 references, and truncated collections use explicit `$type` tags so the output
 always remains valid JSON.
@@ -243,12 +248,15 @@ always remains valid JSON.
 `call <binding>` invokes a zero-argument top-level function of the game and
 returns its result with the same serialization, so a game or a test harness
 can expose a probe such as `const __probe = () => ({ score, lives })` and read
-several values consistently in one request. Function bindings are listed
-separately from state and are never included in `state` output.
+several values consistently in one request. Functions aren't part of `state`
+output; call them by name.
 
-Only plain identifier declarations are captured automatically. Destructured
-declarations and games using the typed `defineGame()` import style are not
-inspectable in this first version. Screenshots and input still work normally.
+Only plain identifier declarations are captured automatically: a destructured
+declaration such as `let [a, b] = pair;` isn't inspectable.
+
+The CLI runs games the way the sandbox does: a project folder whose `main.js`
+is zero-boilerplate code. A game written as a module, with `import` lines and
+`defineGame()`, can't run in it.
 
 ## Determinism and timing
 

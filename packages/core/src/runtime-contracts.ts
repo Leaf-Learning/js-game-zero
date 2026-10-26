@@ -26,8 +26,9 @@ export type GameModule = InputHooks & {
   readonly TITLE?: string;
   readonly ICON?: string | null;
   readonly TOUCH_CONTROLS?: TouchControlsConfig;
-  readonly draw?: Hook;
-  readonly update?: Hook;
+  readonly draw?: () => void;
+  /** Called every frame with the seconds since the last one. */
+  readonly update?: (dt: number) => void;
 };
 
 export type RuntimeMode = "global" | "import";
@@ -47,7 +48,11 @@ export type RuntimeDiagnostic = {
   readonly name?: string;
   readonly suggestion?: string;
   readonly phase?: RuntimeFailurePhase;
-  /** For `runtime-error`: the 1-based line in the game source where the error was thrown, when the engine reports one. */
+  /**
+   * The 1-based line in the game source the diagnostic is about, when known:
+   * where a `runtime-error` was thrown, or where a misspelled hook or
+   * setting is declared.
+   */
   readonly line?: number;
   readonly recoverable?: boolean;
 };

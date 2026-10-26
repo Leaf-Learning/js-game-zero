@@ -41,18 +41,15 @@ console.log(
 async function buildCore(): Promise<void> {
   await rm("packages/core/dist", { force: true, recursive: true });
   const banner = await licenseBanner(repoRoot, "packages/core");
+  // Built together and split, so `@js-game-zero/core` and `/host` share one
+  // copy of the runtime: a game started with one is the game the other's
+  // inspector, storage and audio unlock see.
   await runBuild({
-    entrypoints: ["packages/core/src/index.ts"],
+    entrypoints: ["packages/core/src/index.ts", "packages/core/src/host.ts"],
     outdir: "packages/core/dist",
     target: "browser",
     format: "esm",
-    banner,
-  });
-  await runBuild({
-    entrypoints: ["packages/core/src/host.ts"],
-    outdir: "packages/core/dist",
-    target: "browser",
-    format: "esm",
+    splitting: true,
     banner,
   });
   await runBuild({

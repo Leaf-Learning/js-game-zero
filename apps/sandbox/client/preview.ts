@@ -21,6 +21,8 @@ export type PreviewHandle = {
   currentProject(): string | null;
   setSelectedProject(project: string | null): void;
   setTitle(title: string): void;
+  /** Points the stopped game's "Show me line N" at where its line is now. */
+  setProblemLine(line: number): void;
 };
 
 const STATUS_LABEL: Record<PreviewStatusKind, string> = {
@@ -50,6 +52,11 @@ function problemLine(message: PreviewMessage): number | null | undefined {
   if (message.type === "diagnostic" && message.diagnostic.severity === "error")
     return message.diagnostic.line ?? null;
   return undefined;
+}
+
+/** True on a phone or tablet, whose main pointer is a finger. */
+function touchFirst(): boolean {
+  return window.matchMedia?.("(pointer: coarse)").matches ?? false;
 }
 
 export function createPreview(
@@ -96,7 +103,9 @@ export function createPreview(
 
     idle.hidden = status !== "stopped";
     idlePlay.disabled = !selectedProject;
-    overlay.hidden = !running || focused;
+    // On a touch screen the game's own buttons take the input, and the
+    // keyboard overlay would sit on top of them.
+    overlay.hidden = !running || focused || touchFirst();
     problemCard.hidden = status !== "error";
 
     hint.hidden = !running;
@@ -106,7 +115,9 @@ export function createPreview(
             icon("keyboard", 18),
             "Your keys go to the game. Click your code to type again.",
           ]
-        : [icon("mouse", 18), "Click the game to play it with your keys."]),
+        : touchFirst()
+          ? [icon("mouse", 18), "Tap the game, or its buttons, to play."]
+          : [icon("mouse", 18), "Click the game to play it with your keys."]),
     );
   }
 
@@ -193,7 +204,10 @@ export function createPreview(
   });
   playButton.addEventListener("click", () => callbacks.onPlayRequested());
   idlePlay.addEventListener("click", () => callbacks.onPlayRequested());
-  stopButton.addEventListener("click", () => {
+  stopButton.addEventListener("click", (event) => {
+    // Stop takes Play's place, so a double-click on Play would land its
+    // second click here and stop the game it just started.
+    if (event.detail > 1) return;
     stop();
     playButton.focus();
   });
@@ -243,6 +257,9 @@ export function createPreview(
     },
     setTitle(text: string): void {
       title.textContent = text;
+    },
+    setProblemLine(line: number): void {
+      if (status === "error") showProblemCard(line);
     },
   };
 }

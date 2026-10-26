@@ -86,11 +86,12 @@ export function validateProjectName(
   value: string,
   existing: readonly string[],
 ): string | null {
-  if (value.length === 0) return "Give your project a name first.";
-  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(value)) {
-    return "Project names start with a lowercase letter and can only use lowercase letters, numbers, - and _.";
+  if (value.length === 0) return "Give your game a name first.";
+  if (value.length > 64) return "Keep the name under 64 characters.";
+  if (!/^[a-z][a-z0-9_-]*$/.test(value)) {
+    return "Game names start with a lowercase letter and can only use lowercase letters, numbers, - and _.";
   }
   if (existing.includes(value))
-    return "You already have a project with that name.";
+    return "You already have a game with that name.";
   return null;
 }

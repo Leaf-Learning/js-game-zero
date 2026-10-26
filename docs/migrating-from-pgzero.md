@@ -111,11 +111,10 @@ project's source, not assumptions from the Python API's shape.
   `endElastic`, `startElastic` and `bothElastic`, the names older Pygame
   Zero docs gave the elastic curves: 18 names in all. See
   [`docs/reference/clock.md#animation`](reference/clock.md#animation).
-- **A bad tone duration is a rejected Promise, not an immediate error.**
-  Tones are capped at 4 seconds in both, and neither accepts a duration of
-  `0`. Pygame Zero raises `ValueError` from `tone.play` straight away. Here
-  `tone.play(note, duration)` is async, so it returns a Promise that rejects
-  with a `RangeError` when `duration` is greater than `4` or not greater
+- **A bad tone duration is a `RangeError`, not a `ValueError`.** Tones are
+  capped at 4 seconds in both, and neither accepts a duration of `0`. Like
+  Pygame Zero's, `tone.play(note, duration)` fails straight away, on the
+  line that called it, when `duration` is greater than `4` or not greater
   than `0`. `tone` is meant for short blips; use `music` for anything
   longer.
 - **Browser audio needs a user gesture, every time, no exceptions.**

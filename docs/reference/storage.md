@@ -20,12 +20,16 @@ You don't need to call `save()` or `load()` yourself in normal use:
 
 - **Auto-load**: the default browser adapter has a synchronous `loadSync()`
   path, so a top-level read like `let score = storage.get("score") ?? 0`
-  sees previously-saved data immediately. A custom asynchronous adapter is
-  loaded once during startup and delays frames/`handle.ready`, but cannot
-  retroactively change values already copied into top-level variables.
+  sees previously-saved data immediately. So does a custom adapter with a
+  `loadSync()`, or whose `load()` returns its text rather than a Promise. A
+  custom asynchronous adapter is loaded once during startup and delays
+  frames/`handle.ready`, but cannot retroactively change values already
+  copied into top-level variables, and what it loads replaces anything the
+  top level stored before it arrived.
 - **Auto-save**: any mutation (`storage.set(...)`, `storage.score = 5`,
   `storage.delete(...)`, `storage.clear()`) schedules a save a fraction of a
-  second later; rapid changes coalesce into one write instead of saving on
+  second later, and within a second even while the game keeps changing it
+  every frame; rapid changes coalesce into one write instead of saving on
   every single mutation. Storage is also flushed immediately when the tab is
   hidden or closed, and when the game stops, so nothing is lost. A change
   inside a stored object or list, such as `storage.highScores.push(score)`,
@@ -74,8 +78,10 @@ with a warning naming its path, and nothing in storage is saved.
   a method, such as `storage.setdefault`, throws naming the method. Pick key
   names that don't collide with the method list.
 - Storage is scoped per project: in the browser it's namespaced by project
-  id (so two different games on the same site don't share data); in the
-  sandbox it's a JSON file inside that project's own directory.
+  id (so two different games on the same site don't share data, as long as
+  each has its own `projectId`; games run without one all share the id
+  `default`); in the sandbox it's a JSON file inside that project's own
+  directory.
 
 ## Manual save/load
 

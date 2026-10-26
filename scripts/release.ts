@@ -76,6 +76,9 @@ if (options.publish) {
       "inherit",
     );
   }
+  if (distTag === "latest" && unpublished.length > 0) {
+    await refreshCdnRanges(version);
+  }
   console.log(`Released ${version}.`);
 } else if (unpublished.length) {
   console.log(`\nPacked ${version}. To publish by hand, in this order:\n`);
@@ -86,6 +89,26 @@ if (options.publish) {
   }
 } else {
   console.log(`\nPacked ${version}; npm has every package already.`);
+}
+
+/**
+ * Asks jsDelivr to look again at the version ranges the docs load the
+ * script-tag build from (`@0.2`), which it otherwise keeps on the previous
+ * release for up to a week. A purge that fails only means a slower update,
+ * so it warns rather than failing the release.
+ */
+async function refreshCdnRanges(version: string): Promise<void> {
+  const [major, minor] = version.split(".");
+  for (const range of [`${major}.${minor}`, `${major}`, "latest"]) {
+    const url = `https://purge.jsdelivr.net/npm/@js-game-zero/browser-runtime@${range}/dist/browser/browser.js`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      console.log(`Asked jsDelivr to refresh @${range}.`);
+    } catch (error) {
+      console.warn(`Couldn't refresh jsDelivr's @${range}: ${String(error)}`);
+    }
+  }
 }
 
 /** Every manifest, the CLI's `--version` and bun.lock give one version.

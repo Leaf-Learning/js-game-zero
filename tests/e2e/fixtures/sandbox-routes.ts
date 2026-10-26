@@ -97,6 +97,84 @@ const browserHostFixturePage = `<!doctype html>
   </body>
 </html>`;
 
+/** The page from the docs' "game in one web page", but with the scripts in
+ * <head>, before the page has a <body>, and touch controls. */
+const scriptInHeadFixturePage = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>js-game-zero Script in Head Fixture</title>
+    <script src="/test-fixtures/jgz-browser-classic.js"></script>
+    <script>
+      window.__jgzHeadGame = JGZ.run(\`
+        WIDTH = 160;
+        HEIGHT = 120;
+        TOUCH_CONTROLS = { left: keys.LEFT, right: keys.RIGHT };
+        let x = 80;
+        function update(dt) {
+          if (keyboard.right) x += 100 * dt;
+        }
+        function draw() {
+          screen.fill("navy");
+          screen.draw.filledCircle([x, 60], 10, "gold");
+        }
+      \`);
+    </script>
+  </head>
+  <body>
+    <p data-jgz-page-text>Written before the game's canvas.</p>
+  </body>
+</html>`;
+
+/** A page that runs a game with a warning and a mistake in draw(), and
+ * passes no diagnostics callback. */
+const unhandledProblemsFixturePage = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>js-game-zero Unhandled Problems Fixture</title>
+  </head>
+  <body>
+    <script src="/test-fixtures/jgz-browser-classic.js"></script>
+    <script>
+      JGZ.run(\`
+        function updte() {}
+        function draw() {
+          screen.fil("navy");
+        }
+      \`);
+    </script>
+  </body>
+</html>`;
+
+let classicBrowserBuild: Promise<string> | null = null;
+
+/** The script-tag build as a classic script, built as dist/browser/browser.js
+ * is, for pages that load it with a plain <script src>. */
+async function classicBrowserBuildBundle(): Promise<Response> {
+  classicBrowserBuild ??= Bun.build({
+    entrypoints: [join(REPO_ROOT, "packages/browser-runtime/src/browser.ts")],
+    target: "browser",
+    format: "iife",
+  }).then((result) => {
+    const output = result.outputs[0];
+    if (!result.success || !output) {
+      throw new Error("Failed to build the classic browser runtime");
+    }
+    return output.text();
+  });
+  try {
+    return new Response(await classicBrowserBuild, {
+      headers: { "content-type": "text/javascript; charset=utf-8" },
+    });
+  } catch {
+    classicBrowserBuild = null;
+    return new Response("Failed to build the classic browser runtime", {
+      status: 500,
+    });
+  }
+}
+
 async function browserBuildBundle(): Promise<Response> {
   try {
     const build = await cachedBrowserBuild(
@@ -167,8 +245,21 @@ export async function testFixtureRouteResponse(
   if (url.pathname === "/test-fixtures/jgz-browser.js") {
     return browserBuildBundle();
   }
+  if (url.pathname === "/test-fixtures/jgz-browser-classic.js") {
+    return classicBrowserBuildBundle();
+  }
   if (url.pathname === "/fixtures/browser-host") {
     return new Response(browserHostFixturePage, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/fixtures/script-in-head") {
+    return new Response(scriptInHeadFixturePage, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/fixtures/unhandled-problems") {
+    return new Response(unhandledProblemsFixturePage, {
       headers: { "content-type": "text/html; charset=utf-8" },
     });
   }

@@ -70,6 +70,7 @@ import {
 import { attachTouchPointer } from "./touch-pointer";
 import {
   createDiagnosticEmitter,
+  declarationLine,
   describeRuntimeError as describeError,
   diagnoseGameModule,
   isValidRuntimeDimension as validDimension,
@@ -78,6 +79,7 @@ import {
 } from "./runtime-diagnostics";
 import {
   executeZeroBoilerplateSource,
+  noteSourceLine,
   sourceLineOf,
   type SourceInspector,
 } from "./runtime-source";
@@ -205,7 +207,10 @@ export function run(
   options: RunOptions = {},
 ): GameHandle {
   const diagnostics: RuntimeDiagnostic[] = [];
-  const emit = createDiagnosticEmitter(diagnostics, options.diagnostics);
+  const emit = createDiagnosticEmitter(
+    diagnostics,
+    options.diagnostics ?? reportToConsole,
+  );
   const mode: RuntimeMode =
     typeof moduleOrSource === "string" ? "global" : "import";
 
@@ -232,23 +237,29 @@ export function run(
       context = createRuntimeContext(options, diagnostics, emit, module);
     }
 
-    diagnoseGameModule(module, options, emit, mode);
+    diagnoseGameModule(module, options, emit, mode, true);
     game = mergeModuleOptions(module, options);
-    requireDrawArity(game.draw);
+    requireDrawArity(
+      game.draw,
+      mode === "global" ? String(moduleOrSource) : undefined,
+    );
     applyCanvasConfiguration(context, game, emit);
     configureDocumentTitle(game);
     applyFavicon(context, game.ICON, emit);
     touchControls = normalizeTouchControls(game.TOUCH_CONTROLS);
   } catch (error) {
     const line = sourceLineOf(error);
-    emit({
+    const failure: RuntimeDiagnostic = {
       code: "runtime-error",
       severity: "error",
       phase: "startup",
       recoverable: false,
       message: `startup failed: ${describeError(error)}`,
       ...(line !== undefined ? { line } : {}),
-    });
+    };
+    // run() throws this one, so without a callback it isn't logged as well.
+    if (options.diagnostics) emit(failure);
+    else diagnostics.push(failure);
     cleanupFailedStartup(context, emit);
     throw error;
   }
@@ -289,7 +300,7 @@ export function run(
     // A failed game keeps its inspector so a host can read the state at the crash.
     if (state !== "failed") gameInspectors.delete(handle);
     removeActiveHandle();
-    if (context.ownsCanvas) context.canvas.remove?.();
+    context.removeCanvas();
     cleanupPromise = Promise.resolve(context.autosave.flush())
       .catch((error: unknown) => {
         emit({
@@ -455,7 +466,11 @@ export function exit(): void {
 
 type RuntimeContext = {
   readonly canvas: RuntimeCanvas;
-  readonly ownsCanvas: boolean;
+  /** Resolves once a canvas the run made before the page had a `<body>`
+   * is on the page; null when the canvas was on the page from the start. */
+  readonly canvasMounted: Promise<void> | null;
+  /** Takes a canvas the run made off the page; leaves a host's alone. */
+  readonly removeCanvas: () => void;
   readonly screen: Screen;
   readonly clock: Clock;
   readonly clockFailure: { current: unknown | null };
@@ -498,8 +513,10 @@ function createRuntimeContext(
   // Checked before a canvas exists, so a bad seed leaves nothing behind.
   const random =
     options.seed === undefined ? null : createSeededRandom(options.seed);
-  const ownsCanvas = options.canvas === undefined;
-  const canvas = options.canvas ?? createCanvas(options.container);
+  const ownCanvas =
+    options.canvas === undefined ? createCanvas(options.container) : null;
+  const canvas = options.canvas ?? ownCanvas!.canvas;
+  const removeCanvas = (): void => ownCanvas?.remove();
   // Captured before this run's handle is registered: if no other run is
   // active yet, any pending default-loader activity can only be this run's.
   const adoptsDefaultLoaders = activeHandles.length === 0;
@@ -563,7 +580,8 @@ function createRuntimeContext(
     const scopedTone = createToneGenerator();
     return {
       canvas,
-      ownsCanvas,
+      canvasMounted: ownCanvas?.mounted ?? null,
+      removeCanvas,
       screen,
       clock,
       clockFailure,
@@ -586,7 +604,7 @@ function createRuntimeContext(
       stop: null,
     };
   } catch (error) {
-    if (ownsCanvas) canvas.remove?.();
+    removeCanvas();
     throw error;
   }
 }
@@ -615,7 +633,7 @@ function cleanupFailedStartup(
   context.clock.clear();
   context.music.stop();
   stopSoundsIfUnused(context.loaders.sounds);
-  if (context.ownsCanvas) context.canvas.remove?.();
+  context.removeCanvas();
   setScreen(activeHandles.at(-1)?.screen ?? null);
   void context.autosave.flush().catch((flushError: unknown) => {
     emit({
@@ -750,7 +768,8 @@ function runFrame(
       if (module.update) {
         try {
           const parameters = getParameterNames(module.update);
-          if (parameters.length === 0) module.update();
+          // An update() that takes nothing is called with nothing.
+          if (parameters.length === 0) (module.update as () => void)();
           else module.update(dt);
         } catch (error) {
           onFailure("update", error);
@@ -887,10 +906,14 @@ function monitorAudioAssetGate(context: RuntimeContext): void {
     });
 }
 
-function requireDrawArity(hook: Hook | undefined): void {
+function requireDrawArity(hook: Hook | undefined, source?: string): void {
   if (!hook) return;
   if (getParameterNames(hook).length > 0) {
-    throw new TypeError("draw() must not take any arguments.");
+    const error = new TypeError("draw() must not take any arguments.");
+    const line =
+      source === undefined ? undefined : declarationLine(source, "draw");
+    if (line !== undefined) noteSourceLine(error, line);
+    throw error;
   }
 }
 
@@ -1028,8 +1051,10 @@ function attachDispatcher(
       ? { getBoundingClientRect: () => canvas.getBoundingClientRect() }
       : {}),
   };
-  const keyDown = (event: Event) =>
+  const keyDown = (event: Event) => {
+    keepKeyFromPage(event as KeyboardEvent);
     invoke(() => void dispatcher.handleKeyDown(event as KeyboardEvent));
+  };
   const keyUp = (event: Event) =>
     invoke(() => void dispatcher.handleKeyUp(event as KeyboardEvent));
   const mouseDown = (event: Event) =>
@@ -1040,13 +1065,15 @@ function attachDispatcher(
     invoke(() => void dispatcher.handleMouseMove(event as MouseEvent, pointer));
   const wheel = (event: Event) =>
     invoke(() => void dispatcher.handleWheel(event as WheelEvent, pointer));
-  const controls = mountTouchControls(
-    canvas,
-    touchControls,
-    dispatcher,
-    invoke,
-    pointer,
-  );
+  const mountControls = () =>
+    mountTouchControls(canvas, touchControls, dispatcher, invoke, pointer);
+  let controls = mountControls();
+  let detached = false;
+  // A canvas still waiting for the page's <body> gets its controls once
+  // it's on the page.
+  void context.canvasMounted?.then(() => {
+    if (!detached) controls = mountControls();
+  });
   const touchPointer = attachTouchPointer(canvas, dispatcher, invoke, pointer);
   const clearKeyboard = (): void => {
     controls.reset();
@@ -1099,6 +1126,7 @@ function attachDispatcher(
   }
 
   return () => {
+    detached = true;
     controls.detach();
     touchPointer.detach();
     keyboardTarget.removeEventListener("keydown", keyDown);
@@ -1117,6 +1145,37 @@ function attachDispatcher(
       document.removeEventListener("visibilitychange", visibilityChange);
     }
   };
+}
+
+/** Keys a browser scrolls the page with. */
+const pageScrollKeys = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Space",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+]);
+
+/**
+ * A game playing with the arrow keys or Space keeps them from scrolling the
+ * page around it. Typing in a form field on the page, and shortcuts with
+ * Ctrl, Alt or Cmd, still reach the browser.
+ */
+function keepKeyFromPage(event: KeyboardEvent): void {
+  if (!pageScrollKeys.has(event.code)) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  const target = event.target as Partial<HTMLElement> | null;
+  if (
+    target?.isContentEditable === true ||
+    /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? "")
+  ) {
+    return;
+  }
+  event.preventDefault?.();
 }
 
 function withRuntimeContext<T>(context: RuntimeContext, callback: () => T): T {
@@ -1216,14 +1275,63 @@ function definePreloadedAssets(
   }
 }
 
-function createCanvas(container?: HTMLElement): RuntimeCanvas {
+type OwnCanvas = {
+  readonly canvas: RuntimeCanvas;
+  readonly mounted: Promise<void> | null;
+  remove(): void;
+};
+
+function createCanvas(container?: HTMLElement): OwnCanvas {
   if (typeof document === "undefined") {
     throw new Error("run requires a canvas option outside the browser.");
   }
   const canvas = document.createElement("canvas") as RuntimeCanvas;
   canvas.tabIndex = 0;
-  (container ?? document.body).append(canvas);
-  return canvas;
+  const parent = container ?? document.body;
+  if (parent) {
+    parent.append(canvas);
+    return { canvas, mounted: null, remove: () => canvas.remove?.() };
+  }
+  if (document.readyState !== "loading") {
+    throw new Error(
+      "run() has nowhere to put the game: the page has no <body>. Pass it a canvas or a container.",
+    );
+  }
+  // A script in the page's <head> runs before there's a <body>. The game
+  // starts now, and its canvas joins the page once the page has been read.
+  let removed = false;
+  const mounted = new Promise<void>((resolve) => {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        if (removed || !document.body) return;
+        document.body.append(canvas);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+  return {
+    canvas,
+    mounted,
+    remove() {
+      removed = true;
+      canvas.remove?.();
+    },
+  };
+}
+
+/**
+ * Where a run's diagnostics go when the host passes no `diagnostics`
+ * callback: the console, so a page still says what went wrong.
+ */
+function reportToConsole(diagnostic: RuntimeDiagnostic): void {
+  if (typeof console === "undefined") return;
+  const where =
+    diagnostic.line === undefined ? "" : ` (line ${diagnostic.line})`;
+  const text = `js-game-zero: ${diagnostic.message}${where}`;
+  if (diagnostic.severity === "error") console.error(text);
+  else console.warn(text);
 }
 
 function createDefaultScheduler(): RuntimeScheduler {

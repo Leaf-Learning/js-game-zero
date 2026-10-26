@@ -171,13 +171,32 @@ function moveVertical(dt) {
     }
   } else if (player.vy < 0) {
     const rowIndex = Math.floor(player.top / TILE_SIZE);
-    if (
-      columnsCovered.some((columnIndex) => isSolidCell(columnIndex, rowIndex))
-    ) {
+    const blocked = columnsCovered.filter((columnIndex) =>
+      isSolidCell(columnIndex, rowIndex),
+    );
+    if (blocked.length > 0 && !slideOffCorner(blocked, columnsCovered)) {
       player.top = (rowIndex + 1) * TILE_SIZE;
       player.vy = 0;
     }
   }
+}
+
+// Corner correction: a jump that would only clip the corner of a block, with
+// open air above the rest of the player, slides off the corner instead of
+// stopping dead. So a jump from the very end of a ledge, under the edge of
+// the platform above, still works.
+function slideOffCorner(blocked, columnsCovered) {
+  const first = columnsCovered[0];
+  const last = columnsCovered[columnsCovered.length - 1];
+  if (!blocked.includes(first)) {
+    player.right = Math.min(...blocked) * TILE_SIZE;
+    return true;
+  }
+  if (!blocked.includes(last)) {
+    player.left = (Math.max(...blocked) + 1) * TILE_SIZE;
+    return true;
+  }
+  return false;
 }
 
 function updatePlayer(dt) {

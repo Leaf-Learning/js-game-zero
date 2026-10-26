@@ -116,12 +116,20 @@ export class ToneGenerator {
     );
   }
 
-  async play(
+  play(
     noteOrFrequency: string | number,
     duration = 1,
     options: TonePlayOptions = {},
   ): Promise<TonePlayback> {
+    // A bad note or duration throws here, in the hook that played it and on
+    // its line, as Pygame Zero's does, not in a Promise nobody waits for.
     const spec = this.createSpec(noteOrFrequency, duration, options);
+    return this.start(spec);
+  }
+
+  private async start(
+    spec: ReturnType<ToneGenerator["createSpec"]>,
+  ): Promise<TonePlayback> {
     const context = this.getContext();
     await this.unlock();
     const startAt = context.currentTime;

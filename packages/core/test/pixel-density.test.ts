@@ -16,6 +16,9 @@ import {
   resolvePixelDensity,
 } from "../src/pixel-density";
 import { resizeScreen, syncScreen } from "../src/rendering";
+import { quietConsoleReports } from "./quiet-console-reports";
+
+quietConsoleReports();
 
 type Call = [string, ...unknown[]];
 

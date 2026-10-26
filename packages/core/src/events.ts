@@ -9,7 +9,14 @@ import {
 } from "./input";
 
 type HookArgs = Record<string, unknown>;
-export type Hook = (...args: unknown[]) => void;
+/**
+ * A hook a game defines. Its arguments are matched by parameter name, in
+ * whatever order the game declares them (see the hooks reference), so their
+ * types can't be given by position: `onKeyDown(key: number, mod: number)`
+ * and `onKeyDown(mod: number)` both fit.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Hook = (...args: any[]) => void;
 
 export type InputHooks = {
   onMouseDown?: Hook;
@@ -345,9 +352,10 @@ export class InputDispatcher {
   }
 
   handleKeyDown(event: BrowserKeyboardLike): boolean {
-    const mapped = mapBrowserKeyEvent(event);
-    if (!mapped) return false;
-    this.physicalKeys.add(mapped.key);
+    const browserMapped = mapBrowserKeyEvent(event);
+    if (!browserMapped) return false;
+    this.physicalKeys.add(browserMapped.key);
+    const mapped = withHeldSides(browserMapped, this.physicalKeys);
     this.keyboard.press(mapped.key);
     if (![...this.virtualKeys.values()].includes(mapped.key) || mapped.repeat) {
       dispatchHook(this.hooks.onKeyDown, mapped, HOOK_PARAMETERS.onKeyDown);
@@ -356,9 +364,10 @@ export class InputDispatcher {
   }
 
   handleKeyUp(event: BrowserKeyboardLike): boolean {
-    const mapped = mapBrowserKeyEvent(event);
-    if (!mapped) return false;
-    this.physicalKeys.delete(mapped.key);
+    const browserMapped = mapBrowserKeyEvent(event);
+    if (!browserMapped) return false;
+    this.physicalKeys.delete(browserMapped.key);
+    const mapped = withHeldSides(browserMapped, this.physicalKeys);
     if ([...this.virtualKeys.values()].includes(mapped.key)) return true;
     this.keyboard.release(mapped.key);
     dispatchHook(this.hooks.onKeyUp, mapped, HOOK_PARAMETERS.onKeyUp);
@@ -423,7 +432,17 @@ export class InputDispatcher {
   }
 
   handleMouseMove(event: BrowserMouseLike, target?: BoundsTarget): boolean {
-    const mapped = mapBrowserMouseEvent(event, target, this.lastMousePos);
+    const browserMapped = mapBrowserMouseEvent(
+      event,
+      target,
+      this.lastMousePos,
+    );
+    // A move's own button field is always 0, which reads as LEFT; the
+    // button that matters while moving is one being held, if any.
+    const mapped = {
+      ...browserMapped,
+      button: [...browserMapped.buttons][0] ?? null,
+    };
     this.trackMouse(mapped);
     dispatchHook(this.hooks.onMouseMove, mapped, HOOK_PARAMETERS.onMouseMove);
     return true;
@@ -577,20 +596,48 @@ function unicodeFromKeyboardEvent(event: BrowserKeyboardLike): string {
   return event.key && event.key.length === 1 ? event.key : "";
 }
 
+/** Each modifier's two sides: [both, left key, left bit, right key, right bit]. */
+const modifierSides = [
+  [keymods.SHIFT, keys.LSHIFT, keymods.LSHIFT, keys.RSHIFT, keymods.RSHIFT],
+  [keymods.CTRL, keys.LCTRL, keymods.LCTRL, keys.RCTRL, keymods.RCTRL],
+  [keymods.ALT, keys.LALT, keymods.LALT, keys.RALT, keymods.RALT],
+  [keymods.META, keys.LMETA, keymods.LMETA, keys.RMETA, keymods.RMETA],
+] as const;
+
+/**
+ * A browser event says a Shift is down, not which one, so the event's `mod`
+ * has both Shift bits. The keys held say which: `mod & keymods.LSHIFT` is
+ * then only true for the left one. With neither side seen pressed (it was
+ * held before the page had focus), both bits stay.
+ */
+function withHeldSides(
+  mapped: MappedKeyboardEvent,
+  held: ReadonlySet<number>,
+): MappedKeyboardEvent {
+  let mod = mapped.mod;
+  for (const [both, leftKey, left, rightKey, right] of modifierSides) {
+    if ((mod & both) !== both) continue;
+    const sides =
+      (held.has(leftKey) ? left : 0) | (held.has(rightKey) ? right : 0);
+    if (sides !== 0) mod = (mod & ~both) | sides;
+  }
+  return mod === mapped.mod ? mapped : { ...mapped, mod };
+}
+
 function modifiersFromKeyboardEvent(event: BrowserKeyboardLike): number {
   let mod = 0;
   if (event.shiftKey) mod |= keymods.SHIFT;
   if (event.ctrlKey) mod |= keymods.CTRL;
   if (event.altKey) mod |= keymods.ALT;
   if (event.metaKey) mod |= keymods.META;
-  if (event.code === "ShiftLeft") mod |= keymods.LSHIFT | keymods.SHIFT;
-  if (event.code === "ShiftRight") mod |= keymods.RSHIFT | keymods.SHIFT;
-  if (event.code === "ControlLeft") mod |= keymods.LCTRL | keymods.CTRL;
-  if (event.code === "ControlRight") mod |= keymods.RCTRL | keymods.CTRL;
-  if (event.code === "AltLeft") mod |= keymods.LALT | keymods.ALT;
-  if (event.code === "AltRight") mod |= keymods.RALT | keymods.ALT;
-  if (event.code === "MetaLeft") mod |= keymods.LMETA | keymods.META;
-  if (event.code === "MetaRight") mod |= keymods.RMETA | keymods.META;
+  if (event.code === "ShiftLeft") mod |= keymods.LSHIFT;
+  if (event.code === "ShiftRight") mod |= keymods.RSHIFT;
+  if (event.code === "ControlLeft") mod |= keymods.LCTRL;
+  if (event.code === "ControlRight") mod |= keymods.RCTRL;
+  if (event.code === "AltLeft") mod |= keymods.LALT;
+  if (event.code === "AltRight") mod |= keymods.RALT;
+  if (event.code === "MetaLeft") mod |= keymods.LMETA;
+  if (event.code === "MetaRight") mod |= keymods.RMETA;
   if (event.getModifierState?.("CapsLock")) mod |= keymods.CAPS;
   if (event.getModifierState?.("NumLock")) mod |= keymods.NUM;
   if (event.getModifierState?.("AltGraph")) mod |= keymods.MODE;

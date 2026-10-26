@@ -127,7 +127,7 @@ instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 | Option               | Purpose                                                                                                                                                                                                                                                        |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `canvas`             | Draw into an existing `<canvas>` instead of creating one.                                                                                                                                                                                                      |
-| `container`          | Where to mount a created canvas.                                                                                                                                                                                                                               |
+| `container`          | Where to mount a created canvas (default the page's `<body>`). Called from a script in `<head>`, before there's a `<body>`, the game starts at once and its canvas joins the `<body>` when the page has been read.                                             |
 | `autostart`          | Default `true`. Set `false` to skip the automatic frame loop and drive frames yourself via `handle.step(dt)` — useful for deterministic tests.                                                                                                                 |
 | `projectId`          | Scopes storage keys and asset URLs, so multiple games on one page don't collide.                                                                                                                                                                               |
 | `assetBaseUrl`       | Where asset URLs are rooted (default `/assets`).                                                                                                                                                                                                               |
@@ -142,7 +142,7 @@ instead (`Screen.fill doesn't exist. Did you mean screen.fill?`).
 | `TOUCH_CONTROLS`     | `true` for the full touch-control preset, `false` to disable it, or a button mapping with optional `show: "auto"` / `"always"`. See [touch controls](hooks.md#touch-controls).                                                                                 |
 | `PIXEL_DENSITY`      | Canvas pixels per logical pixel. Defaults to the device's pixel ratio, from 1 to 3. See [pixel density](#pixel-density).                                                                                                                                       |
 | `scheduler`          | Override `requestAnimationFrame`/`cancelAnimationFrame` (for tests).                                                                                                                                                                                           |
-| `diagnostics`        | `(diagnostic) => void` — called for every diagnostic warning (see below).                                                                                                                                                                                      |
+| `diagnostics`        | `(diagnostic) => void` — called for every diagnostic (see below). Without it, they go to the browser console.                                                                                                                                                  |
 
 Any hook or `WIDTH`/`HEIGHT`/`PIXEL_DENSITY`/`TITLE`/`ICON`/`TOUCH_CONTROLS`
 config can also be passed directly on `RunOptions`; if the same one is also present on the module
@@ -152,20 +152,20 @@ object, the option wins and a diagnostic warns about the duplicate.
 
 `run()` returns a handle for controlling the running game:
 
-| Member                                                        | Purpose                                                                                              |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `canvas`, `screen`, `clock`, `keyboard`, `loaders`, `storage` | The live instances this run is using.                                                                |
-| `module`                                                      | The final, merged hook/config object.                                                                |
-| `diagnostics`                                                 | The diagnostics collected so far.                                                                    |
-| `state`, `failure`                                            | Lifecycle state and the first fatal runtime failure, if one occurred.                                |
-| `ready: Promise<void>`                                        | Resolves once the preload gate is satisfied (see below).                                             |
-| `done: Promise<void>`                                         | Resolves after final storage flushing and resource cleanup complete.                                 |
-| `pause()` / `resume()`                                        | Stop/restart the frame loop without tearing anything down.                                           |
-| `step(dt)`                                                    | Manually advance one frame by `dt` seconds — only meaningful with `autostart: false`.                |
-| `stop()`                                                      | Detaches input listeners, flushes any pending storage save, and cancels the frame loop.              |
-| `dispose()`                                                   | Awaited form of cleanup; resolves only after pending persistence work is finished.                   |
-| `restart(nextSource?)`                                        | Awaits cleanup, then starts a fresh run with the same options.                                       |
-| `reload(nextSource?)`                                         | Compatibility alias that starts synchronously; prefer `restart()` when persistence ordering matters. |
+| Member                                                        | Purpose                                                                                                                               |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `canvas`, `screen`, `clock`, `keyboard`, `loaders`, `storage` | The live instances this run is using.                                                                                                 |
+| `module`                                                      | The final, merged hook/config object.                                                                                                 |
+| `diagnostics`                                                 | The diagnostics collected so far.                                                                                                     |
+| `state`, `failure`                                            | Lifecycle state and the first fatal runtime failure, if one occurred.                                                                 |
+| `ready: Promise<void>`                                        | Resolves once the preload gate is satisfied (see below).                                                                              |
+| `done: Promise<void>`                                         | Resolves after final storage flushing and resource cleanup complete.                                                                  |
+| `pause()` / `resume()`                                        | Stop/restart the frame loop without tearing anything down.                                                                            |
+| `step(dt)`                                                    | Manually advance one frame by `dt` seconds — only meaningful with `autostart: false`.                                                 |
+| `stop()`                                                      | Detaches input listeners, flushes any pending storage save, and cancels the frame loop.                                               |
+| `dispose()`                                                   | Awaited form of cleanup; resolves only after pending persistence work is finished.                                                    |
+| `restart(nextSource?)`                                        | Awaits cleanup, then starts a fresh run with the same options. Resolves to the new run's handle; this one stays stopped.              |
+| `reload(nextSource?)`                                         | Compatibility alias that starts synchronously and returns the new run's handle; prefer `restart()` when persistence ordering matters. |
 
 ```js
 const handle = run(gameModule, { canvas });
@@ -457,6 +457,9 @@ name is also defined. Short names get one edit of slack and longer ones two.
 A `runtime-error` raised by the game's own code (a hook that threw, or a
 top-level statement at startup) also carries `line`: the 1-based line in the
 game source where the error was thrown, when the engine's stack trace names it.
+A `hook-typo` or `constant-typo` warning carries the line that declares the
+misspelled name, and `draw()` declaring parameters fails on the line that
+declares it.
 A syntax error carries one too: where the engine gives no position (V8 gives
 none for compiled game code), it's the first line whose part of the source
 fails the same way, so a missing `)` is placed on the line it's missing from,
@@ -466,7 +469,10 @@ the one line that reads it, when only one does. `handle.failure.line` is the
 same number. Errors thrown inside the library have no `line`.
 
 The sandbox shows these under Messages, and marks a problem's line in the editor; import-mode hosts can pass
-a `diagnostics` callback to log or display them however they like. Apart
-from the startup failures that `run()` also throws, nothing else reports
-them: without a callback, a page shows no message, and a game that fails
-while running removes its canvas.
+a `diagnostics` callback to log or display them however they like. Without
+one, a run reports them to the browser console: a warning with
+`console.warn` and an error with `console.error`, each starting
+`js-game-zero:` and ending with its line, if it has one. A mistake that
+makes `run()` itself throw isn't logged as well. A game that fails while
+running removes a canvas it made, so on a page with no callback, the
+console is where to find out why.

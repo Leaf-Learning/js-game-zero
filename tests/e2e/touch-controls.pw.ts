@@ -585,8 +585,9 @@ test.describe("mobile touch input", () => {
         }),
       )
       .toBe(true);
-    const overlay = page.locator("[data-jgz-focus-overlay]");
-    if (await overlay.isVisible()) await overlay.tap();
+    // The keyboard overlay would cover the touch buttons, so a touch
+    // screen goes without it.
+    await expect(page.locator("[data-jgz-focus-overlay]")).toBeHidden();
     await controls.getByRole("button", { name: "A", exact: true }).tap();
     await expect
       .poll(() =>

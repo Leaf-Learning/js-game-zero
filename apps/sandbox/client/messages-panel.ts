@@ -42,6 +42,12 @@ export function createMessagesPanel(
   }
 
   function renderConsole(): void {
+    // Messages follows new output while it's scrolled to the bottom, and
+    // leaves the learner's place alone when they've scrolled up to read.
+    const scroller = consoleOutput.closest<HTMLElement>(".messages-body");
+    const following =
+      !scroller ||
+      scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 24;
     consoleOutput.replaceChildren(
       ...consoleLines.map((line) =>
         h("p", {
@@ -51,7 +57,7 @@ export function createMessagesPanel(
       ),
     );
     consoleOutput.hidden = consoleLines.length === 0;
-    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    if (scroller && following) scroller.scrollTop = scroller.scrollHeight;
     renderEmptyTip();
   }
 
@@ -107,7 +113,12 @@ export function createMessagesPanel(
     problemsBadge.hidden = count === 0;
     problemsOutput.dataset.count = String(count);
     problemsOutput.hidden = count === 0;
-    problemsOutput.replaceChildren(...diagnostics.map(problemItem));
+    // What stopped the game comes first, ahead of any warnings before it.
+    const errorsFirst = [
+      ...diagnostics.filter((diagnostic) => diagnostic.severity === "error"),
+      ...diagnostics.filter((diagnostic) => diagnostic.severity !== "error"),
+    ];
+    problemsOutput.replaceChildren(...errorsFirst.map(problemItem));
     renderEmptyTip();
   }
 

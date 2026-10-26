@@ -10,7 +10,8 @@ const ROWS = 5;
 const BRICK_W = 64;
 const BRICK_H = 32;
 const BRICK_GAP = 6;
-const GRID_LEFT = (WIDTH - COLUMNS * (BRICK_W + BRICK_GAP)) / 2;
+// Centred: the wall is COLUMNS bricks wide, with a gap between each pair.
+const GRID_LEFT = (WIDTH - (COLUMNS * BRICK_W + (COLUMNS - 1) * BRICK_GAP)) / 2;
 const GRID_TOP = 80;
 const BRICK_COLORS = [
   "brick_red",

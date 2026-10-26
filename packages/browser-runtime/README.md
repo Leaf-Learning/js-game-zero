@@ -59,28 +59,28 @@ self-contained script for pages with no bundler. It puts the whole API on
 it runs: `loadImages`, `getGameInspector`, `serializeGameValue`,
 `parseStatePath` and `createSeededRandom`.
 
-Load it from a CDN such as jsDelivr, or copy the file next to your page. Run
-the game from the page's `<body>`, where `JGZ.run` adds its canvas:
+Load it from a CDN such as jsDelivr, or copy the file next to your page.
+`JGZ.run` adds the game's canvas to the page's `<body>`:
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js"></script>
 <script>
-  JGZ.run(
-    `
-      WIDTH = 320;
-      HEIGHT = 180;
-      function draw() { screen.fill("navy"); }
-    `,
-    { diagnostics: (problem) => console.warn(problem.message) },
-  );
+  JGZ.run(`
+    WIDTH = 320;
+    HEIGHT = 180;
+    function draw() { screen.fill("navy"); }
+  `);
 </script>
 ```
 
 Problems with the game, from a misspelled name to an image that won't load,
-go to the `diagnostics` callback, and nowhere else: a game that fails just
-stops, and its canvas is removed. [Getting
+go to the browser console, or to a `diagnostics` callback if you pass one. A
+game that fails stops, and its canvas is removed. [Getting
 started](https://github.com/Leaf-Learning/js-game-zero/blob/main/docs/getting-started.md#a-game-in-one-web-page)
-has a complete page that shows them, with images and sounds.
+has a complete page that shows them on the page, with images and sounds.
+
+In TypeScript, `/// <reference types="@js-game-zero/browser-runtime/iife" />`
+declares `window.JGZ`.
 
 The file opens with its license notice, so a page that inlines it carries it.
 

@@ -80,6 +80,20 @@ export function initPanelResizers(root: HTMLElement): void {
   };
 
   const sizes = loadSizes();
+  const handles = Object.fromEntries(
+    panelNames.map((name) => [
+      name,
+      qs<HTMLElement>(root, `[data-jgz-resize="${name}"]`),
+    ]),
+  ) as Record<PanelName, HTMLElement>;
+
+  /** Says a divider's position to assistive technology, as a slider would. */
+  function describe(name: PanelName): void {
+    const handle = handles[name];
+    handle.setAttribute("aria-valuemin", String(specs[name].min));
+    handle.setAttribute("aria-valuemax", String(specs[name].max));
+    handle.setAttribute("aria-valuenow", String(Math.round(measure(name))));
+  }
 
   function measure(name: PanelName): number {
     const rect = panels[name].getBoundingClientRect();
@@ -97,11 +111,13 @@ export function initPanelResizers(root: HTMLElement): void {
   function apply(name: PanelName, size: number): void {
     shell.style.setProperty(specs[name].cssVar, `${Math.round(size)}px`);
     sizes[name] = Math.round(size);
+    describe(name);
   }
 
   function reset(name: PanelName): void {
     shell.style.removeProperty(specs[name].cssVar);
     delete sizes[name];
+    describe(name);
   }
 
   function persist(): void {
@@ -122,7 +138,8 @@ export function initPanelResizers(root: HTMLElement): void {
 
   for (const name of panelNames) {
     const spec = specs[name];
-    const handle = qs<HTMLElement>(root, `[data-jgz-resize="${name}"]`);
+    const handle = handles[name];
+    requestAnimationFrame(() => describe(name));
 
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;

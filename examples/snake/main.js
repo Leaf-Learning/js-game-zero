@@ -162,7 +162,7 @@ function draw() {
     screen.draw.text(state === "won" ? "You win!" : "Game Over", {
       center: [WIDTH / 2, HEIGHT / 2 - 16],
       size: 44,
-      color: "#f87171",
+      color: state === "won" ? "#4ade80" : "#f87171",
       shadow: 2,
     });
     screen.draw.text("Click or press space to play again", {

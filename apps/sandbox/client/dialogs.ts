@@ -16,8 +16,61 @@ function ensureHost(): HTMLDivElement {
   return host;
 }
 
-function closeActive(): void {
+/** Closes the open dialog, and puts focus back where it was before it. */
+function closeActive(previousFocus: Element | null): void {
   ensureHost().replaceChildren();
+  if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
+    previousFocus.focus();
+  }
+}
+
+let titleCount = 0;
+
+/** A heading with an id, for the dialog's `aria-labelledby`. */
+function dialogTitle(text: string): { id: string; heading: HTMLElement } {
+  titleCount += 1;
+  const id = `jgz-dialog-title-${titleCount}`;
+  return { id, heading: h("h2", { text, attrs: { id } }) };
+}
+
+/**
+ * Keeps the keyboard in an open dialog: Tab and Shift+Tab go round its
+ * controls rather than into the page behind it, a click on its text leaves
+ * focus in it, and Escape closes it.
+ */
+export function holdFocus(dialog: HTMLElement, onEscape: () => void): void {
+  dialog.tabIndex = -1;
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onEscape();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const controls = [
+      ...dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter(
+      (control) =>
+        !(control as HTMLButtonElement).disabled &&
+        control.getClientRects().length > 0,
+    );
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (!first || !last) {
+      event.preventDefault();
+      return;
+    }
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || active === dialog)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || active === dialog)) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 }
 
 export type ConfirmOptions = {
@@ -30,10 +83,12 @@ export type ConfirmOptions = {
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
     const container = ensureHost();
+    const previousFocus = document.activeElement;
     const finish = (result: boolean): void => {
-      closeActive();
+      closeActive(previousFocus);
       resolve(result);
     };
+    const title = dialogTitle(options.title);
     const dialog = h(
       "div",
       {
@@ -41,11 +96,12 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
         attrs: {
           role: "alertdialog",
           "aria-modal": "true",
+          "aria-labelledby": title.id,
           "data-jgz-confirm-dialog": "",
         },
       },
       [
-        h("h2", { text: options.title }),
+        title.heading,
         h("p", { text: options.body }),
         h("div", { className: "dialog-actions" }, [
           h("button", {
@@ -66,10 +122,12 @@ export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
     const backdrop = h("div", { className: "dialog-backdrop" });
     backdrop.addEventListener("click", () => finish(false));
     container.replaceChildren(backdrop, dialog);
-    qs<HTMLButtonElement>(dialog, "[data-jgz-dialog-confirm]").focus();
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") finish(false);
-    });
+    // Enter on a dangerous choice shouldn't be the easy way out.
+    qs<HTMLButtonElement>(
+      dialog,
+      options.danger ? "[data-jgz-dialog-cancel]" : "[data-jgz-dialog-confirm]",
+    ).focus();
+    holdFocus(dialog, () => finish(false));
   });
 }
 
@@ -90,10 +148,12 @@ export type ChoiceOptions = {
 export function choiceDialog(options: ChoiceOptions): Promise<string | null> {
   return new Promise((resolve) => {
     const container = ensureHost();
+    const previousFocus = document.activeElement;
     const finish = (result: string | null): void => {
-      closeActive();
+      closeActive(previousFocus);
       resolve(result);
     };
+    const title = dialogTitle(options.title);
     const dialog = h(
       "div",
       {
@@ -101,11 +161,12 @@ export function choiceDialog(options: ChoiceOptions): Promise<string | null> {
         attrs: {
           role: "alertdialog",
           "aria-modal": "true",
+          "aria-labelledby": title.id,
           "data-jgz-choice-dialog": "",
         },
       },
       [
-        h("h2", { text: options.title }),
+        title.heading,
         h("p", { text: options.body }),
         h("div", { className: "dialog-actions" }, [
           h("button", {
@@ -129,9 +190,7 @@ export function choiceDialog(options: ChoiceOptions): Promise<string | null> {
     backdrop.addEventListener("click", () => finish(null));
     container.replaceChildren(backdrop, dialog);
     qs<HTMLButtonElement>(dialog, "[data-jgz-dialog-choice]").focus();
-    dialog.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") finish(null);
-    });
+    holdFocus(dialog, () => finish(null));
   });
 }
 
@@ -147,8 +206,9 @@ export type PromptOptions = {
 export function promptDialog(options: PromptOptions): Promise<string | null> {
   return new Promise((resolve) => {
     const container = ensureHost();
+    const previousFocus = document.activeElement;
     const finish = (result: string | null): void => {
-      closeActive();
+      closeActive(previousFocus);
       resolve(result);
     };
     const input = h("input", {
@@ -180,11 +240,20 @@ export function promptDialog(options: PromptOptions): Promise<string | null> {
       finish(value);
     };
 
+    const title = dialogTitle(options.title);
     const form = h(
       "form",
-      { className: "dialog-form", attrs: { "data-jgz-dialog-form": "" } },
+      {
+        className: "dialog-form",
+        attrs: {
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-labelledby": title.id,
+          "data-jgz-dialog-form": "",
+        },
+      },
       [
-        h("h2", { text: options.title }),
+        title.heading,
         ...(options.body ? [h("p", { text: options.body })] : []),
         input,
         error,
@@ -212,9 +281,7 @@ export function promptDialog(options: PromptOptions): Promise<string | null> {
     container.replaceChildren(backdrop, form);
     input.focus();
     input.select();
-    form.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") finish(null);
-    });
+    holdFocus(form, () => finish(null));
   });
 }
 

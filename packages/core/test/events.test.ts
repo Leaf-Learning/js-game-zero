@@ -333,6 +333,58 @@ describe("live mouse state", () => {
 });
 
 describe("InputDispatcher", () => {
+  test("a mouse move's button is the one held, or null when none is", () => {
+    const moves: unknown[] = [];
+    const dispatcher = new InputDispatcher({
+      onMouseMove(button: unknown) {
+        moves.push(button);
+      },
+    });
+    dispatcher.handleMouseMove({
+      clientX: 1,
+      clientY: 1,
+      button: 0,
+      buttons: 0,
+    });
+    dispatcher.handleMouseMove({
+      clientX: 2,
+      clientY: 2,
+      button: 0,
+      buttons: 2,
+    });
+    expect(moves).toEqual([null, mouse.RIGHT]);
+  });
+
+  test("a modifier's bits say which side is held", () => {
+    const mods: number[] = [];
+    const dispatcher = new InputDispatcher({
+      onKeyDown(mod: unknown) {
+        mods.push(mod as number);
+      },
+    });
+    const press = (code: string, key: string, shiftKey: boolean) =>
+      dispatcher.handleKeyDown({ code, key, shiftKey });
+
+    press("ShiftRight", "Shift", true);
+    press("KeyA", "A", true);
+    dispatcher.handleKeyUp({ code: "ShiftRight", key: "Shift" });
+    press("ShiftLeft", "Shift", true);
+    press("KeyA", "A", true);
+    dispatcher.handleKeyUp({ code: "ShiftLeft", key: "Shift" });
+    // Held before the game saw it pressed: the side isn't known.
+    press("KeyA", "A", true);
+
+    expect(mods).toEqual([
+      keymods.RSHIFT,
+      keymods.RSHIFT,
+      keymods.LSHIFT,
+      keymods.LSHIFT,
+      keymods.SHIFT,
+    ]);
+    expect(mods[0]! & keymods.SHIFT).toBeTruthy();
+    expect(mods[0]! & keymods.LSHIFT).toBe(0);
+  });
+
   test("updates keyboard before calling the input hooks", () => {
     const events: unknown[] = [];
     const dispatcher = new InputDispatcher({

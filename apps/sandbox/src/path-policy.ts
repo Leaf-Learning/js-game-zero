@@ -93,7 +93,7 @@ export function ensureCodeFilePath(safePath: string): void {
   const top = safePath.split("/")[0] ?? "";
   if (assetDirectories.has(top)) {
     throw new SandboxPathError(
-      "That file lives in an asset folder. Use the Assets panel to manage it instead of the code editor.",
+      "That folder is for images, sounds, music and fonts. Add those from the bar on the left instead of the code editor.",
     );
   }
 }

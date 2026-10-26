@@ -4,22 +4,42 @@
  * The random ones read the running game's random source, so a seeded run
  * (`run(source, { seed })`) repeats them too.
  */
-import { random } from "./random";
+import { random, type RandomSource } from "./random";
 
 /**
  * A random whole number from `min` to `max`, including both ends:
  * `randomInt(1, 6)` rolls a die.
  */
 export function randomInt(min: number, max: number): number {
-  return pickInt(min, max, "randomInt");
+  return pickInt(random, min, max, "randomInt");
 }
 
 /** A random item from a list: `randomChoice(["red", "green", "blue"])`. */
 export function randomChoice<T>(items: readonly T[]): T {
-  return pickFrom(items, "randomChoice");
+  return pickFrom(random, items, "randomChoice");
 }
 
-function pickInt(min: number, max: number, name: string): number {
+/**
+ * `randomInt` and `randomChoice` that always draw from one game's source,
+ * so they repeat with its seed even when called outside its hooks, as the
+ * CLI's `call` does.
+ */
+export function randomHelpersFor(source: RandomSource): {
+  randomInt: typeof randomInt;
+  randomChoice: typeof randomChoice;
+} {
+  return {
+    randomInt: (min, max) => pickInt(source, min, max, "randomInt"),
+    randomChoice: (items) => pickFrom(source, items, "randomChoice"),
+  };
+}
+
+function pickInt(
+  random: () => number,
+  min: number,
+  max: number,
+  name: string,
+): number {
   requireNumber(min, name, "min");
   requireNumber(max, name, "max");
   const low = Math.ceil(min);
@@ -32,7 +52,11 @@ function pickInt(min: number, max: number, name: string): number {
   return low + Math.floor(random() * (high - low + 1));
 }
 
-function pickFrom<T>(items: readonly T[], name: string): T {
+function pickFrom<T>(
+  random: () => number,
+  items: readonly T[],
+  name: string,
+): T {
   if (!Array.isArray(items)) {
     throw new TypeError(`${name} needs a list, like ${name}([1, 2, 3]).`);
   }

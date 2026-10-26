@@ -13,6 +13,9 @@ import {
   type DrawableImage,
 } from "@js-game-zero/core/host";
 import { beginDrawn, drawnOn } from "../src/rendering";
+import { quietConsoleReports } from "./quiet-console-reports";
+
+quietConsoleReports();
 
 /** A 2D context that draws nothing and measures every character 10 wide. */
 function quietContext(): CanvasRenderingContext2D {

@@ -46,6 +46,10 @@ describe("keyboard constants and state", () => {
     );
     expect(typeof state.clear).toBe("function");
     expect(state.a).toBe(false);
+    // A misspelling names the key it's closest to.
+    expect(() => unknown.rigth).toThrow(
+      "keyboard.rigth doesn't exist. Did you mean keyboard.right?",
+    );
   });
 
   test("meta-property probes (thenables, JSON, inspection) stay safe and never throw", () => {

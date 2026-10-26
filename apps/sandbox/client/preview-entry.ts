@@ -1,4 +1,6 @@
 import {
+  Actor,
+  Rect,
   run,
   type RuntimeDiagnostic,
   type SurfaceLike,
@@ -65,7 +67,7 @@ function forwardConsole(): void {
         level,
         text: args
           .map((value) =>
-            typeof value === "string" ? value : safeStringify(value),
+            typeof value === "string" ? value : formatValue(value),
           )
           .join(" "),
       });
@@ -73,12 +75,66 @@ function forwardConsole(): void {
   }
 }
 
-function safeStringify(value: unknown): string {
-  if (value instanceof Error) return value.message;
+/**
+ * A logged value as the browser's console would show it, kept short:
+ * `undefined`, `NaN`, `[1, 2, 3]`, `Map(1) {"a" => 1}`, an Actor by its
+ * image and position rather than its insides.
+ */
+function formatValue(
+  value: unknown,
+  depth = 0,
+  seen = new Set<object>(),
+): string {
+  if (typeof value === "string")
+    return depth === 0 ? value : JSON.stringify(value);
+  if (typeof value === "bigint") return `${value}n`;
+  if (typeof value === "symbol") return value.toString();
+  if (typeof value === "function") {
+    return `function ${value.name || "(anonymous)"}`;
+  }
+  if (value === null || typeof value !== "object") return String(value);
+  if (value instanceof Error)
+    return depth === 0 ? value.message : `${value.name}: ${value.message}`;
+  if (value instanceof Actor) {
+    return `Actor("${value.image}") at [${value.x}, ${value.y}]`;
+  }
+  if (value instanceof Rect) {
+    return `Rect(${value.x}, ${value.y}, ${value.w}, ${value.h})`;
+  }
+  if (seen.has(value)) return "[circular]";
+  if (depth >= 3) return Array.isArray(value) ? "[…]" : "{…}";
+  seen.add(value);
   try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
+    const inner = (item: unknown) => formatValue(item, depth + 1, seen);
+    const list = (items: readonly string[], total: number) =>
+      total > items.length
+        ? [...items, `… ${total - items.length} more`]
+        : items;
+    if (Array.isArray(value)) {
+      return `[${list(value.slice(0, 50).map(inner), value.length).join(", ")}]`;
+    }
+    if (value instanceof Map) {
+      const entries = [...value]
+        .slice(0, 50)
+        .map(([key, item]) => `${inner(key)} => ${inner(item)}`);
+      return `Map(${value.size}) {${list(entries, value.size).join(", ")}}`;
+    }
+    if (value instanceof Set) {
+      const items = [...value].slice(0, 50).map(inner);
+      return `Set(${value.size}) {${list(items, value.size).join(", ")}}`;
+    }
+    // A class's own fields, without its private ones (the `_` names).
+    const keys = Object.keys(value).filter((key) => !key.startsWith("_"));
+    const entries = keys
+      .slice(0, 50)
+      .map(
+        (key) => `${key}: ${inner((value as Record<string, unknown>)[key])}`,
+      );
+    const name = value.constructor?.name;
+    const prefix = name && name !== "Object" ? `${name} ` : "";
+    return `${prefix}{${list(entries, keys.length).join(", ")}}`;
+  } finally {
+    seen.delete(value);
   }
 }
 

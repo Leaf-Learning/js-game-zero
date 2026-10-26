@@ -81,9 +81,9 @@ rest (lines, outlined shapes, polygons, text).
 ## 4. Add a sprite
 
 Now let's swap that stand-in circle for the real player sprite. Open the
-**Assets** panel on the left — you should see `images/player.svg` listed
-already (that's what we got from starting off the Actor Movement example).
-Click it to preview it if you like.
+**Images** panel from the bar on the left — `player.svg` is already there,
+with a picture of it on its tile (it came with the Actor Movement example
+you started from).
 
 ```js
 WIDTH = 480;
@@ -101,7 +101,7 @@ function draw() {
 
 `new Actor("player.svg", { midBottom: [240, 350] })` loads the image named
 `player.svg` and positions it so its bottom-center point sits at `[240,
-350]` — standing on the ground strip. Full positioning and property details
+350]`, with its feet planted in the ground strip. Full positioning and property details
 are in `docs/reference/actor.md`.
 
 **Asset names are case-sensitive and must be lowercase.** `"player.svg"`
@@ -478,6 +478,7 @@ function update(dt) {
 
   const remaining = [];
   for (const comet of comets) {
+    if (over) break; // an earlier comet this frame ended the game
     comet.y += 140 * dt;
     if (player.touches([comet.x, comet.y])) {
       score += 1;
@@ -534,10 +535,13 @@ What changed:
   vanishing, with a lower-pitched "thud" tone so catching and missing sound
   different.
 - `endGame(playerWon)` freezes the game (`over = true`) and records the
-  high score one last time.
+  high score. It's the only place the high score is saved now, so "Best"
+  changes when a round ends rather than as you score.
 - While `over` is `true`, `update()` returns immediately (nothing keeps
   moving) and `spawnRandomComet` refuses to add more comets, so the scene
-  holds still.
+  holds still. The comet loop stops too, as soon as one comet ends the
+  game, so two comets landing together can't take a life you no longer
+  have.
 - `onMouseDown` now does double duty: normally it spawns a comet, but
   once the game is over the very next click calls `resetGame()` instead,
   putting everything back to the start.

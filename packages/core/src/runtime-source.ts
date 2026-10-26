@@ -6,7 +6,7 @@ import { Clock } from "./clock";
 import { rgb } from "./color";
 import { friendlyService, guardedMember } from "./friendly-names";
 import { Rect, ZRect } from "./geometry";
-import { clamp, randomChoice, randomInt } from "./helpers";
+import { clamp, randomChoice, randomHelpersFor, randomInt } from "./helpers";
 import {
   createLiveMouse,
   type KeyboardState,
@@ -196,6 +196,24 @@ function pointToService<T extends object>(
   });
 }
 
+/**
+ * A class the game makes things with, such as Actor, that says what to write
+ * when it's called without `new`, as Pygame Zero code calls `Actor("alien")`.
+ */
+function needsNew<T extends abstract new (...args: never[]) => unknown>(
+  cls: T,
+  className: string,
+  example: string,
+): T {
+  return new Proxy(cls, {
+    apply() {
+      throw new TypeError(
+        `${className} needs new in front of it: new ${className}(${example}).`,
+      );
+    },
+  });
+}
+
 /** Screen's internal drawing helpers, which take different arguments. */
 const screenInternals = [
   "drawSurface",
@@ -300,11 +318,11 @@ export function executeZeroBoilerplateSource(
     // On this game's clock even when started outside a hook.
     ...animationsOn(context.clock),
     Clock: pointToService(Clock, "Clock", "clock", context.clock),
-    Rect,
-    ZRect,
+    Rect: needsNew(Rect, "Rect", "x, y, width, height"),
+    ZRect: needsNew(ZRect, "ZRect", "x, y, width, height"),
     Screen: pointToService(Screen, "Screen", "screen", context.screen),
     Storage: pointToService(Storage, "Storage", "storage", context.storage),
-    Actor: RuntimeActor,
+    Actor: needsNew(RuntimeActor, "Actor", '"alien"'),
     // A misspelled service member fails with a suggestion. Storage, keyboard
     // and the asset loaders treat unknown names as data, keys, or assets.
     screen: friendlyService(context.screen, "screen", {
@@ -328,8 +346,11 @@ export function executeZeroBoilerplateSource(
     music: friendlyService(context.music, "music"),
     storage: context.storage,
     tone: friendlyService(context.tone, "tone"),
-    randomInt,
-    randomChoice,
+    // A seeded game's helpers draw from its own source, wherever they're
+    // called from.
+    ...(context.random
+      ? randomHelpersFor(context.random)
+      : { randomInt, randomChoice }),
     clamp,
     rgb,
     exit: () => context.stop?.(),
@@ -409,12 +430,8 @@ export function executeZeroBoilerplateSource(
       ]),
     ) as (scope: unknown) => unknown;
   } catch (error) {
-    // V8 places no syntax error in `new Function` code, so find its line here.
-    if (error instanceof SyntaxError && sourceLineOf(error) === undefined) {
-      const line = syntaxErrorLine(source, error.message);
-      if (line !== undefined) syntaxLines.set(error, line);
-    }
-    throw error;
+    if (!(error instanceof SyntaxError)) throw error;
+    throw gameSyntaxError(source, error);
   }
   topLevel = true;
   sizeScreen();
@@ -666,6 +683,69 @@ export function syntaxErrorLine(
     else if (!atEnd && problem === message) return k;
   }
   return atEnd && compiles < lines.length ? compiles + 1 : undefined;
+}
+
+/**
+ * The syntax error to report for a game whose wrapped source didn't compile,
+ * on its line. The game's code compiled on its own says what's wrong in its
+ * own terms: the runtime's wrapper around it would turn a missing `}` into
+ * "Unexpected token ')'", a `)` the learner never typed. Something left open
+ * is said plainly, since each engine words it differently.
+ */
+function gameSyntaxError(source: string, wrapped: SyntaxError): SyntaxError {
+  // Left open: the code compiles once its missing closers are added. Asked
+  // this way because V8 words a missing } as "Unexpected token ')'" even
+  // for the game's code alone.
+  const closers = missingClosers(source);
+  if (closers && compileProblem(`${source}\n${closers}`) === undefined) {
+    const error = new SyntaxError(
+      "Something isn't closed: a {, ( or [ is missing its }, ) or ].",
+    );
+    const line = lineLeftOpen(source);
+    if (line !== undefined) syntaxLines.set(error, line);
+    return error;
+  }
+  const own = compileProblem(source) ?? wrapped.message;
+  const error = own === wrapped.message ? wrapped : new SyntaxError(own);
+  // V8 places no syntax error in `new Function` code, so find its line here.
+  if (error !== wrapped || sourceLineOf(error) === undefined) {
+    const line = syntaxErrorLine(source, own);
+    if (line !== undefined) syntaxLines.set(error, line);
+  }
+  return error;
+}
+
+/** The }, ) and ] that would close what `source` leaves open, innermost
+ * first, or "" when every bracket is closed (or the source can't be read). */
+function missingClosers(source: string): string {
+  const pairs: Record<string, string> = { "{": "}", "(": ")", "[": "]" };
+  const open: string[] = [];
+  for (const token of tokenizeSource(source, { allowUnclosed: true }) ?? []) {
+    if (token.type !== "punctuator") continue;
+    const closer = pairs[token.value];
+    if (closer) open.push(closer);
+    else if (token.value === open.at(-1)) open.pop();
+  }
+  return open.reverse().join("");
+}
+
+/** Where code left open starts: the line after the last one up to which the
+ * source compiles. */
+function lineLeftOpen(source: string): number | undefined {
+  const lines = source.split("\n");
+  let compiles = 0;
+  for (let k = 1; k <= lines.length; k += 1) {
+    if (compileProblem(lines.slice(0, k).join("\n")) === undefined) {
+      compiles = k;
+    }
+  }
+  return compiles < lines.length ? compiles + 1 : undefined;
+}
+
+/** Records the source line of a mistake the runtime itself finds in a
+ * game, which no stack trace could place. */
+export function noteSourceLine(error: object, line: number): void {
+  syntaxLines.set(error, line);
 }
 
 /**

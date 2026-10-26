@@ -522,11 +522,12 @@ function draw() { screen.fill("black"); }
       [keys.A, 0, "a"],
       [keys.A, 0, "a"],
       [keys.K_7, 0, "7"],
-      // ...and Shift changes it, as on a keyboard.
-      [keys.LSHIFT, keymods.SHIFT, ""],
-      [keys.A, keymods.SHIFT, "A"],
-      [keys.K_7, keymods.SHIFT, "&"],
-      [keys.COMMA, keymods.SHIFT, "<"],
+      // ...and Shift changes it, as on a keyboard. The CLI's Shift is the
+      // left one, and mod says so.
+      [keys.LSHIFT, keymods.LSHIFT, ""],
+      [keys.A, keymods.LSHIFT, "A"],
+      [keys.K_7, keymods.LSHIFT, "&"],
+      [keys.COMMA, keymods.LSHIFT, "<"],
       // Every other key the engine knows, by name, mark or code.
       [keys.COMMA, 0, ","],
       [keys.BACKSPACE, 0, ""],

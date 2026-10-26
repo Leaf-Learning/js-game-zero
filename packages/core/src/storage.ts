@@ -1,6 +1,7 @@
 import { createActiveServiceProxy } from "./active-service";
 import { guardSpellings } from "./friendly-names";
 import { normalizeStoragePath } from "./storage-path";
+import { isPromiseLike } from "./util";
 
 export type JsonValue =
   | null
@@ -51,6 +52,8 @@ export class Storage {
   private readonly adapter: StorageAdapter;
   private readonly values = new Map<string, unknown>();
   private readonly listeners = new Set<() => void>();
+  /** A load() that loadSync() started and found to be asynchronous. */
+  private pendingLoad: PromiseLike<string | null> | null = null;
   /** The JSON last saved or loaded: what the adapter holds, as far as this storage knows. */
   [savedText] = "{}";
 
@@ -138,18 +141,29 @@ export class Storage {
   }
 
   async load(): Promise<void> {
-    const text = await this.adapter.load();
+    const pending = this.pendingLoad;
+    this.pendingLoad = null;
+    const text = await (pending ?? this.adapter.load());
     this.applyLoadedText(text);
   }
 
   /**
-   * Attempts a fully synchronous load when the adapter explicitly supports
-   * one. Async adapters are never probed here, so falling back to `load()`
-   * performs exactly one read.
+   * Loads synchronously when the adapter can: with its `loadSync()`, or
+   * with a `load()` that returns its text rather than a Promise. A `load()`
+   * that turns out to be asynchronous is kept for `load()` to finish, so
+   * falling back to it still reads the store only once.
    */
   loadSync(): boolean {
-    if (!this.adapter.loadSync) return false;
-    this.applyLoadedText(this.adapter.loadSync());
+    if (this.adapter.loadSync) {
+      this.applyLoadedText(this.adapter.loadSync());
+      return true;
+    }
+    const result: unknown = this.adapter.load();
+    if (isPromiseLike<string | null>(result)) {
+      this.pendingLoad = result;
+      return false;
+    }
+    this.applyLoadedText(result as string | null);
     return true;
   }
 

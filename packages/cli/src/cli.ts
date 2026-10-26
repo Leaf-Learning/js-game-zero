@@ -144,9 +144,18 @@ export async function runCli(args = Bun.argv.slice(2)): Promise<number> {
   );
   for (const [signal, handler] of signalHandlers) process.on(signal, handler);
   try {
+    // In text mode, events from starting the game wait for the banner, so
+    // "[ready]" comes after "Testing …", not before it.
+    const startupEvents: SessionEvent[] = [];
+    let bannerShown = options.json;
     const writeEvent = (event: SessionEvent): void => {
       if (options.json) writeJson({ type: "event", ...event });
+      else if (!bannerShown) startupEvents.push(event);
       else writeHumanEvent(event);
+    };
+    const showStartupEvents = (): void => {
+      bannerShown = true;
+      for (const event of startupEvents.splice(0)) writeHumanEvent(event);
     };
 
     let session: GameSession;
@@ -165,6 +174,7 @@ export async function runCli(args = Bun.argv.slice(2)): Promise<number> {
       if (options.json) {
         writeJson(errorResponse(undefined, "startup_failed", message));
       } else {
+        showStartupEvents();
         console.error(message);
       }
       return 1;
@@ -195,6 +205,7 @@ export async function runCli(args = Bun.argv.slice(2)): Promise<number> {
       );
       console.log("Enter `help` for commands.");
     }
+    showStartupEvents();
 
     const terminal = !options.json && Boolean(process.stdin.isTTY);
     lines = createInterface({

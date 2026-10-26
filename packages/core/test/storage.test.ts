@@ -338,7 +338,7 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
     expect(adapter.loadCalls).toBe(0);
   });
 
-  test("loadSync does not probe an async adapter before the one async read", async () => {
+  test("an async adapter is read once: loadSync starts the read and load finishes it", async () => {
     let loadCalls = 0;
     const asyncAdapter: StorageAdapter = {
       path: "async",
@@ -352,11 +352,22 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
 
     expect(store.loadSync()).toBe(false);
     expect(store.get("score")).toBeUndefined();
-    expect(loadCalls).toBe(0);
 
     await store.load();
     expect(store.get("score")).toBe(9);
     expect(loadCalls).toBe(1);
+  });
+
+  test("an adapter whose load() returns its text at once is read at once", () => {
+    const syncAdapter = {
+      path: "sync",
+      load: () => JSON.stringify({ best: 42 }),
+      save() {},
+    } as unknown as StorageAdapter;
+    const store = createStorage({ adapter: syncAdapter });
+
+    expect(store.loadSync()).toBe(true);
+    expect(store.get("best")).toBe(42);
   });
 
   test("loadSync treats an empty/missing sync value as empty storage", () => {
@@ -444,6 +455,28 @@ describe("synchronous load and change notifications (auto-load/auto-save primiti
 
     delete store.score;
     expect(notifications).toBe(2);
+  });
+});
+
+describe("auto-save while a game keeps writing", () => {
+  test("a change is saved within a second, even with another every frame", async () => {
+    const adapter = new MemoryAdapter();
+    const store = createStorage({ adapter });
+    store.loadSync();
+    const autosave = attachAutosave(store, () => {});
+    try {
+      const started = Date.now();
+      let frame = 0;
+      while (adapter.text === null && Date.now() - started < 3000) {
+        store.set("frame", (frame += 1));
+        await Bun.sleep(16);
+      }
+      expect(adapter.text).not.toBeNull();
+      expect(frame).toBeGreaterThan(20);
+      expect(Date.now() - started).toBeLessThan(1500);
+    } finally {
+      autosave.detach();
+    }
   });
 });
 

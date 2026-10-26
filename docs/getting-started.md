@@ -109,10 +109,14 @@ so all it needs is a browser and an internet connection. Save this as
 - **Your game** goes in the `<script id="game">` block. It's the same code
   as a sandbox game's `main.js`, so the tutorial's and the cookbook's code
   works there as it is. Save the file and reload the page to see a change.
-- **Problems** appear under the game, in the same words the sandbox uses
+- **Problems** appear above the game, in the same words the sandbox uses
   (`draw failed: screen.fil doesn't exist. Did you mean screen.fill?`). A
   game that fails stops and disappears, and only the message is left. The
   sandbox does more for you here: it marks the line and offers to fix it.
+- **Saved data** (`storage`) belongs to the website the page comes from, so
+  two games on the same site, or two files opened from your disk, share it
+  unless each has its own `projectId`: add `projectId: "my_game",` next to
+  `diagnostics` in `JGZ.run(...)`, with a different name for each game.
 - **`@0.2`** in the address loads the newest 0.2 release. Write a full
   version, such as `@0.2.1`, to keep a page on one release.
 
@@ -137,7 +141,7 @@ JGZ.run(document.getElementById("game").textContent, {
 Images load in a page opened from your disk, but browsers don't let such a
 page load sounds. For sounds, open the page from a web server instead: run
 one in the page's folder, such as `python3 -m http.server`, and open
-`http://localhost:8000/my-game.html`. A file that doesn't load is reported under the game.
+`http://localhost:8000/my-game.html`. A file that doesn't load is reported above the game.
 [Assets without a server](reference/loaders.md#assets-without-a-server)
 covers the map in full.
 

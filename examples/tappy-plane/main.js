@@ -40,11 +40,13 @@ const rockTop = new Actor("rock_top", { anchor: ["left", "bottom"] });
 const rockBottom = new Actor("rock_bottom", { anchor: ["left", "top"] });
 rockTop.hitbox = TOP_MOUNTAIN_HITBOX;
 rockBottom.hitbox = BOTTOM_MOUNTAIN_HITBOX;
+rockTop.passed = false; // has the plane flown past this pair yet?
 
 function resetMountains() {
   const gapCenter = randomInt(150, HEIGHT - 150);
   rockTop.pos = [WIDTH + 40, gapCenter - GAP / 2];
   rockBottom.pos = [WIDTH + 40, gapCenter + GAP / 2];
+  rockTop.passed = false;
 }
 resetMountains();
 
@@ -118,7 +120,8 @@ function updatePlane(dt) {
   plane.angle = clamp(-plane.vy / 8, -25, 75);
 
   if (plane.crashed) {
-    plane.y = Math.min(plane.y, HEIGHT - 30); // stay in view after dying
+    // Stay in view after dying, wheels and all, however it's tilted.
+    plane.bottom = Math.min(plane.bottom, HEIGHT);
     return;
   }
 
@@ -136,14 +139,17 @@ function updateMountains(dt) {
   if (plane.crashed) return; // freeze the course while the game is over
   rockTop.left -= MOUNTAIN_SPEED * dt;
   rockBottom.left -= MOUNTAIN_SPEED * dt;
-  if (rockTop.right < 0) {
-    resetMountains();
+  // A point as soon as the plane is through the gap, even if it crashes
+  // straight after.
+  if (!rockTop.passed && rockTop.right < plane.left) {
+    rockTop.passed = true;
     score += 1;
     sounds.score.play();
     if (score > storage.highscore) {
       storage.highscore = score; // assigning to storage saves it automatically
     }
   }
+  if (rockTop.right < 0) resetMountains();
 }
 
 function update(dt) {

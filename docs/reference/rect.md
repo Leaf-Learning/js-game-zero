@@ -2,9 +2,9 @@
 
 `Rect` is a mutable rectangle with pygame/pgzero-style geometry helpers:
 position properties that move the rectangle without resizing it, collision
-tests, and set operations. `ZRect` is the same class under a second name,
-kept for code ported from pgzero that references `ZRect` directly — the two
-are interchangeable.
+tests, and set operations. `ZRect` is a subclass of `Rect` that adds
+nothing, kept for code ported from pgzero that references `ZRect` directly —
+the two behave the same, and a `ZRect` is also a `Rect`.
 
 ## Constructing a Rect
 

@@ -67,7 +67,23 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** A save that failed because the server was restarting or the network
+ * dropped is tried again every few seconds until it goes through. */
+let saveRetry: ReturnType<typeof setInterval> | null = null;
+let saveFailing = false;
+let saveConflict = false;
+
 function setSaveState(state: "saved" | "saving" | "unsaved" | "error"): void {
+  if (state === "saved") {
+    saveFailing = false;
+    saveConflict = false;
+  }
+  if (state === "error" && !saveConflict) {
+    saveRetry ??= setInterval(() => void flushSave(), 4000);
+  } else if (state === "saved" && saveRetry) {
+    clearInterval(saveRetry);
+    saveRetry = null;
+  }
   saveButton.dataset.state = state;
   saveStatusEl.textContent =
     state === "saved"
@@ -90,10 +106,17 @@ const documentSession = new DocumentSession({
   onStateChange: setSaveState,
   onError: (error) => {
     if (error instanceof WriteConflictError) {
+      // Someone else's copy is on the server: the learner chooses, so
+      // nothing is retried meanwhile.
+      saveConflict = true;
+      if (saveRetry) clearInterval(saveRetry);
+      saveRetry = null;
       void offerConflictRecovery(error);
       return;
     }
-    toast(`Couldn't save: ${errorMessage(error)}`, "error");
+    // Said once, not again on every retry.
+    if (!saveFailing) toast(`Couldn't save: ${errorMessage(error)}`, "error");
+    saveFailing = true;
   },
 });
 
@@ -159,7 +182,8 @@ function refreshStageTitle(): void {
     }
     return;
   }
-  const declared = /^\s*TITLE\s*=\s*(["'`])([^"'`\n]+)\1/m.exec(
+  // Any quote mark inside the title but the one around it: "Bob's Game".
+  const declared = /^\s*TITLE\s*=\s*(["'`])((?:(?!\1)[^\n])+)\1/m.exec(
     editor.getValue(),
   )?.[2];
   preview.setTitle(declared?.trim() || project);
@@ -176,10 +200,14 @@ const editor = createEditor(editorMount, {
     );
     if (selection.selectedFile === ENTRY_FILE) {
       refreshStageTitle();
-      // Editing the problem's line clears its mark in the editor.
+      // Editing the problem's line clears its mark in the editor; editing
+      // above it moves it.
       if (currentProblem && !editor.hasProblem()) {
         currentProblem = null;
         refreshChrome();
+      } else if (currentProblem) {
+        const line = editor.problemLine();
+        if (line !== null && line !== currentProblem.line) moveProblem(line);
       }
     }
   },
@@ -205,6 +233,18 @@ function clearProblem(): void {
   currentProblem = null;
   editor.showProblem(null);
   refreshChrome();
+}
+
+/** Keeps every "Line N" pointing at the problem's line as edits move it. */
+function moveProblem(line: number): void {
+  if (!currentProblem) return;
+  const from = currentProblem.line;
+  currentProblem = { ...currentProblem, line };
+  diagnostics = diagnostics.map((diagnostic) =>
+    diagnostic.line === from ? { ...diagnostic, line } : diagnostic,
+  );
+  messages.setDiagnostics(diagnostics);
+  preview.setProblemLine(line);
 }
 
 function noteProblem(message: string, line: number | undefined): void {
@@ -537,26 +577,39 @@ const fileTabs = createFileTabs(root, {
 const assetPanel = createAssetPanel(root, {
   onUploadFiles: (kind: AssetDirectory, files: FileList) => {
     void (async () => {
-      if (!selection.selectedProject) return;
-      try {
-        for (const file of Array.from(files)) {
-          await api.uploadAsset(
-            selection.selectedProject,
-            `${kind}/${file.name}`,
-            file,
+      const project = selection.selectedProject;
+      if (!project) return;
+      // Each file on its own, so one that's refused doesn't stop the rest.
+      const added: string[] = [];
+      const failed: string[] = [];
+      for (const file of Array.from(files)) {
+        const name = storableAssetName(file.name);
+        try {
+          await api.uploadAsset(project, `${kind}/${name}`, file);
+          added.push(
+            name === file.name ? name : `${name} (from "${file.name}")`,
           );
+        } catch (error) {
+          failed.push(`${file.name}: ${errorMessage(error)}`);
         }
+      }
+      try {
         await reloadProjects();
         refreshChrome();
-        toast(
-          files.length === 1
-            ? `Added ${files[0]?.name ?? "1 file"}.`
-            : `Added ${files.length} files.`,
-        );
       } catch (error) {
         toast(errorMessage(error), "error");
       }
+      if (added.length > 0) toast(`Added ${listOf(added)}.`);
+      if (failed.length > 0) {
+        toast(`Couldn't add ${failed.join("; ")}`, "error");
+      }
     })();
+  },
+  onUnusableFiles: (names) => {
+    toast(
+      `${listOf(names.map((name) => `"${name}"`))} ${names.length === 1 ? "isn't" : "aren't"} an image, sound, music or font file, so ${names.length === 1 ? "it wasn't" : "they weren't"} added.`,
+      "error",
+    );
   },
   onRequestDeleteAsset: (path) => {
     void (async () => {
@@ -615,3 +668,27 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
+
+/**
+ * A file's name as the sandbox can store it: letters, digits, ".", "_" and
+ * "-". A space, a bracket or an accent becomes "_", so "My Hero (1).png"
+ * arrives as "My_Hero_1.png" rather than being turned away.
+ */
+function storableAssetName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension =
+    dot > 0 ? name.slice(dot).replace(/[^A-Za-z0-9.]/g, "") : "";
+  const safe = stem
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^[_.]+|_+$/g, "");
+  return `${safe || "file"}${extension}`;
+}
+
+/** "a", "a and b", "a, b and c". */
+function listOf(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
