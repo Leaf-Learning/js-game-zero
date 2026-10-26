@@ -2,7 +2,7 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
+## 0.2.2 — 2026-10-26
 
 ### Plain web pages
 
