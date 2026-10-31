@@ -2,7 +2,7 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
+## 0.3.0 — 2026-10-31
 
 ### One package: js-game-zero
 

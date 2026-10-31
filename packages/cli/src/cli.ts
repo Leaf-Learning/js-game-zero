@@ -17,7 +17,7 @@ import {
 } from "./session";
 import { watchProject, type ProjectWatcher } from "./watcher";
 
-export const VERSION = "0.2.3";
+export const VERSION = "0.3.0";
 
 export type CliOptions = {
   readonly mode: "help" | "version" | "test" | "install-chromium";

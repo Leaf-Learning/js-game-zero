@@ -1,6 +1,6 @@
 {
   "name": "js-game-zero",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "license": "MIT",
   "description": "A beginner-friendly framework for browser games in the spirit of Pygame Zero: set WIDTH and HEIGHT, write draw(), and play. Actors, drawing, input, sound, animation and storage, with a script-tag build.",

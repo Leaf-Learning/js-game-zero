@@ -32,7 +32,7 @@
     },
     "packages/cli": {
       "name": "@js-game-zero/cli",
-      "version": "0.2.3",
+      "version": "0.3.0",
       "bin": {
         "jgz": "./dist/cli.js",
       },
@@ -45,7 +45,7 @@
     },
     "packages/js-game-zero": {
       "name": "js-game-zero",
-      "version": "0.2.3",
+      "version": "0.3.0",
     },
   },
   "packages": {
