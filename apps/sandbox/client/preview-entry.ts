@@ -4,8 +4,8 @@ import {
   run,
   type RuntimeDiagnostic,
   type SurfaceLike,
-} from "@js-game-zero/core";
-import { loadImages } from "@js-game-zero/core/host";
+} from "js-game-zero";
+import { loadImages } from "js-game-zero/host";
 import { assetSourceUrl, getProject, readFile } from "./api";
 
 type ConsoleLevel = "log" | "info" | "warn" | "error";

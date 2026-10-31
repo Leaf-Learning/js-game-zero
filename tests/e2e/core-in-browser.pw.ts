@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { keys, mouse } from "@js-game-zero/core";
+import { keys, mouse } from "js-game-zero";
 import { collectPageErrors } from "./fixtures/harness-helpers";
 
 /**
@@ -9,7 +9,7 @@ import { collectPageErrors } from "./fixtures/harness-helpers";
  * solid real-browser assertion per integration guarantee and reusing the same
  * `/fixtures/*` pages and `window.__jgz*` globals that
  * tests/e2e/fixtures/browser-harness.ts exposes. Pure-logic checks that the
- * packages/core unit tests already cover (exhaustive key constants, per-scalar
+ * packages/js-game-zero unit tests already cover (exhaustive key constants, per-scalar
  * text-positioning math) are intentionally NOT re-asserted here; real canvas
  * text rendering stays covered by rendering-actor.pw.ts.
  */
@@ -132,7 +132,7 @@ test("real browser key + mouse input updates KeyboardState, fires hooks, and dri
 });
 
 // --- Guarantee #1 (wheel) + #2 (overlapping sounds) + #3 (clock resilience) ---
-// Drives packages/core directly from the served `/runtime/core.js` bundle so a
+// Drives packages/js-game-zero directly from the served `/runtime/core.js` bundle so a
 // native wheel event, overlapping sound playbacks, and a throwing eachTick are
 // all exercised in one real browser context.
 test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing eachTick is auto-unscheduled without stopping the loop", async ({
@@ -143,7 +143,7 @@ test("wheel input maps to WHEEL_UP/DOWN, sounds overlap, and a throwing eachTick
   await page.goto("/");
 
   await page.evaluate(async () => {
-    // The sandbox server bundles packages/core/src/index.ts on the fly at this
+    // The sandbox server bundles packages/js-game-zero/src/index.ts on the fly at this
     // path; it isn't statically resolvable from the test runner, so the import
     // specifier is kept in a variable and the module cast at runtime.
     const coreRuntimeUrl = "/runtime/core.js";

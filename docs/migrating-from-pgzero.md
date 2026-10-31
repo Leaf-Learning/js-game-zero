@@ -11,30 +11,30 @@ places where behavior genuinely differs and why.
 
 ## Syntax mapping
 
-| Python (Pygame Zero)                              | JavaScript (js-game-zero)                                                                            |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `def draw():`                                     | `function draw() {}`                                                                                 |
-| `def update(dt):`                                 | `function update(dt) {}`                                                                             |
-| `x = 1`                                           | `let x = 1;` (or `const` if it never changes)                                                        |
-| `# comment`                                       | `// comment`                                                                                         |
-| `if x:` / `elif y:` / `else:`                     | `if (x) {}` / `else if (y) {}` / `else {}`                                                           |
-| `and` / `or` / `not`                              | `&&` / `\|\|` / `!`                                                                                  |
-| `True` / `False` / `None`                         | `true` / `false` / `null` (or `undefined`)                                                           |
-| `f"score: {score}"`                               | `` `score: ${score}` ``                                                                              |
-| `for i in range(10):`                             | `for (let i = 0; i < 10; i += 1) {}`                                                                 |
-| `for item in items:`                              | `for (const item of items) {}`                                                                       |
-| `[1, 2, 3]`                                       | `[1, 2, 3]`                                                                                          |
-| `{"key": "value"}`                                | `{ key: "value" }` (or a `Map` if keys aren't fixed strings)                                         |
-| `class Foo:` / `self.x`                           | `class Foo {}` / `this.x`                                                                            |
-| `import pgzero.actor` (implicit, unused directly) | nothing needed in zero-boilerplate mode; `import { Actor } from "@js-game-zero/core"` in import mode |
-| Statement blocks via indentation                  | Statement blocks via `{ }` — indentation is style only, not syntax                                   |
-| Every statement ends with a newline               | Statements should end with `;`                                                                       |
+| Python (Pygame Zero)                              | JavaScript (js-game-zero)                                                                      |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `def draw():`                                     | `function draw() {}`                                                                           |
+| `def update(dt):`                                 | `function update(dt) {}`                                                                       |
+| `x = 1`                                           | `let x = 1;` (or `const` if it never changes)                                                  |
+| `# comment`                                       | `// comment`                                                                                   |
+| `if x:` / `elif y:` / `else:`                     | `if (x) {}` / `else if (y) {}` / `else {}`                                                     |
+| `and` / `or` / `not`                              | `&&` / `\|\|` / `!`                                                                            |
+| `True` / `False` / `None`                         | `true` / `false` / `null` (or `undefined`)                                                     |
+| `f"score: {score}"`                               | `` `score: ${score}` ``                                                                        |
+| `for i in range(10):`                             | `for (let i = 0; i < 10; i += 1) {}`                                                           |
+| `for item in items:`                              | `for (const item of items) {}`                                                                 |
+| `[1, 2, 3]`                                       | `[1, 2, 3]`                                                                                    |
+| `{"key": "value"}`                                | `{ key: "value" }` (or a `Map` if keys aren't fixed strings)                                   |
+| `class Foo:` / `self.x`                           | `class Foo {}` / `this.x`                                                                      |
+| `import pgzero.actor` (implicit, unused directly) | nothing needed in zero-boilerplate mode; `import { Actor } from "js-game-zero"` in import mode |
+| Statement blocks via indentation                  | Statement blocks via `{ }` — indentation is style only, not syntax                             |
+| Every statement ends with a newline               | Statements should end with `;`                                                                 |
 
 Pygame Zero games are _implicitly_ zero-boilerplate — the `pgzrun` launcher
 runs your `.py` file with pgzero's globals already injected, and there's no
 equivalent of import mode. `js-game-zero` offers both: the sandbox runs your
 code the same implicit way (see [`docs/tutorial.md`](tutorial.md)), while
-`import { run, ... } from "@js-game-zero/core"` plus `run({ ... })` is
+`import { run, ... } from "js-game-zero"` plus `run({ ... })` is
 available for anyone who'd rather use ordinary JavaScript modules — see
 [`docs/reference/runtime.md`](reference/runtime.md) and the "explicit
 imports" recipe in [the cookbook](cookbook.md#use-explicit-imports-no-globals).

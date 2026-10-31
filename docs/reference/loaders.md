@@ -41,7 +41,7 @@ console for the exact reason before assuming a typo is something else.
 Most games load images through `Actor` (see
 [`docs/reference/actor.md`](actor.md)) or `screen.blit()`. To use an image
 directly — for its dimensions, say — the zero-boilerplate `images` global
-(or `import { images } from "@js-game-zero/core"`) exposes property-style
+(or `import { images } from "js-game-zero"`) exposes property-style
 lazy access:
 
 ```js
@@ -120,7 +120,7 @@ requested from `assetBaseUrl`.
 itself is still decoding while the top level runs, so it has no size yet:
 `player.width` reads 0 there, and an Actor placed by `midBottom` and then
 moved lands as if it were 0×0. A page can decode the images first with
-`loadImages` from `@js-game-zero/core/host` (`JGZ.loadImages` in the
+`loadImages` from `js-game-zero/host` (`JGZ.loadImages` in the
 script-tag build), as `jgz` and the sandbox do. The game then finds them
 ready from its first line, as a Pygame Zero game would:
 
@@ -140,10 +140,10 @@ An `ICON` the map doesn't list leaves the page's favicon as it is.
 ## Loader methods (advanced)
 
 Every asset kind is backed by a loader with the same shape. Games normally use
-the `images`, `sounds`, and `fonts` services from `@js-game-zero/core`; music
+the `images`, `sounds`, and `fonts` services from `js-game-zero`; music
 playback uses the `music` player. Hosts that need to construct or override
 loaders import `createAssetLoaders()` or the individual factories from
-`@js-game-zero/core/host`:
+`js-game-zero/host`:
 
 - `load(name): Promise<Asset>` — fetches and caches the asset.
 - `assetUrls` — the asset map the loader reads instead of `assetBaseUrl`,

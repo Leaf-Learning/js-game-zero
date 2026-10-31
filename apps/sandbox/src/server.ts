@@ -211,7 +211,7 @@ async function coreRuntimeBundle(): Promise<Response> {
   try {
     const build = await cachedBrowserBuild(
       "runtime-core",
-      join(REPO_ROOT, "packages/core/src/index.ts"),
+      join(REPO_ROOT, "packages/js-game-zero/src/index.ts"),
     );
     return new Response(build.text, {
       headers: { "content-type": build.contentType },

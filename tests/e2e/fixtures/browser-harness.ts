@@ -15,7 +15,7 @@ import {
   mouse,
   tone,
   type MusicAsset,
-} from "@js-game-zero/core";
+} from "js-game-zero";
 import {
   InputDispatcher,
   createAssetLoaders,
@@ -26,7 +26,7 @@ import {
   createStorage,
   fitTextboxFontSize,
   layoutText,
-} from "@js-game-zero/core/host";
+} from "js-game-zero/host";
 
 declare global {
   interface Window {

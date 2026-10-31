@@ -70,7 +70,7 @@ Mixes a color from red, green and blue light, each `0`–`255`, with an
 optional alpha out of 255. It returns the matching list, so
 `rgb(255, 140, 105)` is `[255, 140, 105]` and works anywhere a color does.
 It's ready to use in a game file; in import mode, import it from
-`@js-game-zero/core`.
+`js-game-zero`.
 
 ```js
 let coral = rgb(255, 140, 105);

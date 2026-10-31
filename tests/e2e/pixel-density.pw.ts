@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import type { GameHandle } from "@js-game-zero/core";
+import type { GameHandle } from "js-game-zero";
 import { collectPageErrors } from "./fixtures/harness-helpers";
 
 declare global {
@@ -32,7 +32,7 @@ async function startGame(
       document.head.append(style);
       document.body.innerHTML = '<main id="game"></main>';
       const url = "/runtime/core.js";
-      const core = (await import(url)) as typeof import("@js-game-zero/core");
+      const core = (await import(url)) as typeof import("js-game-zero");
       const diagnostics: string[] = [];
       const handle = core.run(source, {
         container: document.getElementById("game")!,

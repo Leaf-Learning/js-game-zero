@@ -1,0 +1,71 @@
+{
+  "name": "js-game-zero",
+  "version": "0.2.3",
+  "type": "module",
+  "license": "MIT",
+  "description": "A beginner-friendly framework for browser games in the spirit of Pygame Zero: set WIDTH and HEIGHT, write draw(), and play. Actors, drawing, input, sound, animation and storage, with a script-tag build.",
+  "keywords": [
+    "game",
+    "gamedev",
+    "canvas",
+    "education",
+    "beginner",
+    "pygame-zero"
+  ],
+  "author": "Taha Rafiq",
+  "homepage": "https://github.com/Leaf-Learning/js-game-zero#readme",
+  "bugs": {
+    "url": "https://github.com/Leaf-Learning/js-game-zero/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leaf-Learning/js-game-zero.git",
+    "directory": "packages/js-game-zero"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "jsdelivr": "./dist/jgz.js",
+  "unpkg": "./dist/jgz.js",
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "./dist/jgz.js"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host.d.ts",
+      "import": "./dist/host.js",
+      "default": "./dist/host.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./reference": {
+      "types": "./dist/reference/index.d.ts",
+      "import": "./dist/reference/index.js",
+      "default": "./dist/reference/index.js"
+    },
+    "./reference/*.md": "./dist/reference/*.md",
+    "./iife": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/jgz.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "bun ../../scripts/build.ts js-game-zero",
+    "test": "bun test"
+  }
+}

@@ -2,6 +2,33 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### One package: js-game-zero
+
+- `@js-game-zero/core` and `@js-game-zero/browser-runtime` are now one
+  package, `js-game-zero`. It holds everything both did: the framework,
+  `run()` for a game written with no imports, the script-tag build, and the
+  `host`, `node` and `reference` entry points. The two old packages stop at
+  0.2.3 and are deprecated on npm. `@js-game-zero/cli` keeps its name.
+
+  | In 0.2                                                                                   | In 0.3                                                      |
+  | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+  | `npm install @js-game-zero/browser-runtime` or `@js-game-zero/core`                      | `npm install js-game-zero`                                  |
+  | `from "@js-game-zero/core"` or `from "@js-game-zero/browser-runtime"`                    | `from "js-game-zero"`                                       |
+  | `@js-game-zero/core/host`, `/node` and `/reference`                                      | `js-game-zero/host`, `/node` and `/reference`               |
+  | `@js-game-zero/browser-runtime/iife`                                                     | `js-game-zero/iife`                                         |
+  | `https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js` | `https://cdn.jsdelivr.net/npm/js-game-zero@0.3/dist/jgz.js` |
+
+  Nothing else changed: the API, `window.JGZ` and the games run as they did
+  in 0.2.3, and a page that loads the 0.2 script from jsDelivr keeps working.
+
+### The repository
+
+- `packages/core` is `packages/js-game-zero`, and the script-tag build is its
+  `dist/jgz.js`.
+- CI runs the CLI's unit tests and the scripts' own, which it skipped.
+
 ## 0.2.3 — 2026-10-26
 
 ### The runtime

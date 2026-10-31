@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import {
   mapBrowserKeyEvent,
   parseStatePath as parseHostStatePath,
-} from "@js-game-zero/core/host";
+} from "js-game-zero/host";
 import { parseCliOptions } from "../src/cli";
 import {
   decodeJsonLine,

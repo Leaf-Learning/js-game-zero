@@ -11,7 +11,7 @@ Use the arrow keys to move; press space to reset the position.
   Global examples use named arguments such as `onKeyDown(key, repeat)`.
 
 For your own page, bundle `main.ts` with a browser bundler that resolves
-`@js-game-zero/core`, then load the resulting JavaScript as a module beside:
+`js-game-zero`, then load the resulting JavaScript as a module beside:
 
 ```html
 <canvas data-jgz-example-canvas></canvas>

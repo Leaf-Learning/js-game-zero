@@ -11,10 +11,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@js-game-zero/core": ["packages/core/src/index.ts"],
-      "@js-game-zero/core/host": ["packages/core/src/host.ts"],
-      "@js-game-zero/core/node": ["packages/core/src/node.ts"],
-      "@js-game-zero/browser-runtime": ["packages/browser-runtime/src/index.ts"]
+      "js-game-zero": ["packages/js-game-zero/src/index.ts"],
+      "js-game-zero/host": ["packages/js-game-zero/src/host.ts"],
+      "js-game-zero/node": ["packages/js-game-zero/src/node.ts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
@@ -25,5 +24,6 @@
     "packages/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts"
-  ]
+  ],
+  "exclude": ["**/dist", "**/node_modules"]
 }

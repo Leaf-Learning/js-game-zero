@@ -22,9 +22,9 @@ bunx playwright install chromium
 
 ## Project layout
 
-- `packages/core` — the framework itself (rendering, actors, geometry,
-  input, animation, audio, storage). Most contributions land here.
-- `packages/browser-runtime` — the zero-boilerplate wrapper.
+- `packages/js-game-zero` — the framework itself (rendering, actors, geometry,
+  input, animation, audio, storage), `run()` for zero-boilerplate games and
+  the script-tag build. Most contributions land here.
 - `packages/cli` — the `jgz` command, which runs a game in Chromium to
   drive input, inspect state and take screenshots (see `docs/cli.md`).
 - `apps/sandbox` — the local editor/preview server (`apps/sandbox/src`) and
@@ -59,14 +59,15 @@ bun run test:e2e       # Playwright browser tests
 bun run docs:check     # documentation consistency checks
 ```
 
-Unit tests live in each package's `test/` directory (`packages/core/test`,
-`packages/cli/test`, `apps/sandbox/test`, and so on), as `*.test.ts` files,
+Unit tests live in each package's `test/` directory
+(`packages/js-game-zero/test`, `packages/cli/test`, `apps/sandbox/test`, and
+so on), as `*.test.ts` files,
 and run under Bun's built-in test runner. Browser (e2e) tests live in
 `tests/e2e` as `*.pw.ts` files and drive a real Chromium instance against a
 locally started sandbox server — see `playwright.config.ts`.
 
-If you add or change a public API in `packages/core`, add or update a unit
-test alongside it, and update the relevant page under `docs/reference/` in
+If you add or change a public API in `packages/js-game-zero`, add or update a
+unit test alongside it, and update the relevant page under `docs/reference/` in
 the same change.
 
 ## Formatting and linting
@@ -127,28 +128,27 @@ to `requiredDocs` in `scripts/check-docs.ts`.
 
 ## Releasing
 
-The three packages are released together, at one version.
+The two packages are released together, at one version.
 
 1. Set the version in `package.json`, in each `packages/*/package.json`, in
-   `VERSION` in `packages/cli/src/cli.ts`, and in the three `packages/*`
-   workspace entries at the top of `bun.lock`. `bun install` doesn't update
-   those, and `bun pm pack` takes browser-runtime's dependency on core from
-   them.
+   `VERSION` in `packages/cli/src/cli.ts`, and in the two `packages/*`
+   workspace entries at the top of `bun.lock`, which `bun install` doesn't
+   update.
 2. Make the changelog's newest entry `## <version> — <date>`.
 3. Commit, tag the commit `v<version>`, and push both:
 
    ```sh
-   git tag v0.2.1
-   git push origin main v0.2.1
+   git tag v0.3.0
+   git push origin main v0.3.0
    ```
 
 The tag starts `.github/workflows/release.yml`. It runs CI's checks, then
 `bun run release:pack --tag <tag> --publish`, which checks that the
 versions, the tag and the changelog agree, packs each package with
-`bun pm pack`, and publishes core, browser-runtime and the CLI in that
-order. It skips any that npm already has at that version, so a release that
-failed halfway can be rerun. A prerelease version such as `0.3.0-beta.1` is
-published under the `next` tag, leaving `latest` alone.
+`bun pm pack`, and publishes `js-game-zero` and the CLI. It skips any that
+npm already has at that version, so a release that failed halfway can be
+rerun. A prerelease version such as `0.4.0-beta.1` is published under the
+`next` tag, leaving `latest` alone.
 
 npm trusts the workflow to publish (trusted publishing), so no token is
 stored anywhere and each version carries a provenance statement. To see

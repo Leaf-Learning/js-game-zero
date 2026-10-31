@@ -2,7 +2,7 @@
 
 Small functions for things almost every game needs. In a game file they're
 ready to use, like `screen` and `Actor`; in import mode, import them from
-`@js-game-zero/core`.
+`js-game-zero`.
 
 ## `randomInt(min, max)`
 

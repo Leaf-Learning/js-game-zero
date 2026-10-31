@@ -6,12 +6,11 @@ import { licenseBanner } from "./license-banner";
 
 const repoRoot = resolve(import.meta.dir, "..");
 const artifacts = {
-  core: resolve(repoRoot, "packages/core/dist/index.js"),
-  host: resolve(repoRoot, "packages/core/dist/host.js"),
-  node: resolve(repoRoot, "packages/core/dist/node.js"),
-  reference: resolve(repoRoot, "packages/core/dist/reference/index.js"),
-  runtime: resolve(repoRoot, "packages/browser-runtime/dist/index.js"),
-  iife: resolve(repoRoot, "packages/browser-runtime/dist/browser/browser.js"),
+  core: resolve(repoRoot, "packages/js-game-zero/dist/index.js"),
+  host: resolve(repoRoot, "packages/js-game-zero/dist/host.js"),
+  node: resolve(repoRoot, "packages/js-game-zero/dist/node.js"),
+  reference: resolve(repoRoot, "packages/js-game-zero/dist/reference/index.js"),
+  iife: resolve(repoRoot, "packages/js-game-zero/dist/jgz.js"),
   cli: resolve(repoRoot, "packages/cli/dist/cli.js"),
   cliDriver: resolve(repoRoot, "packages/cli/dist/browser/driver.js"),
 } as const;
@@ -31,7 +30,6 @@ async function checkArtifactBoundaries(): Promise<void> {
     [artifacts.core, 270_000],
     // The host entry carries the value serialiser, which knows Actor and Rect.
     [artifacts.host, 168_000],
-    [artifacts.runtime, 512],
     // The IIFE also carries the host APIs a page uses to read and seed a game.
     [artifacts.iife, 300_000],
     [artifacts.cli, 80_000],
@@ -47,12 +45,7 @@ async function checkArtifactBoundaries(): Promise<void> {
     }
   }
 
-  for (const path of [
-    artifacts.core,
-    artifacts.host,
-    artifacts.runtime,
-    artifacts.iife,
-  ]) {
+  for (const path of [artifacts.core, artifacts.host, artifacts.iife]) {
     const source = await readFile(path, "utf8");
     const builtIn =
       /\bnode:(?:assert|buffer|child_process|cluster|crypto|dgram|diagnostics_channel|dns|events|fs|http|https|module|net|os|path|perf_hooks|process|querystring|readline|repl|stream|string_decoder|sys|timers|tls|trace_events|tty|url|util|v8|vm|wasi|worker_threads|zlib)\b/.exec(
@@ -62,27 +55,19 @@ async function checkArtifactBoundaries(): Promise<void> {
       throw new Error(`${path} contains browser-incompatible ${builtIn[0]}.`);
     }
   }
-
-  const runtimeSource = await readFile(artifacts.runtime, "utf8");
-  if (!runtimeSource.includes('from "@js-game-zero/core"')) {
-    throw new Error(
-      "browser-runtime ESM must remain an external @js-game-zero/core re-export.",
-    );
-  }
 }
 
 /** Every artifact with the library's code opens with its license, after any
- * hashbang and Bun's marker. The browser-runtime facade only re-exports core. */
+ * hashbang and Bun's marker. */
 async function checkLicenseBanners(): Promise<void> {
-  const core = await licenseBanner(repoRoot, "packages/core");
-  const runtime = await licenseBanner(repoRoot, "packages/browser-runtime");
+  const core = await licenseBanner(repoRoot, "packages/js-game-zero");
   const cli = await licenseBanner(repoRoot, "packages/cli");
   for (const [path, banner] of [
     [artifacts.core, core],
     [artifacts.host, core],
     [artifacts.node, core],
     [artifacts.reference, core],
-    [artifacts.iife, runtime],
+    [artifacts.iife, core],
     [artifacts.cli, cli],
     [artifacts.cliDriver, cli],
   ] as const) {
@@ -103,11 +88,7 @@ async function checkPackedConsumer(): Promise<void> {
     const packDir = join(root, "packs");
     await mkdir(packDir);
     const coreTarball = await packPackage(
-      resolve(repoRoot, "packages/core"),
-      packDir,
-    );
-    const runtimeTarball = await packPackage(
-      resolve(repoRoot, "packages/browser-runtime"),
+      resolve(repoRoot, "packages/js-game-zero"),
       packDir,
     );
     const cliTarball = await packPackage(
@@ -115,8 +96,7 @@ async function checkPackedConsumer(): Promise<void> {
       packDir,
     );
 
-    await assertLicenseInTarball(coreTarball, "packages/core");
-    await assertLicenseInTarball(runtimeTarball, "packages/browser-runtime");
+    await assertLicenseInTarball(coreTarball, "packages/js-game-zero");
     await assertLicenseInTarball(cliTarball, "packages/cli");
     const referencePages = (await readdir(resolve(repoRoot, "docs/reference")))
       .filter((name) => name.endsWith(".md"))
@@ -124,6 +104,8 @@ async function checkPackedConsumer(): Promise<void> {
     for (const file of ["index.js", "index.d.ts", ...referencePages]) {
       await assertFileInTarball(coreTarball, `package/dist/reference/${file}`);
     }
+    await assertFileInTarball(coreTarball, "package/dist/jgz.js");
+    await assertFileInTarball(coreTarball, "package/dist/browser.d.ts");
     await assertFileInTarball(cliTarball, "package/dist/cli.js");
     await assertFileInTarball(cliTarball, "package/dist/browser/driver.js");
 
@@ -135,8 +117,7 @@ async function checkPackedConsumer(): Promise<void> {
           private: true,
           type: "module",
           dependencies: {
-            "@js-game-zero/core": `file:${coreTarball}`,
-            "@js-game-zero/browser-runtime": `file:${runtimeTarball}`,
+            "js-game-zero": `file:${coreTarball}`,
             "@js-game-zero/cli": `file:${cliTarball}`,
           },
         },
@@ -182,12 +163,11 @@ async function checkPackedConsumer(): Promise<void> {
     );
     await Bun.write(
       join(consumerDir, "consumer.ts"),
-      `/// <reference types="@js-game-zero/browser-runtime/iife" />
-import { Actor, defineGame, run, type RuntimeDiagnostic } from "@js-game-zero/core";
-import { createAssetLoaders } from "@js-game-zero/core/host";
-import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
-import { reference } from "@js-game-zero/core/reference";
-import { Actor as RuntimeActor } from "@js-game-zero/browser-runtime/browser";
+      `/// <reference types="js-game-zero/iife" />
+import { Actor, defineGame, run, type RuntimeDiagnostic } from "js-game-zero";
+import { createAssetLoaders } from "js-game-zero/host";
+import { createSandboxFileStorageAdapter } from "js-game-zero/node";
+import { reference } from "js-game-zero/reference";
 
 const actorPage: string | undefined = reference["actor.md"];
 void actorPage;
@@ -196,8 +176,6 @@ const diagnostics: RuntimeDiagnostic[] = [];
 void diagnostics;
 void createAssetLoaders;
 void createSandboxFileStorageAdapter;
-const sameActor: typeof Actor = RuntimeActor;
-void sameActor;
 
 const game = defineGame(({ Actor: ScopedActor, keys }) => ({
   update(dt) {
@@ -249,15 +227,14 @@ run(game, { autostart: "yes" });
     );
     await Bun.write(
       join(consumerDir, "consumer.mjs"),
-      `import { Actor, audioUnlock, createStorage } from "@js-game-zero/core";
-import * as host from "@js-game-zero/core/host";
-import { createSandboxFileStorageAdapter } from "@js-game-zero/core/node";
-import { Actor as RuntimeActor } from "@js-game-zero/browser-runtime";
+      `import { Actor, audioUnlock, createStorage } from "js-game-zero";
+import * as host from "js-game-zero/host";
+import { createSandboxFileStorageAdapter } from "js-game-zero/node";
 
-if (Actor !== RuntimeActor) throw new Error("browser-runtime duplicated core");
+if (typeof Actor !== "function") throw new Error("root export missing");
 if (typeof host.createAssetLoaders !== "function") throw new Error("host export missing");
 if (host.audioUnlock !== audioUnlock || host.createStorage !== createStorage) {
-  throw new Error("core/host has its own copy of the runtime");
+  throw new Error("js-game-zero/host has its own copy of the runtime");
 }
 if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node export missing");
 `,
@@ -268,24 +245,24 @@ if (typeof createSandboxFileStorageAdapter !== "function") throw new Error("node
       join(consumerDir, "reference.mjs"),
       `import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { reference } from "@js-game-zero/core/reference";
+import { reference } from "js-game-zero/reference";
 
 const pages = ${JSON.stringify(referencePages)};
 if (JSON.stringify(Object.keys(reference)) !== JSON.stringify(pages)) {
   throw new Error("reference export doesn't hold every page");
 }
 for (const page of pages) {
-  const file = fileURLToPath(import.meta.resolve(\`@js-game-zero/core/reference/\${page}\`));
+  const file = fileURLToPath(import.meta.resolve(\`js-game-zero/reference/\${page}\`));
   if (readFileSync(file, "utf8") !== reference[page]) {
     throw new Error(\`reference \${page} differs from its Markdown file\`);
   }
 }
-import.meta.resolve("@js-game-zero/core/package.json");
+import.meta.resolve("js-game-zero/package.json");
 `,
     );
 
     // npm resolves the local tarballs as a publish-style consumer would,
-    // including browser-runtime's packed dependency on core and the CLI bin.
+    // the CLI's bin included.
     await runCommand(["npm", "install", "--ignore-scripts"], consumerDir);
     await runCommand(
       [resolve(consumerDir, "node_modules/.bin/jgz"), "--help"],
@@ -379,13 +356,10 @@ async function checkBrowserArtifacts(): Promise<void> {
           headers: { "content-type": "text/javascript" },
         });
       }
-      if (pathname === "/runtime.js") {
-        return new Response(Bun.file(artifacts.runtime));
-      }
       if (pathname === "/iife.js")
         return new Response(Bun.file(artifacts.iife));
       return new Response(
-        `<!doctype html><script type="importmap">{"imports":{"@js-game-zero/core":"/core/index.js"}}</script>`,
+        `<!doctype html><script type="importmap">{"imports":{"js-game-zero":"/core/index.js"}}</script>`,
         { headers: { "content-type": "text/html" } },
       );
     },
@@ -396,16 +370,16 @@ async function checkBrowserArtifacts(): Promise<void> {
     await page.goto(`http://127.0.0.1:${server.port}/`);
     const esmResult = await page.evaluate(async () => {
       const coreUrl = "/core/index.js";
-      const runtimeUrl = "/runtime.js";
+      const hostUrl = "/core/host.js";
       const core = await import(coreUrl);
-      const runtime = await import(runtimeUrl);
+      const host = await import(hostUrl);
       return {
-        sameActor: core.Actor === runtime.Actor,
-        hasRun: typeof runtime.run === "function",
+        hasRun: typeof core.run === "function",
+        sharedRuntime: host.audioUnlock === core.audioUnlock,
       };
     });
-    if (!esmResult.sameActor || !esmResult.hasRun) {
-      throw new Error("Browser ESM package facade failed its smoke test.");
+    if (!esmResult.hasRun || !esmResult.sharedRuntime) {
+      throw new Error("Browser ESM entry points failed their smoke test.");
     }
 
     const iifePage = await browser.newPage();

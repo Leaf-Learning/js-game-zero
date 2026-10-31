@@ -1,4 +1,4 @@
-import { defineGame } from "@js-game-zero/core";
+import { defineGame } from "js-game-zero";
 
 // Keep game state inside the factory. Each run gets its own state and
 // services, even when a host embeds several games on the same page.

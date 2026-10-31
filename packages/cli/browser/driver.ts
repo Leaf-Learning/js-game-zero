@@ -3,12 +3,12 @@ import {
   type GameHandle,
   type RuntimeDiagnostic,
   type SurfaceLike,
-} from "@js-game-zero/core";
+} from "js-game-zero";
 import {
   getGameInspector,
   loadImages,
   serializeGameValue,
-} from "@js-game-zero/core/host";
+} from "js-game-zero/host";
 
 type DriverEvent = {
   readonly event: "ready" | "diagnostic" | "runtime-error";

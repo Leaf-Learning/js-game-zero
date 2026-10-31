@@ -126,4 +126,4 @@ if (hit) console.log(`hit the ${hit[0]}`);
 `angleTo(from, to)` and `distanceTo(from, to)` are exported functions (used
 internally by `Actor.angleTo`/`distanceTo`) if you need the same math on
 plain points without an `Actor`. They aren't globals in a game file; import
-them from `@js-game-zero/core`.
+them from `js-game-zero`.

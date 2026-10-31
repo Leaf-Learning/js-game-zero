@@ -14,13 +14,12 @@ import { licenseBanner } from "./license-banner";
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 process.chdir(repoRoot);
 
-type BuildTarget = "core" | "browser-runtime" | "cli";
+type BuildTarget = "js-game-zero" | "cli";
 
 const requested = process.argv[2];
 if (
   requested !== undefined &&
-  requested !== "core" &&
-  requested !== "browser-runtime" &&
+  requested !== "js-game-zero" &&
   requested !== "cli"
 ) {
   throw new TypeError(`Unknown package build target: ${requested}`);
@@ -28,48 +27,60 @@ if (
 
 const targets: readonly BuildTarget[] = requested
   ? [requested]
-  : ["core", "browser-runtime", "cli"];
+  : ["js-game-zero", "cli"];
 
-if (targets.includes("core")) await buildCore();
-if (targets.includes("browser-runtime")) await buildBrowserRuntime();
+if (targets.includes("js-game-zero")) await buildFramework();
 if (targets.includes("cli")) await buildCli();
 
 console.log(
   `Built ${targets.join(" and ")} package${targets.length > 1 ? "s" : ""}.`,
 );
 
-async function buildCore(): Promise<void> {
-  await rm("packages/core/dist", { force: true, recursive: true });
-  const banner = await licenseBanner(repoRoot, "packages/core");
-  // Built together and split, so `@js-game-zero/core` and `/host` share one
-  // copy of the runtime: a game started with one is the game the other's
-  // inspector, storage and audio unlock see.
+async function buildFramework(): Promise<void> {
+  await rm("packages/js-game-zero/dist", { force: true, recursive: true });
+  const banner = await licenseBanner(repoRoot, "packages/js-game-zero");
+  // Built together and split, so `js-game-zero` and `js-game-zero/host`
+  // share one copy of the runtime: a game started with one is the game the
+  // other's inspector, storage and audio unlock see.
   await runBuild({
-    entrypoints: ["packages/core/src/index.ts", "packages/core/src/host.ts"],
-    outdir: "packages/core/dist",
+    entrypoints: [
+      "packages/js-game-zero/src/index.ts",
+      "packages/js-game-zero/src/host.ts",
+    ],
+    outdir: "packages/js-game-zero/dist",
     target: "browser",
     format: "esm",
     splitting: true,
     banner,
   });
   await runBuild({
-    entrypoints: ["packages/core/src/node.ts"],
-    outdir: "packages/core/dist",
+    entrypoints: ["packages/js-game-zero/src/node.ts"],
+    outdir: "packages/js-game-zero/dist",
     target: "node",
     format: "esm",
     banner,
   });
-  await emitDeclarations("packages/core/tsconfig.build.json");
-  await normalizeDeclarationSpecifiers("packages/core/dist");
+  // Script-tag users need one self-contained file: dist/jgz.js
+  // (`js-game-zero/iife`), which puts the API on `window.JGZ`.
+  await runBuild({
+    entrypoints: ["packages/js-game-zero/src/browser.ts"],
+    outdir: "packages/js-game-zero/dist",
+    naming: "jgz.[ext]",
+    target: "browser",
+    format: "iife",
+    banner,
+  });
+  await emitDeclarations("packages/js-game-zero/tsconfig.build.json");
+  await normalizeDeclarationSpecifiers("packages/js-game-zero/dist");
   await buildReference(banner);
 }
 
-/** Ships the API reference with core, for a host that hands it to a
+/** Ships the API reference with the package, for a host that hands it to a
  * learner, a tool or a model: each page as Markdown in dist/reference/, and
  * dist/reference/index.js exporting every page by its file name. */
 async function buildReference(banner: string): Promise<void> {
   const from = "docs/reference";
-  const to = "packages/core/dist/reference";
+  const to = "packages/js-game-zero/dist/reference";
   await mkdir(to, { recursive: true });
   const pages: Record<string, string> = {};
   for (const name of (await readdir(from)).sort()) {
@@ -85,33 +96,6 @@ async function buildReference(banner: string): Promise<void> {
     join(to, "index.d.ts"),
     `/** js-game-zero's API reference: every page's Markdown by its file name, such as "actor.md". */\nexport declare const reference: Readonly<Record<string, string>>;\n`,
   );
-}
-
-async function buildBrowserRuntime(): Promise<void> {
-  await rm("packages/browser-runtime/dist", { force: true, recursive: true });
-
-  // The ESM facade remains a tiny external re-export. Package managers can
-  // deduplicate core normally instead of receiving a second bundled copy.
-  // It holds none of the library's code, so it has no license banner.
-  await runBuild({
-    entrypoints: ["packages/browser-runtime/src/index.ts"],
-    outdir: "packages/browser-runtime/dist",
-    target: "browser",
-    format: "esm",
-    external: ["@js-game-zero/core"],
-  });
-
-  // Script-tag users need one self-contained artifact, so the IIFE is the
-  // only browser-runtime build that intentionally includes core.
-  await runBuild({
-    entrypoints: ["packages/browser-runtime/src/browser.ts"],
-    outdir: "packages/browser-runtime/dist/browser",
-    target: "browser",
-    format: "iife",
-    banner: await licenseBanner(repoRoot, "packages/browser-runtime"),
-  });
-  await emitDeclarations("packages/browser-runtime/tsconfig.build.json");
-  await normalizeDeclarationSpecifiers("packages/browser-runtime/dist");
 }
 
 async function buildCli(): Promise<void> {

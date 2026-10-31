@@ -57,8 +57,7 @@ const requiredReadmeScripts = [
 
 const packageManifests = [
   "package.json",
-  "packages/core/package.json",
-  "packages/browser-runtime/package.json",
+  "packages/js-game-zero/package.json",
   "apps/sandbox/package.json",
   "packages/cli/package.json",
 ];
@@ -127,7 +126,7 @@ async function checkReadmeCommands(): Promise<void> {
     const [binary, subcommand, script] = command.split(/\s+/);
     if (binary === "git" || binary === "cd") continue;
     // Installing one of this repo's packages from npm, in a project of your
-    // own: `bun add -d @js-game-zero/cli`, `npm install @js-game-zero/core`.
+    // own: `bun add -d @js-game-zero/cli`, `npm install js-game-zero`.
     if (
       (binary === "npm" && subcommand === "install") ||
       (binary === "bun" && subcommand === "add")
@@ -277,9 +276,7 @@ async function checkBuildMetadata(): Promise<void> {
 
   const buildScript = await Bun.file("scripts/build.ts").text();
   for (const outdir of [
-    "packages/core/dist",
-    "packages/browser-runtime/dist",
-    "packages/browser-runtime/dist/browser",
+    "packages/js-game-zero/dist",
     "packages/cli/dist",
     "packages/cli/dist/browser",
   ]) {
@@ -289,8 +286,7 @@ async function checkBuildMetadata(): Promise<void> {
   }
 
   for (const packagePath of [
-    "packages/core/package.json",
-    "packages/browser-runtime/package.json",
+    "packages/js-game-zero/package.json",
     "packages/cli/package.json",
   ]) {
     const manifest = await readPackageJson(packagePath);
@@ -317,11 +313,7 @@ async function checkLicenseBoundary(): Promise<void> {
   }
 
   // Each published package ships its own copy of LICENSE.
-  for (const packageDir of [
-    "packages/core",
-    "packages/browser-runtime",
-    "packages/cli",
-  ]) {
+  for (const packageDir of ["packages/js-game-zero", "packages/cli"]) {
     const copy = Bun.file(`${packageDir}/LICENSE`);
     if (!(await copy.exists()) || (await copy.text()) !== licenseText) {
       fail(`${packageDir}/LICENSE must be a copy of LICENSE.`);
@@ -348,7 +340,7 @@ function shellCommands(source: string): string[] {
 function compileJavaScriptSnippet(source: string, label: string): void {
   // `new Function` can't parse a top-level ES module `import` statement (it
   // compiles a plain function body, not a module). A handful of snippets
-  // legitimately show `import { ... } from "@js-game-zero/core"` for
+  // legitimately show `import { ... } from "js-game-zero"` for
   // import-mode code; strip those lines before compiling so the rest of the
   // snippet is still checked for real syntax errors.
   const withoutImports = source.replace(/^\s*import\b[^\n]*;?\s*$/gm, "");

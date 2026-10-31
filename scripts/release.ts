@@ -1,13 +1,12 @@
-// Packs the three packages for npm once they're ready to release, and with
-// --publish publishes the ones npm doesn't have yet, core first.
+// Packs the two packages for npm once they're ready to release, and with
+// --publish publishes the ones npm doesn't have yet.
 //
 //   bun run release:pack                  check, then pack into .release/
 //   bun run release:pack --tag v0.2.0     and check the tag names the version
 //   bun run release:pack --publish        and publish
 //
 // It packs dist as it is, so run `bun run build` and `bun run package:check`
-// first. `bun pm pack` turns browser-runtime's `workspace:*` dependency on
-// core into core's version, which `npm publish` from the folder wouldn't.
+// first.
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -15,10 +14,8 @@ import { parseArgs } from "node:util";
 const repoRoot = resolve(import.meta.dir, "..");
 const releaseDir = join(repoRoot, ".release");
 
-// In publishing order: browser-runtime depends on core, so core goes first.
 const packages = [
-  { dir: "packages/core", built: "dist/index.js" },
-  { dir: "packages/browser-runtime", built: "dist/browser/browser.js" },
+  { dir: "packages/js-game-zero", built: "dist/jgz.js" },
   { dir: "packages/cli", built: "dist/cli.js" },
 ] as const;
 
@@ -93,14 +90,14 @@ if (options.publish) {
 
 /**
  * Asks jsDelivr to look again at the version ranges the docs load the
- * script-tag build from (`@0.2`), which it otherwise keeps on the previous
+ * script-tag build from (`@0.3`), which it otherwise keeps on the previous
  * release for up to a week. A purge that fails only means a slower update,
  * so it warns rather than failing the release.
  */
 async function refreshCdnRanges(version: string): Promise<void> {
   const [major, minor] = version.split(".");
   for (const range of [`${major}.${minor}`, `${major}`, "latest"]) {
-    const url = `https://purge.jsdelivr.net/npm/@js-game-zero/browser-runtime@${range}/dist/browser/browser.js`;
+    const url = `https://purge.jsdelivr.net/npm/js-game-zero@${range}/dist/jgz.js`;
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -112,8 +109,7 @@ async function refreshCdnRanges(version: string): Promise<void> {
 }
 
 /** Every manifest, the CLI's `--version` and bun.lock give one version.
- * `bun pm pack` writes browser-runtime's dependency on core from bun.lock,
- * and `bun install` doesn't update a workspace's version there, so a bump
+ * `bun install` doesn't update a workspace's version in bun.lock, so a bump
  * edits it by hand. */
 async function checkVersions(): Promise<string> {
   const root = await readManifest(".");
@@ -180,8 +176,8 @@ async function pack(dir: string): Promise<string> {
   return join(releaseDir, added[0]);
 }
 
-/** The packed manifest has the version, and browser-runtime asks for the
- * same core. */
+/** The packed manifest has the version, and asks for any package of ours at
+ * the same one. */
 async function checkPackedManifest(
   tarball: string,
   name: string,
@@ -196,7 +192,11 @@ async function checkPackedManifest(
   for (const [dependency, range] of Object.entries(
     manifest.dependencies ?? {},
   )) {
-    if (dependency.startsWith("@js-game-zero/") && range !== version) {
+    if (
+      (dependency === "js-game-zero" ||
+        dependency.startsWith("@js-game-zero/")) &&
+      range !== version
+    ) {
       fail(`${name} packed with ${dependency}@${range}, not ${version}.`);
     }
   }

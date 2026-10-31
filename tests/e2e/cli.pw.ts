@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { keymods, keys } from "@js-game-zero/core";
-import { createSeededRandom } from "@js-game-zero/core/host";
+import { keymods, keys } from "js-game-zero";
+import { createSeededRandom } from "js-game-zero/host";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

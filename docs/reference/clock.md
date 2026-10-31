@@ -143,7 +143,7 @@ That's all 18 names `tween` accepts: Pygame Zero's 10 curves, the five
 plain-language names, and `endElastic`, `startElastic` and `bothElastic`,
 names from Pygame Zero's older docs (`end_elastic` and so on) that its code
 doesn't accept. To check a name in code, import the same list as
-`tweenNames` (`import { tweenNames } from "@js-game-zero/core"`); it isn't a
+`tweenNames` (`import { tweenNames } from "js-game-zero"`); it isn't a
 global in a game file. Like every other name, they're camelCase:
 `tween: "bounce_end"` throws, suggesting `bounceEnd`. If you're not
 sure which to pick, try `easeOut` for smooth movement, `bounce` for things

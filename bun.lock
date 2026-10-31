@@ -23,18 +23,11 @@
         "@fontsource-variable/fredoka": "^5.3.0",
         "@fontsource-variable/jetbrains-mono": "^5.3.0",
         "@fontsource-variable/nunito": "^5.3.0",
-        "@js-game-zero/core": "workspace:*",
         "@lezer/highlight": "^1.2.3",
         "codemirror": "^6.0.2",
         "dompurify": "^3.4.12",
+        "js-game-zero": "workspace:*",
         "marked": "^18.0.7",
-      },
-    },
-    "packages/browser-runtime": {
-      "name": "@js-game-zero/browser-runtime",
-      "version": "0.2.3",
-      "dependencies": {
-        "@js-game-zero/core": "workspace:*",
       },
     },
     "packages/cli": {
@@ -50,8 +43,8 @@
         "playwright": "^1.57.0",
       },
     },
-    "packages/core": {
-      "name": "@js-game-zero/core",
+    "packages/js-game-zero": {
+      "name": "js-game-zero",
       "version": "0.2.3",
     },
   },
@@ -78,11 +71,7 @@
 
     "@fontsource-variable/nunito": ["@fontsource-variable/nunito@5.3.0", "", {}, "sha512-tw0ch7evIDSwoeUy+0XzocYHfbRWLeCRPJy22KgbrLjDLAbNw/fErBiil10Ssrs3Sjr55zaZrr36a975j8cBkQ=="],
 
-    "@js-game-zero/browser-runtime": ["@js-game-zero/browser-runtime@workspace:packages/browser-runtime"],
-
     "@js-game-zero/cli": ["@js-game-zero/cli@workspace:packages/cli"],
-
-    "@js-game-zero/core": ["@js-game-zero/core@workspace:packages/core"],
 
     "@js-game-zero/sandbox": ["@js-game-zero/sandbox@workspace:apps/sandbox"],
 
@@ -113,6 +102,8 @@
     "dompurify": ["dompurify@3.4.12", "", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-zQvGet8Z2sWbQhCmfFz/T5QWH2oBmjnqK3qvOjaqaNLrLEF912WamU+ohnTp0TCep/MFVHpdJuCZEdFOdTnEFg=="],
 
     "fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
+
+    "js-game-zero": ["js-game-zero@workspace:packages/js-game-zero"],
 
     "marked": ["marked@18.0.7", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-iDVQ5ldaiKXn6b2JroX5kgRfmwgqolW7NpaEzTl1k/2Zh1njIEN9yniyLV/mOvWwtsE8OGgkjsCYvijuPk1dtA=="],
 

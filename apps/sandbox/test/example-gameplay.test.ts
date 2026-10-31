@@ -14,8 +14,8 @@ import {
   type ActorOptions,
   type DrawableImage,
   type GameContext,
-} from "@js-game-zero/core";
-import { dispatchHook } from "@js-game-zero/core/host";
+} from "js-game-zero";
+import { dispatchHook } from "js-game-zero/host";
 import { exampleManifest, getExample } from "../../../examples/manifest";
 import { game as starterGame } from "../../../examples/sandbox-starter/game";
 

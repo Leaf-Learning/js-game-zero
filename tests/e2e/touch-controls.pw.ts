@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import type { GameHandle } from "@js-game-zero/core";
+import type { GameHandle } from "js-game-zero";
 import {
   collectPageErrors,
   waitForExampleStatus,
@@ -16,7 +16,7 @@ async function startGame(page: Page, config = "true"): Promise<void> {
   await page.goto("/");
   await page.evaluate(async (config) => {
     const url = "/runtime/core.js";
-    const core = (await import(url)) as typeof import("@js-game-zero/core");
+    const core = (await import(url)) as typeof import("js-game-zero");
     document.body.innerHTML = '<canvas tabindex="0"></canvas>';
     document.body.style.cssText =
       "margin:0;height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#150f1c;overflow:hidden";

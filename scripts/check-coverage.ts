@@ -18,8 +18,9 @@ type CoverageGroup = {
 
 const groups: readonly CoverageGroup[] = [
   {
-    name: "core",
-    include: (sourcePath) => sourcePath.startsWith("packages/core/src/"),
+    name: "js-game-zero",
+    include: (sourcePath) =>
+      sourcePath.startsWith("packages/js-game-zero/src/"),
     minimumFunctions: 0.85,
     minimumLines: 0.9,
   },
@@ -119,7 +120,7 @@ async function runCoverage(outputDirectory: string): Promise<void> {
     [
       process.execPath,
       "test",
-      "packages/core",
+      "packages/js-game-zero",
       "apps/sandbox",
       "--coverage",
       "--coverage-reporter=lcov",

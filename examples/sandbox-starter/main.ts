@@ -1,4 +1,4 @@
-import { run } from "@js-game-zero/core";
+import { run } from "js-game-zero";
 import { game } from "./game";
 
 // Host setup: the shipped example page provides this canvas. For your own

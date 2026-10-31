@@ -6,7 +6,7 @@
 </h1>
 
 [![CI](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/Leaf-Learning/js-game-zero/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@js-game-zero/browser-runtime)](https://www.npmjs.com/package/@js-game-zero/browser-runtime)
+[![npm](https://img.shields.io/npm/v/js-game-zero)](https://www.npmjs.com/package/js-game-zero)
 
 `js-game-zero` teaches kids and other beginners how to build browser games
 in JavaScript, with as little boilerplate as possible. Declare `WIDTH` and
@@ -61,7 +61,7 @@ internet connection required after install.
 
 To try it with nothing to install, save this as `my-game.html`, open it in
 your browser, and press the arrow keys. It loads js-game-zero from
-[jsDelivr](https://www.jsdelivr.com/package/npm/@js-game-zero/browser-runtime),
+[jsDelivr](https://www.jsdelivr.com/package/npm/js-game-zero),
 so it needs an internet connection.
 
 ```html
@@ -70,7 +70,7 @@ so it needs an internet connection.
   <head>
     <meta charset="utf-8" />
     <title>My game</title>
-    <script src="https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-game-zero@0.3/dist/jgz.js"></script>
   </head>
   <body>
     <script id="game" type="text/plain">
@@ -150,24 +150,22 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full development workflow.
 
 ## Packages
 
-Three packages are on npm, released together at one version:
+Two packages are on npm, released together at one version:
 
-- [`@js-game-zero/core`](https://www.npmjs.com/package/@js-game-zero/core)
-  (`packages/core`) — rendering, actors, geometry, input, animation, audio,
-  and storage: the framework itself, with its API reference
-  (`@js-game-zero/core/reference`).
-- [`@js-game-zero/browser-runtime`](https://www.npmjs.com/package/@js-game-zero/browser-runtime)
-  (`packages/browser-runtime`) — the zero-boilerplate wrapper that injects
-  globals and runs learner code, with the script-tag build used above.
+- [`js-game-zero`](https://www.npmjs.com/package/js-game-zero)
+  (`packages/js-game-zero`) — the framework: rendering, actors, geometry,
+  input, animation, audio and storage, `run()` for a game written with no
+  imports at all, the script-tag build used above (`js-game-zero/iife`), and
+  the API reference (`js-game-zero/reference`).
 - [`@js-game-zero/cli`](https://www.npmjs.com/package/@js-game-zero/cli)
   (`packages/cli`) — the browser-backed `jgz` verification and automation CLI.
 
-To use one in a project of your own:
+To use js-game-zero in a project of your own:
 
 ```sh
-bun add @js-game-zero/browser-runtime
+bun add js-game-zero
 # or
-npm install @js-game-zero/browser-runtime
+npm install js-game-zero
 ```
 
 The rest of the repository isn't published:

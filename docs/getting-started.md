@@ -63,7 +63,7 @@ button in the top bar, or browse to `http://127.0.0.1:4173/examples`.
 ## A game in one web page
 
 A game can also live in one HTML file, with no Bun and no clone: the page
-loads js-game-zero from [jsDelivr](https://www.jsdelivr.com/package/npm/@js-game-zero/browser-runtime),
+loads js-game-zero from [jsDelivr](https://www.jsdelivr.com/package/npm/js-game-zero),
 so all it needs is a browser and an internet connection. Save this as
 `my-game.html` and open it in your browser:
 
@@ -73,7 +73,7 @@ so all it needs is a browser and an internet connection. Save this as
   <head>
     <meta charset="utf-8" />
     <title>My game</title>
-    <script src="https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-game-zero@0.3/dist/jgz.js"></script>
   </head>
   <body>
     <script id="game" type="text/plain">

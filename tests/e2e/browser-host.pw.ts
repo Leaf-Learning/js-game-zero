@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSeededRandom } from "@js-game-zero/core/host";
+import { createSeededRandom } from "js-game-zero/host";
 import { collectPageErrors } from "./fixtures/harness-helpers";
 
 /**

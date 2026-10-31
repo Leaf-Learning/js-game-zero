@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { GameHandle } from "@js-game-zero/core";
+import type { GameHandle } from "js-game-zero";
 import { collectPageErrors } from "./fixtures/harness-helpers";
 
 /**

@@ -21,7 +21,7 @@ storage, animation, input, and audio therefore cannot accidentally bind to a
 different game on the same page:
 
 ```ts
-import { defineGame, run } from "@js-game-zero/core";
+import { defineGame, run } from "js-game-zero";
 
 run(
   defineGame(({ Actor, screen, keyboard }) => {
@@ -67,7 +67,7 @@ game should prefer the services passed to `defineGame()`.
 **Import mode** — pass a plain object of hooks and config:
 
 ```js
-import { run, screen, keyboard } from "@js-game-zero/core";
+import { run, screen, keyboard } from "js-game-zero";
 
 run({
   WIDTH: 320,
@@ -176,7 +176,7 @@ handle.stop();
 ## `exit()`
 
 ```js
-import { exit } from "@js-game-zero/core";
+import { exit } from "js-game-zero";
 exit(); // equivalent to calling .stop() on the currently active run() handle
 ```
 
@@ -249,14 +249,14 @@ SVG Actor stays sharp at any size.
 
 ## Package boundaries
 
-Games import learner-facing values from `@js-game-zero/core`. Embedders should
+Games import learner-facing values from `js-game-zero`. Embedders should
 import loader factories, browser adapters, scheduler/diagnostic types, and
-other integration APIs from `@js-game-zero/core/host`; Node filesystem storage
-lives at `@js-game-zero/core/node`. Browser-safe advanced root imports remain
+other integration APIs from `js-game-zero/host`; Node filesystem storage
+lives at `js-game-zero/node`. Browser-safe advanced root imports remain
 as deprecated compatibility aliases through 0.2.
 
 Host tooling can also import `getGameInspector(handle)` from
-`@js-game-zero/core/host`. It returns a live, read-only binding inspector for a
+`js-game-zero/host`. It returns a live, read-only binding inspector for a
 running zero-boilerplate source game, or `null` for import-mode and disposed
 handles (a failed game keeps its inspector, so a host can read the state at the
 crash). This is the inspection seam the browser-backed `jgz` verification CLI
@@ -273,7 +273,7 @@ The same module exports `serializeGameValue(value)`, `parseStatePath(source)`,
 `createSeededRandom(seed)` and `loadImages(assetUrls)` (see
 [assets without a server](loaders.md#assets-without-a-server)).
 
-The rest of `@js-game-zero/core/host` is for building a host:
+The rest of `js-game-zero/host` is for building a host:
 
 | Export                                                                                                     | What it's for                                                                                                  |
 | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -285,14 +285,14 @@ The rest of `@js-game-zero/core/host` is for building a host:
 Its other exports (the input dispatcher, the `map…Event` functions,
 `dispatchHook`, the audio and tone classes, `getScreen`/`setScreen`) are the
 runtime's own parts, exported for tools and tests, and may change.
-`@js-game-zero/core/node` exports `createSandboxFileStorageAdapter({
+`js-game-zero/node` exports `createSandboxFileStorageAdapter({
 projectRoot, path? })`, a `StorageAdapter` that keeps a project's storage in
 a JSON file under `projectRoot` (`storage.json` by default).
 
-This reference ships with core, for a host that hands it to a learner, a tool
-or a model. `@js-game-zero/core/reference` exports `reference`, every page's
-Markdown by its file name (`reference["actor.md"]`), and each page is also a
-file at `@js-game-zero/core/reference/<page>.md`.
+This reference ships with `js-game-zero`, for a host that hands it to a
+learner, a tool or a model. `js-game-zero/reference` exports `reference`,
+every page's Markdown by its file name (`reference["actor.md"]`), and each
+page is also a file at `js-game-zero/reference/<page>.md`.
 
 ### State paths
 
@@ -367,9 +367,9 @@ predict. A seed that isn't a string or a finite number fails at startup.
 
 ### Driving a game from a host page
 
-The script-tag build is `dist/browser/browser.js` in
-`@js-game-zero/browser-runtime`, which jsDelivr also serves, at
-`https://cdn.jsdelivr.net/npm/@js-game-zero/browser-runtime@0.2/dist/browser/browser.js`.
+The script-tag build is `dist/jgz.js` in `js-game-zero` (`js-game-zero/iife`),
+which jsDelivr also serves, at
+`https://cdn.jsdelivr.net/npm/js-game-zero@0.3/dist/jgz.js`.
 Its `window.JGZ` carries `loadImages`, `getGameInspector`,
 `serializeGameValue`, `parseStatePath` and `createSeededRandom` beside the
 learner-facing API, so a page can run a game it drives itself, the way the CLI

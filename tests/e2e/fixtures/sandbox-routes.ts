@@ -149,11 +149,11 @@ const unhandledProblemsFixturePage = `<!doctype html>
 
 let classicBrowserBuild: Promise<string> | null = null;
 
-/** The script-tag build as a classic script, built as dist/browser/browser.js
+/** The script-tag build as a classic script, built as dist/jgz.js
  * is, for pages that load it with a plain <script src>. */
 async function classicBrowserBuildBundle(): Promise<Response> {
   classicBrowserBuild ??= Bun.build({
-    entrypoints: [join(REPO_ROOT, "packages/browser-runtime/src/browser.ts")],
+    entrypoints: [join(REPO_ROOT, "packages/js-game-zero/src/browser.ts")],
     target: "browser",
     format: "iife",
   }).then((result) => {
@@ -179,7 +179,7 @@ async function browserBuildBundle(): Promise<Response> {
   try {
     const build = await cachedBrowserBuild(
       "test-fixtures-jgz-browser",
-      join(REPO_ROOT, "packages/browser-runtime/src/browser.ts"),
+      join(REPO_ROOT, "packages/js-game-zero/src/browser.ts"),
     );
     return new Response(build.text, {
       headers: { "content-type": build.contentType },
