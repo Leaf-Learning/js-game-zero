@@ -6,6 +6,7 @@ import {
   rgb,
   type RuntimeDiagnostic,
   type SurfaceLike,
+  type TextSize,
 } from "js-game-zero";
 import {
   createImageLoader,
@@ -712,6 +713,317 @@ describe("Screen short forms", () => {
     expect(() => screen.text!("Hi", 1, 2, "red", 20, 3)).toThrow(
       "screen.text takes at most five values",
     );
+  });
+});
+
+describe("Rounded rectangles", () => {
+  const looseScreen = (): { short: Loose; draw: Loose } => {
+    const { screen } = mockScreen();
+    return {
+      short: screen as unknown as Loose,
+      draw: screen.draw as unknown as Loose,
+    };
+  };
+
+  test("round each corner with a quarter circle, then fill or outline", () => {
+    const filled = drawn((screen) =>
+      screen.draw.filledRoundedRect([10, 20, 100, 40], 8, "gold"),
+    );
+    expect(filled.operations).toEqual([
+      { name: "save", args: [] },
+      { name: "beginPath", args: [] },
+      { name: "moveTo", args: [18, 20] },
+      { name: "arc", args: [102, 28, 8, -Math.PI / 2, 0] },
+      { name: "arc", args: [102, 52, 8, 0, Math.PI / 2] },
+      { name: "arc", args: [18, 52, 8, Math.PI / 2, Math.PI] },
+      { name: "arc", args: [18, 28, 8, Math.PI, Math.PI * 1.5] },
+      { name: "closePath", args: [] },
+      { name: "fill", args: [] },
+      { name: "restore", args: [] },
+    ]);
+    expect(filled.fillStyle).toBe("gold");
+
+    const outline = drawn((screen) =>
+      screen.draw.roundedRect(
+        { left: 10, top: 20, width: 100, height: 40 },
+        8,
+        [255, 0, 0],
+        3,
+      ),
+    );
+    expect(outline.operations.map((op) => op.name)).toEqual(
+      filled.operations.map((op) => (op.name === "fill" ? "stroke" : op.name)),
+    );
+    expect(outline.strokeStyle).toBe("rgb(255, 0, 0)");
+    expect(outline.lineWidth).toBe(3);
+    expect(
+      drawn((screen) => screen.draw.roundedRect([0, 0, 9, 9], 2, "red"))
+        .lineWidth,
+    ).toBe(1);
+  });
+
+  test("a radius past half the shorter side gives round ends, and 0 square corners", () => {
+    const radii = (draw: (screen: Screen) => void): unknown[] =>
+      drawn(draw)
+        .operations.filter((op) => op.name === "arc")
+        .map((op) => op.args[2]);
+    expect(
+      radii((screen) =>
+        screen.draw.filledRoundedRect([0, 0, 100, 30], 50, "white"),
+      ),
+    ).toEqual([15, 15, 15, 15]);
+    expect(
+      radii((screen) =>
+        screen.draw.filledRoundedRect([0, 0, 40, 40], 99, "red"),
+      ),
+    ).toEqual([20, 20, 20, 20]);
+    expect(
+      radii((screen) =>
+        screen.draw.filledRoundedRect([0, 0, 10, 10], 0, "red"),
+      ),
+    ).toEqual([0, 0, 0, 0]);
+  });
+
+  test("a negative width or height counts back from x, y, as fillRect does", () => {
+    expect(
+      drawn((screen) =>
+        screen.draw.filledRoundedRect([110, 50, -100, -30], 6, "white"),
+      ).operations,
+    ).toEqual(
+      drawn((screen) =>
+        screen.draw.filledRoundedRect([10, 20, 100, 30], 6, "white"),
+      ).operations,
+    );
+  });
+
+  test("screen.roundedRect is filledRoundedRect's short form, white unless told", () => {
+    expect(
+      drawn((screen) => screen.roundedRect(10, 20, 30, 40, 6, "red")),
+    ).toEqual(
+      drawn((screen) =>
+        screen.draw.filledRoundedRect([10, 20, 30, 40], 6, "red"),
+      ),
+    );
+    expect(drawn((screen) => screen.roundedRect(0, 0, 4, 4, 1)).fillStyle).toBe(
+      "white",
+    );
+  });
+
+  test("a color where the radius belongs says the radius comes first", () => {
+    const { short, draw } = looseScreen();
+    expect(() => short.roundedRect!(40, 40, 120, 60, "orange", 12)).toThrow(
+      'screen.roundedRect takes the corners\' radius before the color, like screen.roundedRect(40, 40, 120, 60, 12, "orange").',
+    );
+    expect(() => short.roundedRect!(40, 40, 120, 60, [255, 0, 0])).toThrow(
+      "screen.roundedRect takes the corners' radius before the color",
+    );
+    expect(() => draw.filledRoundedRect!([0, 0, 10, 10], "red", 4)).toThrow(
+      "screen.draw.filledRoundedRect takes the corners' radius before the color: screen.draw.filledRoundedRect(rect, radius, color).",
+    );
+    expect(() => draw.roundedRect!([0, 0, 10, 10], [1, 2, 3], 4)).toThrow(
+      "screen.draw.roundedRect takes the corners' radius before the color: screen.draw.roundedRect(rect, radius, color, width).",
+    );
+  });
+
+  test("a missing, non-number or negative radius is named", () => {
+    const { short, draw } = looseScreen();
+    expect(() => short.roundedRect!(0, 0, 10, 10)).toThrow(
+      "screen.roundedRect is missing radius: screen.roundedRect(x, y, width, height, radius, color).",
+    );
+    expect(() => draw.filledRoundedRect!([0, 0, 10, 10])).toThrow(
+      "screen.draw.filledRoundedRect is missing radius: screen.draw.filledRoundedRect(rect, radius, color).",
+    );
+    expect(() => short.roundedRect!(0, 0, 10, 10, Number.NaN)).toThrow(
+      "screen.roundedRect's radius must be a number, but got NaN.",
+    );
+    expect(() => draw.roundedRect!([0, 0, 10, 10], true, "red")).toThrow(
+      "screen.draw.roundedRect's radius must be a number, but got true.",
+    );
+    expect(() => short.roundedRect!(0, 0, 10, 10, -2)).toThrow(
+      "screen.roundedRect's radius must be 0 or more, but got -2.",
+    );
+    expect(() => draw.filledRoundedRect!([0, 0, 10, 10], -1, "red")).toThrow(
+      "screen.draw.filledRoundedRect's radius must be 0 or more, but got -1.",
+    );
+  });
+
+  test("a list points to the draw form, and an outline width to the outline method", () => {
+    const { short, draw } = looseScreen();
+    expect(() => short.roundedRect!([0, 0, 10, 10], 4, "red")).toThrow(
+      "For a list or a Rect, use screen.draw.filledRoundedRect([x, y, width, height], radius, color).",
+    );
+    expect(() => short.roundedRect!(0, 0, 10, 10, 4, "red", 2)).toThrow(
+      "screen.roundedRect always fills, so it has no outline width. For an outline, use screen.draw.roundedRect([x, y, width, height], radius, color, width).",
+    );
+    expect(() => draw.filledRoundedRect!([0, 0, 10, 10], 4, "red", 2)).toThrow(
+      "screen.draw.filledRoundedRect always fills, so it has no outline width. For an outline, use screen.draw.roundedRect(rect, radius, color, width).",
+    );
+    expect(() => draw.roundedRect!([0, 0, 10, 10], 4, "red", 0)).toThrow(
+      "width must be a positive finite number.",
+    );
+    expect(() => draw.roundedRect!([0, 0, 10, 10], 4, "lightblu")).toThrow(
+      'Did you mean "lightblue"?',
+    );
+  });
+
+  test("leave the canvas untouched when the call is wrong", () => {
+    const { screen, context } = mockScreen();
+    const loose = screen as unknown as Loose;
+    const draw = screen.draw as unknown as Loose;
+    expect(() => loose.roundedRect!(0, 0, 10, 10, "red")).toThrow();
+    expect(() => draw.filledRoundedRect!([0, 0, 10, 10], -1, "red")).toThrow();
+    expect(() =>
+      draw.filledRoundedRect!([0, 0, 10, 10], 4, "red", 2),
+    ).toThrow();
+    expect(() => draw.roundedRect!([0, 0], 4, "red")).toThrow(TypeError);
+    expect(context.operations).toEqual([]);
+  });
+});
+
+describe("Rounded rectangles and measured text in a real browser", () => {
+  test("round the corners a game draws, and measure text as it draws it", async () => {
+    const result = await Bun.build({
+      entrypoints: ["packages/js-game-zero/src/browser.ts"],
+      target: "browser",
+      format: "iife",
+    });
+    expect(result.success).toBe(true);
+    const bundle = await result.outputs[0]?.text();
+    if (!bundle) throw new Error("Missing script-tag bundle.");
+
+    const game = (density: number) => `
+WIDTH = 200
+HEIGHT = 120
+PIXEL_DENSITY = ${density}
+let label = null
+let wrapped = null
+function draw() {
+  screen.fill("black")
+  screen.roundedRect(20, 20, 100, 60, 20, "white")
+  screen.draw.filledRoundedRect([130, 20, 60, 20], 50, "red")
+  screen.draw.roundedRect([130, 60, 60, 40], 10, "lime", 4)
+  label = screen.measureText("Play again", { size: 20, bold: true })
+  wrapped = screen.measureText("one two three four", [0, 0], { size: 16, width: 60 })
+  screen.draw.text("Play again", [10, 90], { size: 20, bold: true, color: "yellow" })
+}
+`;
+
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.addScriptTag({ content: bundle });
+      const results = await page.evaluate(
+        async (sources) => {
+          const jgz = window.JGZ!;
+          const played = [];
+          for (const source of sources) {
+            const canvas = document.createElement("canvas");
+            document.body.append(canvas);
+            const handle = jgz.run(source, { canvas, autostart: false });
+            await handle.ready;
+            handle.step(1 / 60);
+            const inspector = jgz.getGameInspector(handle)!;
+            const context = canvas.getContext("2d")!;
+            const density = canvas.width / 200;
+            const pixel = (x: number, y: number): number[] => [
+              ...context.getImageData(
+                Math.floor(x * density),
+                Math.floor(y * density),
+                1,
+                1,
+              ).data,
+            ];
+            // The rightmost column with yellow in it, in screen pixels.
+            let inkRight = 0;
+            const rows = context.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height,
+            );
+            for (let y = Math.floor(88 * density); y < rows.height; y += 1) {
+              for (let x = 0; x < rows.width; x += 1) {
+                const at = (y * rows.width + x) * 4;
+                if (rows.data[at]! > 128 && rows.data[at + 2]! < 100) {
+                  inkRight = Math.max(inkRight, (x + 1) / density);
+                }
+              }
+            }
+            played.push({
+              label: inspector.inspect("label"),
+              wrapped: inspector.inspect("wrapped"),
+              drawn: inspector.inspect("$drawn"),
+              inkRight,
+              roundedCorner: pixel(22, 22),
+              roundedEdge: pixel(70, 21),
+              roundedInside: pixel(30, 30),
+              pillCorner: pixel(131, 21),
+              pillEnd: pixel(131, 30),
+              outlineEdge: pixel(160, 61),
+              outlineInside: pixel(160, 80),
+              outlineCorner: pixel(130, 60),
+            });
+            handle.stop();
+          }
+          return played;
+        },
+        [game(1), game(2)],
+      );
+
+      const [plain, dense] = results;
+      if (!plain || !dense) throw new Error("Missing game results.");
+      const black = [0, 0, 0, 255];
+      expect(plain.roundedCorner).toEqual(black);
+      expect(plain.roundedEdge).toEqual([255, 255, 255, 255]);
+      expect(plain.roundedInside).toEqual([255, 255, 255, 255]);
+      expect(plain.pillCorner).toEqual(black);
+      expect(plain.pillEnd).toEqual([255, 0, 0, 255]);
+      expect(plain.outlineEdge).toEqual([0, 255, 0, 255]);
+      expect(plain.outlineInside).toEqual(black);
+      expect(plain.outlineCorner).toEqual(black);
+
+      const label = plain.label as unknown as TextSize;
+      expect(label).toEqual({
+        width: expect.any(Number),
+        height: 24,
+        lines: ["Play again"],
+      });
+      // The text drawn with the same options has the box that was measured,
+      // and its last ink a pixel or two inside it.
+      expect(plain.drawn).toContainEqual({
+        kind: "text",
+        text: "Play again",
+        x: 10,
+        y: 90,
+        width: label.width,
+        height: 24,
+        color: "yellow",
+      });
+      expect(plain.inkRight).toBeLessThanOrEqual(10 + label.width + 1);
+      expect(plain.inkRight).toBeGreaterThan(10 + label.width - 4);
+      expect(plain.wrapped).toMatchObject({
+        height: 16 * 1.2 * 3,
+        lines: ["one two", "three", "four"],
+      });
+      expect((plain.wrapped as { width: number }).width).toBeLessThan(60);
+      expect(plain.drawn).toContainEqual({
+        kind: "rect",
+        x: 20,
+        y: 20,
+        width: 100,
+        height: 60,
+        color: "white",
+        filled: true,
+        radius: 20,
+      });
+      // Logical pixels, whatever the density.
+      expect(dense.label).toEqual(plain.label);
+      expect(dense.wrapped).toEqual(plain.wrapped);
+      expect(dense.roundedCorner).toEqual(black);
+      expect(dense.pillEnd).toEqual([255, 0, 0, 255]);
+    } finally {
+      await browser.close();
+    }
   });
 });
 

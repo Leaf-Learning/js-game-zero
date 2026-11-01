@@ -2620,6 +2620,43 @@ function draw() {
     await handle.dispose();
   });
 
+  test("game files get rounded rects and measureText, and guesses at them point to them", async () => {
+    const { handle } = start(`const kinds = [
+  screen.roundedRect,
+  screen.draw.roundedRect,
+  screen.draw.filledRoundedRect,
+  screen.measureText,
+].map((call) => typeof call);
+`);
+    expect(getGameInspector(handle)?.read("kinds")).toEqual([
+      "function",
+      "function",
+      "function",
+      "function",
+    ]);
+    await handle.dispose();
+    const pointsTo: [string, string][] = [
+      ["screen.rounded_rect", "screen.roundedRect"],
+      ["screen.roundRect", "screen.roundedRect"],
+      ["screen.draw.roundRect", "screen.draw.roundedRect"],
+      ["screen.draw.filled_rounded_rect", "screen.draw.filledRoundedRect"],
+      ["screen.draw.fillRoundedRect", "screen.draw.filledRoundedRect"],
+      ["screen.draw.fillRoundRect", "screen.draw.filledRoundedRect"],
+      ["screen.drawRoundedRect", "screen.draw.roundedRect"],
+      ["screen.roundedRectangle", "screen.draw.roundedRect"],
+      ["screen.measure_text", "screen.measureText"],
+      ["screen.textWidth", "screen.measureText"],
+      ["screen.textSize", "screen.measureText"],
+      ["screen.draw.measureText", "screen.measureText"],
+      ["screen.draw.textWidth", "screen.measureText"],
+    ];
+    for (const [guess, meant] of pointsTo) {
+      expect(startupError(`${guess};`)).toBe(
+        `TypeError: ${guess} doesn't exist. Did you mean ${meant}?`,
+      );
+    }
+  });
+
   test("a capitalised class name, or a helper, names what was written in its errors", async () => {
     const { handle } = start(`const made = new Clock();
 const kind = typeof Screen;

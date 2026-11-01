@@ -131,6 +131,16 @@ export type DrawText = {
   (text: string, pos: Point | undefined, options?: TextOptions): void;
 };
 
+/** How big `screen.measureText` finds text, as `screen.draw.text` would draw it. */
+export type TextSize = {
+  /** Its widest line's width. */
+  readonly width: number;
+  /** Its lines' height together: as many lines as it has, each `lineheight` tall. */
+  readonly height: number;
+  /** The lines it breaks into: at each newline, and where a `width` wraps it. */
+  readonly lines: readonly string[];
+};
+
 export type TextLayout = {
   readonly lines: readonly string[];
   readonly font: string;
@@ -232,6 +242,8 @@ type ShortForm = {
   readonly arity: number;
   readonly lists: string;
   readonly extra: string;
+  /** What to say when a color is where the last number belongs. */
+  readonly colorTooSoon?: string;
 };
 
 const shortForms = {
@@ -253,6 +265,17 @@ const shortForms = {
     extra:
       "screen.rect always fills, so it has no outline width. For an outline, use screen.draw.rect([x, y, width, height], color, width).",
   },
+  roundedRect: {
+    call: "screen.roundedRect(x, y, width, height, radius, color)",
+    numbers: ["x", "y", "width", "height", "radius"],
+    arity: 6,
+    lists:
+      'screen.roundedRect takes x, y, width, height and radius as five numbers, like screen.roundedRect(40, 40, 120, 60, 12, "orange"). For a list or a Rect, use screen.draw.filledRoundedRect([x, y, width, height], radius, color).',
+    extra:
+      "screen.roundedRect always fills, so it has no outline width. For an outline, use screen.draw.roundedRect([x, y, width, height], radius, color, width).",
+    colorTooSoon:
+      'screen.roundedRect takes the corners\' radius before the color, like screen.roundedRect(40, 40, 120, 60, 12, "orange").',
+  },
   triangle: {
     call: "screen.triangle(x1, y1, x2, y2, x3, y3, color)",
     numbers: ["x1", "y1", "x2", "y2", "x3", "y3"],
@@ -272,6 +295,12 @@ const shortForms = {
       "screen.line takes at most six values: screen.line(x1, y1, x2, y2, color, width).",
   },
 } as const satisfies Record<string, ShortForm>;
+
+/** How the `screen.draw` rounded rectangles are called, for their errors. */
+const roundedRectCalls = {
+  outline: "screen.draw.roundedRect(rect, radius, color, width)",
+  filled: "screen.draw.filledRoundedRect(rect, radius, color)",
+} as const;
 
 let currentScreen: Screen | null = null;
 
@@ -485,6 +514,40 @@ export class Screen {
       this.drawRect(rect, color, width),
     filledRect: (rect: RectLike, color: Color): void =>
       this.drawRect(rect, color, 0, true),
+    /** Its corners are rounded `radius` round, at most half its shorter side. */
+    roundedRect: (
+      rect: RectLike,
+      radius: number,
+      color: Color,
+      width = 1,
+    ): void =>
+      this.drawRoundedRect(
+        roundedRectCalls.outline,
+        rect,
+        radius,
+        color,
+        width,
+      ),
+    filledRoundedRect: ((
+      rect: RectLike,
+      radius: number,
+      color: Color,
+      ...extra: unknown[]
+    ): void => {
+      if (extra.length > 0) {
+        throw new TypeError(
+          `screen.draw.filledRoundedRect always fills, so it has no outline width. For an outline, use ${roundedRectCalls.outline}.`,
+        );
+      }
+      this.drawRoundedRect(
+        roundedRectCalls.filled,
+        rect,
+        radius,
+        color,
+        0,
+        true,
+      );
+    }) as (rect: RectLike, radius: number, color: Color) => void,
     text: ((
       text: string,
       posOrOptions?: Point | TextOptions,
@@ -622,6 +685,29 @@ export class Screen {
     this.drawRect([x, y, width, height], color, 0, true);
   }
 
+  /**
+   * A filled rectangle like `screen.rect`'s, with its corners rounded
+   * `radius` round. The radius comes before the color, as a circle's does.
+   */
+  roundedRect(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+    color: Color = "white",
+  ): void {
+    requireShortForm(shortForms.roundedRect, arguments);
+    this.drawRoundedRect(
+      shortForms.roundedRect.call,
+      [x, y, width, height],
+      radius,
+      color,
+      0,
+      true,
+    );
+  }
+
   triangle(
     x1: number,
     y1: number,
@@ -671,6 +757,39 @@ export class Screen {
   ): void {
     requireTextShortForm(arguments);
     this.drawText(String(text), [x, y], { color, fontsize: size });
+  }
+
+  /**
+   * How big `screen.draw.text` would draw `text`, measured the way it lays
+   * it out: its widest line's width, its lines' height together, and the
+   * lines. It takes what `screen.draw.text` takes, so a label is measured
+   * with the arguments it's drawn with; where it goes doesn't change its
+   * size. It draws nothing.
+   */
+  measureText(text: string | number, options?: TextOptions): TextSize;
+  measureText(
+    text: string | number,
+    pos: Point | undefined,
+    options?: TextOptions,
+  ): TextSize;
+  measureText(
+    text: string | number,
+    posOrOptions?: Point | TextOptions,
+    maybeOptions?: TextOptions,
+  ): TextSize {
+    requireMeasureText(arguments);
+    const { pos, options } = textArguments(
+      "screen.measureText",
+      'measureText("Hi", { size: 20 })',
+      posOrOptions,
+      maybeOptions,
+    );
+    const layout = layoutText(this.context, String(text), pos, options);
+    return {
+      width: layout.textWidth,
+      height: layout.boxHeight,
+      lines: [...layout.lines],
+    };
   }
 
   private drawSurface(surface: SurfaceLike, pos: Point | RectLike): void {
@@ -806,26 +925,51 @@ export class Screen {
     });
   }
 
+  /** `call` is how the method that drew it is called, for its errors. */
+  private drawRoundedRect(
+    call: string,
+    rectLike: RectLike,
+    radius: unknown,
+    color: Color,
+    width: number,
+    filled = false,
+  ): void {
+    const rect = new Rect(rectLike);
+    const parsedRadius = requireRadius(call, radius);
+    recordDrawn(this, {
+      kind: "rect",
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      color: colorOf(color),
+      filled,
+      radius: parsedRadius,
+    });
+    withSavedCanvasState(this.context, () => {
+      traceRoundedRect(this.context, rect, parsedRadius);
+      if (filled) {
+        this.context.fillStyle = normalizeColor(color);
+        this.context.fill();
+      } else {
+        this.context.strokeStyle = normalizeColor(color);
+        this.context.lineWidth = requirePositiveNumber(width, "width");
+        this.context.stroke();
+      }
+    });
+  }
+
   private drawText(
     text: string,
     posOrOptions: Point | TextOptions | undefined,
     maybeOptions: TextOptions | undefined,
   ): void {
-    let pos: Point | undefined;
-    let given: TextOptions;
-    if (isPlainOptions(posOrOptions)) {
-      if (maybeOptions !== undefined) {
-        throw new TypeError(
-          'screen.draw.text takes its options once: either second, as in text("Hi", { center: [x, y] }), or third, after a position.',
-        );
-      }
-      given = posOrOptions;
-    } else {
-      pos = posOrOptions;
-      given = maybeOptions ?? {};
-    }
-    rejectUnknownOptions(given, textOptionKeys, "screen.draw.text");
-    const options = canonicalTextOptions(given, "screen.draw.text");
+    const { pos, options } = textArguments(
+      "screen.draw.text",
+      'text("Hi", { center: [x, y] })',
+      posOrOptions,
+      maybeOptions,
+    );
     const layout = layoutText(this.context, text, pos, options);
     // Where its box is, however it was placed (a point, center, an anchor).
     recordDrawn(this, {
@@ -899,6 +1043,34 @@ function isPlainOptions(value: unknown): value is TextOptions {
   if (typeof value !== "object" || value === null) return false;
   const prototype = Object.getPrototypeOf(value) as unknown;
   return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Sorts out the arguments `screen.draw.text` and `screen.measureText` take:
+ * a position and options, or options alone in its place. `example` shows the
+ * second way in the error for options given both ways.
+ */
+function textArguments(
+  label: string,
+  example: string,
+  posOrOptions: Point | TextOptions | undefined,
+  maybeOptions: TextOptions | undefined,
+): { pos: Point | undefined; options: TextOptions } {
+  let pos: Point | undefined;
+  let given: TextOptions;
+  if (isPlainOptions(posOrOptions)) {
+    if (maybeOptions !== undefined) {
+      throw new TypeError(
+        `${label} takes its options once: either second, as in ${example}, or third, after a position.`,
+      );
+    }
+    given = posOrOptions;
+  } else {
+    pos = posOrOptions;
+    given = maybeOptions ?? {};
+  }
+  rejectUnknownOptions(given, textOptionKeys, label);
+  return { pos, options: canonicalTextOptions(given, label) };
 }
 
 /** Rewrites readable option names (`size`) to the names layout reads (`fontsize`). */
@@ -1524,6 +1696,32 @@ function withTemporaryFont<T>(
   }
 }
 
+/**
+ * Starts a path around `rect` with its corners rounded `radius` round. The
+ * radius is at most half the rect's shorter side, so a larger one rounds a
+ * rect's short sides into half circles, and a square into a circle.
+ */
+function traceRoundedRect(
+  context: CanvasRenderingContext2D,
+  rect: Rect,
+  radius: number,
+): void {
+  // Measured from its top-left corner whichever way its width and height
+  // point, as fillRect does.
+  const left = Math.min(rect.left, rect.left + rect.width);
+  const top = Math.min(rect.top, rect.top + rect.height);
+  const right = left + Math.abs(rect.width);
+  const bottom = top + Math.abs(rect.height);
+  const r = Math.min(radius, (right - left) / 2, (bottom - top) / 2);
+  context.beginPath();
+  context.moveTo(left + r, top);
+  context.arc(right - r, top + r, r, -Math.PI / 2, 0);
+  context.arc(right - r, bottom - r, r, 0, Math.PI / 2);
+  context.arc(left + r, bottom - r, r, Math.PI / 2, Math.PI);
+  context.arc(left + r, top + r, r, Math.PI, Math.PI * 1.5);
+  context.closePath();
+}
+
 function withSavedCanvasState<T>(
   context: CanvasRenderingContext2D,
   callback: () => T,
@@ -1545,9 +1743,17 @@ function requireShortForm(form: ShortForm, args: ArrayLike<unknown>): void {
   const values = Array.from(args);
   const name = form.call.slice(0, form.call.indexOf("("));
   const numbers = values.slice(0, form.numbers.length);
-  if (numbers.some((value) => typeof value === "object" && value !== null)) {
-    throw new TypeError(form.lists);
+  const isList = (value: unknown): boolean =>
+    typeof value === "object" && value !== null;
+  const last = values[form.numbers.length - 1];
+  if (
+    form.colorTooSoon !== undefined &&
+    (typeof last === "string" || Array.isArray(last)) &&
+    !numbers.slice(0, -1).some(isList)
+  ) {
+    throw new TypeError(form.colorTooSoon);
   }
+  if (numbers.some(isList)) throw new TypeError(form.lists);
   form.numbers.forEach((label, index) => {
     const value = values[index];
     if (value === undefined) {
@@ -1605,6 +1811,65 @@ function requireTextShortForm(args: ArrayLike<unknown>): void {
       `screen.text takes at most five values: ${textCall}. For more options, use screen.draw.text.`,
     );
   }
+}
+
+const measureCall = "screen.measureText(text, options)";
+
+/**
+ * `screen.measureText` checks its text as `screen.text` does. Its size is an
+ * option, as `screen.draw.text`'s is, so a number after the text (a size,
+ * or an x copied from `screen.text`) says so.
+ */
+function requireMeasureText(args: ArrayLike<unknown>): void {
+  const [text, second] = Array.from(args);
+  if (text === undefined) {
+    throw new TypeError(`screen.measureText is missing text: ${measureCall}.`);
+  }
+  if (
+    typeof text !== "string" &&
+    !(typeof text === "number" && Number.isFinite(text))
+  ) {
+    throw new TypeError(
+      `screen.measureText's text must be words in quotes or a number, but got ${describeValue(text)}.`,
+    );
+  }
+  if (typeof second === "number") {
+    throw new TypeError(
+      'screen.measureText takes its size in its options, as screen.draw.text does: screen.measureText("Score: 3", { size: 32 }) measures what screen.text("Score: 3", x, y, color, 32) draws.',
+    );
+  }
+  if (args.length > 3) {
+    throw new TypeError(
+      `screen.measureText takes the text and its options: ${measureCall}. It also takes a position before the options, as screen.draw.text does, but nothing more.`,
+    );
+  }
+}
+
+/**
+ * A rounded rectangle's radius, which comes before its color as a circle's
+ * does. A color where it belongs says so.
+ */
+function requireRadius(call: string, radius: unknown): number {
+  const name = call.slice(0, call.indexOf("("));
+  if (radius === undefined) {
+    throw new TypeError(`${name} is missing radius: ${call}.`);
+  }
+  if (typeof radius === "string" || Array.isArray(radius)) {
+    throw new TypeError(
+      `${name} takes the corners' radius before the color: ${call}.`,
+    );
+  }
+  if (typeof radius !== "number" || !Number.isFinite(radius)) {
+    throw new TypeError(
+      `${name}'s radius must be a number, but got ${describeValue(radius)}.`,
+    );
+  }
+  if (radius < 0) {
+    throw new TypeError(
+      `${name}'s radius must be 0 or more, but got ${radius}.`,
+    );
+  }
+  return radius;
 }
 
 function requirePositiveNumber(value: unknown, label: string): number {

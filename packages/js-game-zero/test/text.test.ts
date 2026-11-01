@@ -271,6 +271,132 @@ describe("beginner-friendly text calls", () => {
   });
 });
 
+describe("screen.measureText", () => {
+  // The mock measures each character half its font size wide.
+  test("measures as draw.text lays out: the widest line, the lines' height, and the lines", () => {
+    const { screen, context } = screenAndContext();
+    expect(screen.measureText("Play again", { size: 20 })).toEqual({
+      width: 100,
+      height: 24,
+      lines: ["Play again"],
+    });
+    expect(screen.measureText("Hi\nthere", { size: 10 })).toEqual({
+      width: 25,
+      height: 24,
+      lines: ["Hi", "there"],
+    });
+    // Wrapped at a width, it's as wide as its widest line, and lineheight
+    // spaces its lines.
+    expect(
+      screen.measureText("hello bright world", {
+        size: 10,
+        width: 70,
+        lineheight: 15,
+      }),
+    ).toEqual({ width: 60, height: 30, lines: ["hello bright", "world"] });
+    expect(
+      screen.measureText("hello bright world", { size: 10, widthem: 7 }).lines,
+    ).toEqual(["hello bright", "world"]);
+    // It draws nothing, and leaves the canvas's font as it was.
+    expect(context.operations).toEqual([]);
+    expect(context.font).toBe("10px sans-serif");
+  });
+
+  test("gives the box draw.text puts unwrapped text in", () => {
+    const { screen, context } = screenAndContext();
+    const layout = layoutText(
+      context as unknown as CanvasRenderingContext2D,
+      "Start",
+      undefined,
+      { center: [80, 60], fontsize: 20, bold: true },
+    );
+    expect(
+      screen.measureText("Start", { center: [80, 60], size: 20, bold: true }),
+    ).toEqual({
+      width: layout.boxWidth,
+      height: layout.boxHeight,
+      lines: ["Start"],
+    });
+  });
+
+  test("measures in the font draw.text would draw in", () => {
+    const { screen, context } = screenAndContext();
+    const measured: string[] = [];
+    const measure = context.measureText.bind(context);
+    context.measureText = (text: string): TextMetrics => {
+      measured.push(context.font);
+      return measure(text);
+    };
+    screen.measureText("Hi", {
+      size: 18,
+      bold: true,
+      italic: true,
+      sysfontname: "Georgia",
+    });
+    expect(measured).toEqual(['italic bold 18px "Georgia"']);
+  });
+
+  test("takes draw.text's arguments: a position and options, or options in its place", () => {
+    const { screen } = screenAndContext();
+    const expected = screen.measureText("Score: 3", { size: 16 });
+    expect(screen.measureText("Score: 3", [20, 30], { size: 16 })).toEqual(
+      expected,
+    );
+    // Where it goes and how it looks don't change its size.
+    expect(
+      screen.measureText("Score: 3", {
+        size: 16,
+        topRight: [150, 10],
+        color: "gold",
+        outline: 2,
+        angle: 30,
+      }),
+    ).toEqual(expected);
+    expect(screen.measureText("Score: 3", { fontsize: 16 })).toEqual(expected);
+    // A number is measured as it reads, and the size is 24 unless given.
+    expect(screen.measureText(12)).toEqual(
+      screen.measureText("12", { size: 24 }),
+    );
+  });
+
+  test("says what to change when a call is wrong", () => {
+    const { screen } = screenAndContext();
+    const loose = screen as unknown as Record<
+      string,
+      (...args: unknown[]) => unknown
+    >;
+    expect(() => loose.measureText!()).toThrow(
+      "screen.measureText is missing text: screen.measureText(text, options).",
+    );
+    expect(() => loose.measureText!({ size: 20 })).toThrow(
+      `screen.measureText's text must be words in quotes or a number, but got {"size":20}.`,
+    );
+    expect(() => loose.measureText!("Score: 3", 20, 30, "white", 32)).toThrow(
+      'screen.measureText takes its size in its options, as screen.draw.text does: screen.measureText("Score: 3", { size: 32 }) measures what screen.text("Score: 3", x, y, color, 32) draws.',
+    );
+    expect(() => loose.measureText!("Hi", [0, 0], {}, {})).toThrow(
+      "screen.measureText takes the text and its options: screen.measureText(text, options).",
+    );
+    expect(() => screen.measureText("Hi", { colour: "red" } as never)).toThrow(
+      "screen.measureText has no option called colour. Did you mean color?",
+    );
+    expect(() => screen.measureText("Hi", { size: 10, fontsize: 12 })).toThrow(
+      "screen.measureText got both size and fontsize; they mean the same thing, so give just one.",
+    );
+    expect(() =>
+      screen.measureText("Hi", { center: [1, 1] } as never, { size: 9 }),
+    ).toThrow(
+      'screen.measureText takes its options once: either second, as in measureText("Hi", { size: 20 }), or third, after a position.',
+    );
+    // draw.text's own message is unchanged.
+    expect(() =>
+      screen.draw.text("Hi", { center: [1, 1] } as never, { size: 9 }),
+    ).toThrow(
+      'screen.draw.text takes its options once: either second, as in text("Hi", { center: [x, y] }), or third, after a position.',
+    );
+  });
+});
+
 describe("draw.textbox", () => {
   test("chooses the largest font size that fits the target rect", () => {
     const context = new MockContext();

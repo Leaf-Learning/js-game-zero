@@ -2,6 +2,28 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
+## Unreleased
+
+### Drawing
+
+- Rounded rectangles: `screen.roundedRect(x, y, width, height, radius,
+color)` fills one, and `screen.draw.roundedRect(rect, radius, color,
+width = 1)` and `screen.draw.filledRoundedRect(rect, radius, color)` take
+  a list or a `Rect`, as `screen.draw.rect` does. The radius comes before
+  the color, as a circle's does. A radius past half the shorter side rounds
+  the short sides into half circles, for a pill. `$drawn` records one as a
+  `rect` with its `radius`.
+- `screen.measureText(text, options)` says how big `screen.draw.text` would
+  draw some text, as `{ width, height, lines }`: its widest line's width,
+  its lines' height together, and the lines it wraps into. It takes the
+  arguments `screen.draw.text` takes, so a label is measured with the
+  options it's drawn with, and it measures as `screen.draw.text` lays out.
+- Wrong calls say what to change, as the other drawing calls' do: a color
+  where a radius belongs, a negative radius, an outline width given to a
+  filled rounded rect, a size given to `measureText` as a number rather
+  than an option. Guesses such as `screen.draw.roundRect`,
+  `screen.draw.fillRoundedRect` and `screen.textWidth` name the real call.
+
 ## 0.3.0 — 2026-10-31
 
 ### One package: js-game-zero

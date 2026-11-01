@@ -106,6 +106,7 @@ export type {
   TextAlignOption,
   TextAnchor,
   TextOptions,
+  TextSize,
   TextboxOptions,
   VerticalAnchor,
 } from "./rendering";

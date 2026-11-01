@@ -144,6 +144,55 @@ function draw() {
   handle.stop();
 });
 
+test("a rounded rect is a rect with its radius, and measuring text draws nothing", () => {
+  const handle = run(
+    `
+function draw() {
+  screen.roundedRect(10, 20, 30, 40, 6, "gold")
+  screen.measureText("Not drawn", { size: 20 })
+  screen.draw.roundedRect([1, 2, 3, 4], 0, "red", 2)
+  screen.draw.filledRoundedRect([5, 6, 7, 8], 99, "blue")
+}
+`,
+    { canvas: new QuietCanvas() as unknown as RuntimeCanvas, autostart: false },
+  );
+  const inspector = getGameInspector(handle)!;
+  handle.step(1 / 60);
+  expect(inspector.inspect("$drawn")).toEqual([
+    {
+      kind: "rect",
+      x: 10,
+      y: 20,
+      width: 30,
+      height: 40,
+      color: "gold",
+      filled: true,
+      radius: 6,
+    },
+    {
+      kind: "rect",
+      x: 1,
+      y: 2,
+      width: 3,
+      height: 4,
+      color: "red",
+      filled: false,
+      radius: 0,
+    },
+    {
+      kind: "rect",
+      x: 5,
+      y: 6,
+      width: 7,
+      height: 8,
+      color: "blue",
+      filled: true,
+      radius: 99,
+    },
+  ]);
+  handle.stop();
+});
+
 test("an Actor drawn is recorded with its picture and position", () => {
   const loader = createImageLoader({
     projectId: "test_project",

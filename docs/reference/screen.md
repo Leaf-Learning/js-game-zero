@@ -6,16 +6,17 @@ y grows down, and `[WIDTH, HEIGHT]` is the bottom-right corner.
 
 ## Short forms
 
-Five short calls draw the most common shapes and text, with each position
+Six short calls draw the most common shapes and text, with each position
 given as separate numbers rather than an `[x, y]` list:
 
-| Call                                             | Draws                                              |
-| ------------------------------------------------ | -------------------------------------------------- |
-| `screen.circle(x, y, radius, color)`             | a filled circle centered on `x, y`                 |
-| `screen.rect(x, y, width, height, color)`        | a filled rectangle whose top-left corner is `x, y` |
-| `screen.triangle(x1, y1, x2, y2, x3, y3, color)` | a filled triangle with those three corners         |
-| `screen.line(x1, y1, x2, y2, color, width = 1)`  | a line from `x1, y1` to `x2, y2`, `width` px thick |
-| `screen.text(text, x, y, color, size = 24)`      | text whose top-left corner is `x, y`, `size` tall  |
+| Call                                                     | Draws                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------- |
+| `screen.circle(x, y, radius, color)`                     | a filled circle centered on `x, y`                      |
+| `screen.rect(x, y, width, height, color)`                | a filled rectangle whose top-left corner is `x, y`      |
+| `screen.roundedRect(x, y, width, height, radius, color)` | the same rectangle with its corners rounded `radius` px |
+| `screen.triangle(x1, y1, x2, y2, x3, y3, color)`         | a filled triangle with those three corners              |
+| `screen.line(x1, y1, x2, y2, color, width = 1)`          | a line from `x1, y1` to `x2, y2`, `width` px thick      |
+| `screen.text(text, x, y, color, size = 24)`              | text whose top-left corner is `x, y`, `size` tall       |
 
 `color` is optional and defaults to `"white"`; it takes any of the
 [colors](#colors) below.
@@ -24,6 +25,7 @@ given as separate numbers rather than an `[x, y]` list:
 function draw() {
   screen.clear();
   screen.rect(0, 220, 400, 80, "green");
+  screen.roundedRect(280, 20, 100, 40, 12, "purple");
   screen.circle(200, 150, 25, "gold");
   screen.triangle(160, 40, 120, 120, 200, 120);
   screen.line(20, 20, 200, 120, "white", 3);
@@ -38,13 +40,15 @@ center, wrap it or give it an outline, use
 The short forms fill their shapes. The outline versions, and the versions
 that take `[x, y]` lists, stay under `screen.draw` below. Mind the names:
 **`screen.circle` fills, but `screen.draw.circle` draws only an outline**,
-and the same goes for `screen.rect` and `screen.draw.rect`.
+and the same goes for `screen.rect` and `screen.draw.rect`, and for
+`screen.roundedRect` and `screen.draw.roundedRect`.
 
 A wrong call throws a `TypeError` that says what to change. A list, as in
 `screen.circle([200, 150], 25)`, points to the `screen.draw` method that
 takes lists (here `screen.draw.filledCircle`). A missing or non-number
 argument is named, and an extra one, such as an outline width, points to
-the outline method.
+the outline method. `screen.roundedRect` takes its radius before its color,
+as `screen.circle` does, and a color where the radius belongs says so.
 
 ## Colors
 
@@ -183,6 +187,26 @@ screen.draw.filledRect([40, 40, 120, 60], "#f97316");
 screen.draw.rect(player.rect(), "yellow", 2); // highlight a hitbox
 ```
 
+## `screen.draw.roundedRect(rect, radius, color, width = 1)` / `filledRoundedRect(rect, radius, color)`
+
+A rectangle with its corners rounded: each corner is a quarter of a circle
+`radius` pixels round. `rect` takes what `screen.draw.rect` takes, and the
+radius comes before the color, as a circle's does. `roundedRect` draws an
+outline, `width` pixels thick; `filledRoundedRect` and the short form
+[`screen.roundedRect`](#short-forms) fill.
+
+```js
+screen.draw.filledRoundedRect([40, 40, 160, 48], 12, "#f97316"); // a button
+screen.draw.roundedRect([40, 40, 160, 48], 12, "white", 2); // its border
+screen.draw.filledRoundedRect([40, 110, 160, 30], 15, "#22c55e"); // a pill
+```
+
+A radius of `0` gives square corners. A radius bigger than half the
+rectangle's height (or width, if that's shorter) is drawn as that half, so
+its short sides are half circles: a pill, or a circle for a square. A
+negative radius, or a color where the radius belongs, throws a `TypeError`
+that says what to change.
+
 ## `screen.draw.polygon(points, color, width = 1)` / `filledPolygon(points, color)`
 
 Needs at least three points.
@@ -311,3 +335,58 @@ screen.draw.textbox("You win!", [40, 60, 240, 80], {
   size: 48, // upper bound; shrinks to fit if "You win!" would overflow
 });
 ```
+
+## `screen.measureText(text, options?)`
+
+How big `screen.draw.text` would draw some text. It returns
+`{ width, height, lines }`, in screen pixels, and draws nothing:
+
+- `width` — the widest line's width.
+- `height` — the lines' height together: one `lineheight` (`size * 1.2`
+  unless given) for each line.
+- `lines` — the lines the text breaks into, at each `\n` and, with a
+  `width` option, where it wraps.
+
+It takes the options `screen.draw.text` takes (`size`, `fontname`,
+`sysfontname`, `bold`, `italic`, `width`, `widthem`, `lineheight`,
+`strip`) and measures the text the way `screen.draw.text` lays it out
+with them. Options that only place or color the text (`center`, `color`,
+`outline`, `angle`, ...) are allowed too, and change nothing, so you can
+measure a label with the same options you draw it with. A position before
+the options, as in `screen.draw.text(text, [x, y], options)`, is allowed
+for the same reason.
+
+```js
+let options = { midLeft: [40, 200], size: 20 };
+screen.draw.text("Play again", options);
+let label = screen.measureText("Play again", options);
+// A dot just right of the label, whatever its font and size.
+screen.circle(40 + label.width + 12, 200, 5, "gold");
+```
+
+Measuring a button's label tells you how big to draw the button:
+
+```js
+let size = screen.measureText("Start", { size: 24 });
+let box = [100, 100, size.width + 32, size.height + 16];
+screen.draw.filledRoundedRect(box, 12, "#2563eb");
+screen.draw.text("Start", {
+  center: [100 + box[2] / 2, 100 + box[3] / 2],
+  size: 24,
+});
+```
+
+Without a `width` option, the size it returns is the size of the box
+`screen.draw.text` places, so `center` (or any other anchor) puts the text
+where that size says it goes. With a `width` option, `screen.draw.text`'s
+box is that wide, and the `width` it returns says how much of it the
+lines fill. An outline or shadow draws a little outside the measured size.
+
+Measure where you draw, in `draw()`: a font from `fonts/` measures right
+once it has loaded, and the game holds its frames while it loads.
+
+`text` is words in quotes or a number. A wrong call throws a `TypeError`
+that says what to change: an option `screen.draw.text` doesn't have is
+named with the closest real one, and a number after the text, as in
+`screen.measureText("Score", 32)`, says to give the size as an option,
+`{ size: 32 }`.

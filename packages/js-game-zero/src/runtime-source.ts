@@ -134,6 +134,8 @@ const drawMethods = [
   "filledPolygon",
   "rect",
   "filledRect",
+  "roundedRect",
+  "filledRoundedRect",
   "text",
   "textbox",
   "image",
@@ -142,10 +144,12 @@ const drawMethods = [
 /**
  * Where guesses at drawing methods belong: `screen.drawRect`,
  * `screen.polygon` and `screen.draw.fillRect` all point at the real
- * `screen.draw` method. (`screen.circle`, `screen.rect`, `screen.line` and
- * `screen.text` are real short forms, so another spelling of one, such as
- * `screen.Circle`, points at the short form instead.) There is no
- * `screen.draw.triangle`, so it points at the short form.
+ * `screen.draw` method. (`screen.circle`, `screen.rect`,
+ * `screen.roundedRect`, `screen.line` and `screen.text` are real short
+ * forms, so another spelling of one, such as `screen.Circle`, points at the
+ * short form instead.) There is no `screen.draw.triangle`, so it points at
+ * the short form, and guesses at measuring text, like `screen.textWidth` or
+ * `screen.draw.measureText`, point at `screen.measureText`.
  */
 const screenHints: Record<string, string> = Object.fromEntries([
   ...drawMethods.flatMap((name) => {
@@ -164,6 +168,18 @@ const screenHints: Record<string, string> = Object.fromEntries([
   ["drawrectangle", "screen.draw.rect"],
   ["triangle", "screen.triangle"],
   ["filledtriangle", "screen.triangle"],
+  ["fillroundrect", "screen.draw.filledRoundedRect"],
+  ["roundedrectangle", "screen.draw.roundedRect"],
+  ["filledroundedrectangle", "screen.draw.filledRoundedRect"],
+  ...[
+    "measuretext",
+    "measure",
+    "textsize",
+    "textwidth",
+    "textheight",
+    "gettextsize",
+    "gettextwidth",
+  ].map((name) => [name, "screen.measureText"]),
 ]);
 
 /**
@@ -221,6 +237,7 @@ const screenInternals = [
   "drawCircle",
   "drawPolygon",
   "drawRect",
+  "drawRoundedRect",
   "drawText",
   "drawTextbox",
 ];
