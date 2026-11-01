@@ -2,7 +2,7 @@
 
 All notable changes to `js-game-zero` are recorded here.
 
-## Unreleased
+## 0.4.0 — 2026-11-01
 
 ### Drawing
 
